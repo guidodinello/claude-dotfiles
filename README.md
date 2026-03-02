@@ -44,6 +44,12 @@ git push
 
 `add_file.sh` moves the file into the repo and creates a symlink back, so your live Claude Code setup and the repo stay in sync automatically.
 
+## Docs
+
+- [Recommended plugins](docs/recommended-plugins.md) — curated MCP, LSP, and skill/agent plugins worth having
+- [Plugins, LSP & MCP guide](docs/plugins-lsp-mcp-guide.md) — token cost model, per-project enabling, env vars
+- [Claude usage insights](docs/claude-usage-insights.md) — token/cost patterns and optimization notes
+
 ## Wiring the auto-format hook
 
 The hook detects the stack automatically using local binaries (`node_modules/.bin`, `vendor/bin`) — no configuration needed per project. To enable it globally, add to `~/.claude/settings.json`:
