@@ -97,6 +97,28 @@ Prefer native Tailwind 4 scale values over arbitrary ones.
 | Font Weight/Medium | `font-medium` |
 | Font Weight/Bold | `font-bold` |
 
+### Font weight is often state-dependent
+
+Figma commonly specifies different font weights per interaction state (e.g. Regular for default, Medium for hover/active). Don't put `font-medium` in the layout/size variant — it belongs in the interaction state variant:
+
+```tsx
+// ❌ hardcodes font-medium for all states
+collapsed: {
+  false: "w-full h-12 gap-2 px-3 text-base font-medium justify-start",
+},
+
+// ✅ weight lives in the state variant
+collapsed: {
+  false: "w-full h-12 gap-2 px-3 text-base justify-start",
+},
+active: {
+  true: "font-medium ...",
+  false: "font-normal ... hover:font-medium",
+},
+```
+
+Check the Figma spec for each state (default / hover / selected / disabled) independently — don't assume weight is constant across states.
+
 ### Skip these Figma export properties
 
 - `line-height` — only add `leading-none` when Figma explicitly says `100%`; otherwise leave as default
@@ -107,14 +129,15 @@ Prefer native Tailwind 4 scale values over arbitrary ones.
 
 ### Color tokens
 
-| Figma token | Hex | Tailwind |
-|---|---|---|
-| Text-Neutral-Default | `#201E1C` | `text-neutral-900` |
-| Text-Neutral-Secondary | `#36322F` | `text-neutral-700` |
-| Border-Neutral-Tertiary | `#BBB7B3` | `border-neutral-300` |
-| Neutral-0 | `#FFFFFF` | `bg-white` |
+Check `app.css` first. If the project defines tokens in a `@theme` block, Tailwind 4 generates utility classes directly — **do not use the `(--var)` escape hatch for registered tokens**:
 
-> Check `app.css` first — if the project defines custom CSS variables in a `@theme` block, prefer `text-(--token-name)` over hardcoded hex values.
+| Token in `@theme` | Correct utility | ❌ Wrong |
+|---|---|---|
+| `--color-text-brand-default` | `text-text-brand-default` | `text-(--color-text-brand-default)` |
+| `--color-background-brand-tertiary` | `bg-background-brand-tertiary` | `bg-(--color-background-brand-tertiary)` |
+| `--shadow-sidebar` | `shadow-sidebar` | `shadow-(--shadow-sidebar)` |
+
+Rule: strip the type prefix (`--color-`, `--shadow-`, etc.) — what remains is the Tailwind utility suffix.
 
 ---
 
@@ -226,3 +249,5 @@ infoButton: "flex shrink-0 items-center gap-1 text-sm font-medium",
 - [ ] Images sized via wrapper, not `<img>` tag directly
 - [ ] Figma noise properties skipped (opacity: 1, angle: 0deg, etc.)
 - [ ] Colors use CSS variables from `app.css` when available
+- [ ] `@theme` tokens used as direct utility classes (`bg-background-brand-tertiary`), not as arbitrary CSS vars (`bg-(--color-background-brand-tertiary)`)
+- [ ] Font weight checked per interaction state — not hardcoded in layout variant
