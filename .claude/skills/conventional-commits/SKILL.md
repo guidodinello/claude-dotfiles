@@ -41,6 +41,7 @@ After providing commit commands, you should:
 
 - Staging commands (`git add`, `git rm`) for every commit
 - Never use `git mv` - files are already renamed, just stage with `git add`
+- Always single-quote paths containing `$` (e.g. TanStack Router dynamic segments like `$labId`) — unquoted `$` gets shell-expanded to empty string, silently breaking the staging command
 - Single-line commit messages (no description)
 - Chain commands with `&&` so execution stops on failure
 - Multiple granular commits (one per logical change)
@@ -87,28 +88,22 @@ This is intentional — it makes the change easier to review, bisect, and revert
 
 ```bash
 # 1. Database
-git add database/migrations/xxxx_drop_middle_name.php && \
-git commit -m "feat(database): drop middle_name column from users"
+git add database/migrations/xxxx_drop_middle_name.php && git commit -m "feat(database): drop middle_name column from users"
 
 # 2. Model
-git add app/Models/User.php && \
-git commit -m "refactor(users): remove middle_name from model"
+git add app/Models/User.php && git commit -m "refactor(users): remove middle_name from model"
 
 # 3. Business logic
-git add app/Actions/Users/UpdateUserAction.php && \
-git commit -m "refactor(users): remove middle_name from update action"
+git add app/Actions/Users/UpdateUserAction.php && git commit -m "refactor(users): remove middle_name from update action"
 
 # 4. API surface
-git add app/Http/Resources/UserResource.php app/Http/Requests/UpdateUserRequest.php && \
-git commit -m "refactor(users): remove middle_name from resource and request"
+git add app/Http/Resources/UserResource.php app/Http/Requests/UpdateUserRequest.php && git commit -m "refactor(users): remove middle_name from resource and request"
 
 # 5. Frontend contracts
-git add resources/js/schemas/user.ts && \
-git commit -m "refactor(users): remove middle_name from Zod schema"
+git add resources/js/schemas/user.ts && git commit -m "refactor(users): remove middle_name from Zod schema"
 
 # 6. Frontend UI
-git add resources/js/components/UserForm.tsx && \
-git commit -m "refactor(users): remove middle_name from user form"
+git add resources/js/components/UserForm.tsx && git commit -m "refactor(users): remove middle_name from user form"
 ```
 
 > **Note:** The repo may be in a broken state between these commits. That's acceptable and expected — the goal is clarity of intent per layer, not a green CI at every step.
@@ -151,70 +146,57 @@ Use the module, component, or area affected:
 
 ```bash
 # File already physically renamed — stage BOTH the new path and the old deletion
-git add src/new/path/File.php && \
-git rm src/old/path/File.php && \
-git commit -m "refactor(module): rename File to new location"
+git add src/new/path/File.php && git rm src/old/path/File.php && git commit -m "refactor(module): rename File to new location"
 ```
 
 ### Deleted Files
 
 ```bash
 # File already physically deleted
-git rm src/old/File.php && \
-git commit -m "refactor(module): remove deprecated File"
+git rm src/old/File.php && git commit -m "refactor(module): remove deprecated File"
 ```
 
 ### New Feature
 
 ```bash
-# Stage and commit new functionality
-git add path/to/file.ts && \
-git commit -m "feat(products): add search functionality"
+git add path/to/file.ts && git commit -m "feat(products): add search functionality"
 ```
 
 ### Related Files
 
 ```bash
-# Stage multiple related files and commit together
-git add path/to/file1.ts path/to/file2.ts && \
-git commit -m "refactor(components): extract shared utility functions"
+git add path/to/file1.ts path/to/file2.ts && git commit -m "refactor(components): extract shared utility functions"
 ```
 
 ### Multiple Commits for Different Changes
 
 ```bash
 # Commit 1: Renames
-git add src/new/path/*.ts && \
-git commit -m "refactor(structure): reorganize component files"
+git add src/new/path/*.ts && git commit -m "refactor(structure): reorganize component files"
 
 # Commit 2: New feature
-git add src/features/search/*.ts && \
-git commit -m "feat(search): implement advanced search filters"
+git add src/features/search/*.ts && git commit -m "feat(search): implement advanced search filters"
 
 # Commit 3: Test updates
-git add tests/features/search/*.test.ts && \
-git commit -m "test(search): add tests for advanced filters"
+git add tests/features/search/*.test.ts && git commit -m "test(search): add tests for advanced filters"
 
 # Commit 4: Documentation
-git add README.md docs/search.md && \
-git commit -m "docs(search): document new search features"
+git add README.md docs/search.md && git commit -m "docs(search): document new search features"
 ```
 
 ## Output Format
 
-Provide commands as a bash script that can be copied and executed:
+Provide commands as a bash script that can be copied and executed. **Always use single-line commands** — never use `\` line continuations, as they break when pasted into a terminal. Each commit is one line with `&&` chaining:
 
 ```bash
 # Reset staged changes (run this first)
 git reset
 
 # Commit 1: [Description of logical group]
-git add <files> && \
-git commit -m "type(scope): description"
+git add <file1> <file2> && git commit -m "type(scope): description"
 
 # Commit 2: [Description of logical group]
-git add <files> && \
-git commit -m "type(scope): description"
+git add <file1> <file2> && git commit -m "type(scope): description"
 
 # ... etc
 ```
