@@ -1,22 +1,38 @@
 ---
-name: clickup-task-description
-description: Generate a ClickUp subtask description for a completed backend feature. Use this skill whenever a developer asks to write, draft, or create a ClickUp task description, subtask description, or ticket description for backend work they've just implemented. Also trigger when the user says things like "write the description for this subtask", "help me document what I did for QA", or "write a ticket description for this backend change". Reads the relevant source files to understand what was built and produces a concise, QA-oriented description.
+name: post-implementation-handoff-comment
+description: >
+  Generate a post-implementation QA handoff comment for a completed backend
+  feature. Use this skill whenever a developer has finished implementing backend
+  work and needs to write a comment to post on the ClickUp card to inform QA
+  of what was built and what to verify. Trigger when the user says things like
+  "write a QA comment", "write the comment for this card", "post-implementation
+  comment", "handoff to QA", "write a ClickUp comment", "help me document what
+  I did for QA", or "write a ticket description for this backend change". Also
+  trigger when the user says "write the description for this subtask" or "write
+  a card comment" after finishing implementation. Reads the relevant source
+  files to understand what was built and produces a concise developer-to-QA
+  handoff note.
 disable-model-invocation: true
 ---
 
-# ClickUp Task Description
+# ClickUp QA Handoff Comment
 
-Generate a concise, QA-oriented ClickUp subtask description by reading the relevant source files to understand what was implemented.
+You're writing a post-implementation comment to be posted on the ClickUp card
+after the code is done. The audience is QA — they need to know what was shipped
+and what to verify, without reading the code. This is a developer-to-QA
+handoff note, not a ticket spec.
 
 ## Step 1 — Identify what changed
 
-If the user hasn't pointed you at specific files, find them. Try `origin/develop` first; fall back to `origin/main` if that ref doesn't exist:
+If the user hasn't pointed you at specific files, find them. Try `origin/develop`
+first; fall back to `origin/main` if that ref doesn't exist:
 
 ```bash
 git diff --name-only origin/develop...HEAD 2>/dev/null || git diff --name-only origin/main...HEAD
 ```
 
 Look for changes in:
+
 - Controllers: `src/Fifty410/{Entity}/App/Controllers/`
 - Actions: `src/Fifty410/{Entity}/Domain/Actions/`
 - Resources: `src/Fifty410/{Entity}/App/Resources/`
@@ -31,39 +47,48 @@ Look for changes in:
 Read them in parallel. Extract:
 
 **From controllers and routes:**
+
 - HTTP method, path, auth requirements, route constraints (e.g. numeric IDs only)
 
 **From resources:**
+
 - The full JSON response shape — every field name and type
 
-**From action files** *(this is the most important source for behaviors to test)*:
-- **Filtering/exclusion rules**: every `whereNot`, `where`, `whereHas` condition tells you what gets excluded and why — each one is a behavior to test
-- **Data scoping**: does the action scope results to the authenticated user? (e.g. `where('patient_id', $patient->id)`) — if so, isolation from other users' data is a behavior to test
-- **Deduplication**: does it group by something and keep only the latest/first? — if so, "returns only the most recent result per X" is a behavior to test
-- **Ordering**: does it sort by a field or a custom priority map? — if so, the sort order is a behavior to test
-- **Empty-state cases**: what happens when a pivot/relation has no records? — derive empty-response behaviors from the query structure
+**From action files** _(this is the most important source for understanding what the code actually does)_:
 
-**From feature test files** *(if present)*:
-- Each `it('...')` description is a behavior the endpoint must satisfy — translate test names into QA-friendly language
-- Tests are the ground truth for edge cases; prefer them over guessing
+- **Filtering/exclusion rules**: every `whereNot`, `where`, `whereHas` condition tells you what gets excluded and why — each one is something QA should verify
+- **Data scoping**: does the action scope results to the authenticated user? (e.g. `where('patient_id', $patient->id)`) — isolation from other users' data is something QA should verify
+- **Deduplication**: does it group by something and keep only the latest/first?
+- **Ordering**: does it sort by a field or a custom priority map?
+- **Empty-state cases**: what happens when a pivot/relation has no records?
+
+**From feature test files** _(if present)_:
+
+- Each `it('...')` description is a behavior the endpoint must satisfy — translate test names into plain English for QA
+- Tests are ground truth for edge cases; prefer them over guessing
 
 **From migrations and seeders:**
+
 - Column names and SQL types added; what the seeder now populates
 
-## Step 3 — Write the description
+## Step 3 — Write the comment
 
-Use this exact template (no extra sections, no fluff):
+Use this exact template. Output it as a markdown code block (` ```markdown `) so
+the user can copy-paste it directly into ClickUp.
 
 ---
 
-**Summary**
-One sentence. What behavior was added and what endpoint exposes it.
+```markdown
+## Summary
+One sentence. What was implemented and what endpoint exposes it.
 
-**What was done**
-- **Migration:** Added `column_name` (type) [and `column_name` (type)] columns. *(omit if no migration)*
-- **Seeder:** Updated to populate [fields]. *(omit if no seeder change)*
-- **Model/Resource:** [Fields] are declared on the model and included in the API response. *(omit if no model change)*
+## What was done
+
+- **Migration:** Added `column_name` (type) [and `column_name` (type)] columns. _(omit if no migration)_
+- **Seeder:** Updated to populate [fields]. _(omit if no seeder change)_
+- **Model/Resource:** [Fields] are declared on the model and included in the API response. _(omit if no model/resource change)_
 - **Endpoint:** Added `METHOD /api/path/{param}` (authenticated), which returns:
+
 ```json
 {
   "data": [
@@ -74,41 +99,33 @@ One sentence. What behavior was added and what endpoint exposes it.
   ]
 }
 ```
-Populate the JSON with the actual fields from the resource file. Use realistic placeholder values — not `"string"` or `null`. Do not use `...` or leave placeholder keys.
-
-**Behaviors to test**
-
-Start with the endpoint's primary happy path, then cover every filtering, scoping, deduplication, and ordering rule found in the action, then close with the standard auth/404 cases. Each behavior should be independently verifiable by QA without reading code.
-
-1. [Primary happy path — authenticate and call with valid input, verify key response fields]
-2. [One item per filtering/exclusion rule from the action]
-3. [Deduplication rule if applicable]
-4. [Ordering rule if applicable]
-5. [Empty-state cases]
-6. Calls with a non-existent ID should return `404`.
-7. The endpoint requires authentication. Unauthenticated requests return `401`.
+```
 
 ---
 
 ## Guidelines
 
 - **QA audience**: no instructions to run migrations, seeders, or artisan commands — they test the live endpoint only.
-- **Action logic → behaviors**: every conditional in the action is something QA can break. Surface all of them. An action with `whereNot('type', Comment)`, `where('patient_id', ...)`, `groupBy(...)->first()`, and a sort map should produce at least 4 dedicated behavior items.
 - **JSON example**: use realistic placeholder values, not generic `"string"` or `null`. Make it clear they're illustrative.
-- **Multiple endpoints**: add one **Endpoint** bullet per endpoint and expand the behaviors section accordingly.
+- **Multiple endpoints**: add one **Endpoint** bullet per endpoint.
 - **Omit sections that don't apply**: if no migration changed, skip that bullet entirely.
+- **This is a handoff note, not a spec**: write as if you're briefing your QA colleague on what just shipped. Confident, specific, no fluff.
 
 ## Reference output
 
-This is the gold-standard output — calibrate tone, length, and depth of the behaviors section against this:
+This is the gold-standard output — calibrate tone, length, and depth of the
+acceptance criteria section against this:
 
 ---
 
-**Summary**
+````markdown
+## Summary
 Added `GET /api/symptoms/{id}/biomarkers` endpoint that returns the patient's latest lab result for each biomarker associated with a given symptom, ordered by severity (Critical → Abnormal → Normal).
 
-**What was done**
+## What was done
+
 - **Endpoint:** Added `GET /api/symptoms/{symptom}/biomarkers` (authenticated), which returns:
+
 ```json
 {
   "data": [
@@ -148,14 +165,4 @@ Added `GET /api/symptoms/{id}/biomarkers` endpoint that returns the patient's la
   ]
 }
 ```
-
-**Behaviors to test**
-1. Authenticate as a patient and call `GET /api/symptoms/{id}/biomarkers` with a valid symptom ID — verify the response includes `name`, `result`, `unit`, `interpretation`, `product.display_name`, and range fields (`min_range_value`, `max_range_value`, `is_above_max_range`, `is_below_min_range`).
-2. If the symptom has no associated biomarkers, the response should be `200` with an empty `data` array.
-3. If the patient has no lab results for the symptom's biomarkers, the response should be `200` with an empty `data` array.
-4. When a biomarker has multiple results, only the most recent one should appear in the response.
-5. Lab results belonging to other patients must not appear in the response.
-6. Lab results of type `Comment` must not appear in the response.
-7. Results must be ordered by severity: Critical first, then Abnormal, then Normal.
-8. Calls with a non-existent symptom ID should return `404`.
-9. The endpoint requires authentication. Unauthenticated requests return `401`.
+````
