@@ -43,9 +43,21 @@ criteria.
 Use this structure for every subtask. Omit a section only if it genuinely does
 not apply (e.g. no edge cases for a trivial UI tweak).
 
+Use `##` headings for each section (e.g. `### Context`, `### What Needs to Be Built`).
+
+Always wrap the entire output in a markdown code block (` ```markdown ... ``` `) so the user can copy raw markdown directly.
+
+Use backticks for:
+- File paths and directory names (e.g. `src/components/Banner.tsx`)
+- Route paths (e.g. `/quiz/step-1`)
+- Field names, parameter names, and HTTP methods (e.g. `GET`, `user_id`)
+- Component or function names when referenced inline (e.g. `WhereToStartBanner`)
+
+Do NOT use backticks for plain English descriptions, section prose, or AC items.
+
 ---
 
-### Context
+## Context
 
 1–3 sentences explaining _why_ this subtask exists, what problem it solves, and
 where it fits in the bigger feature. Mention relevant existing models, services,
@@ -54,36 +66,48 @@ background.
 
 ---
 
-### What Needs to Be Built
+## What Needs to Be Built
 
 A clear list of the concrete deliverables. For each item:
 
 - State _what_ it is (route, component, service method, etc.)
 - State _what it does_ in plain language
-- Include key fields, parameters, or behaviours that are not obvious
+- Focus on **what** is being built and **why**, not **how** it is implemented
 
-Use a numbered or bulleted list. Avoid code blocks unless a route path or field
-list genuinely aids clarity — and even then, keep them short.
+Keep this section high-level — it should read like a feature spec, not a code
+review. Do NOT include:
+- Prop names, function signatures, or component internals
+- CSS classes, styling tokens, or layout implementation details
+- State management wiring, hook usage, or data-fetching patterns
+- Any detail that describes the developer's chosen implementation approach
+
+A good test: would this bullet still be valid if a developer chose a completely different implementation strategy? If yes, keep it. If no, cut it.
+
+Use a numbered or bulleted list. Use backticks for specific technical references
+(file paths, component names, route paths) but keep prose plain.
 
 ---
 
-### Edge Cases to Handle
+## Acceptance Criteria
 
-A table of scenarios that require special handling. Columns:
+A bulleted list of testable outcomes — written so a QA can use them directly to
+write test cases. Each item should be a complete, verifiable statement.
 
-| Case | Behaviour |
+Include both the happy path and edge cases inline. Pull edge cases from:
 
-Pull edge cases from:
-
-- Nullable fields mentioned in acceptance criteria
+- Nullable or optional fields
 - Empty / zero-result states
-- External service failures
-- Pending / incomplete data states
+- Invalid or mismatched input
+- Auth / permission boundaries
+- Re-submission or idempotency behaviour
 - Any AC item marked "(Pending)" or flagged as TBD
 
+Render as a flat bulleted list (not a table) so it copy-pastes cleanly into
+task managers that don't render markdown reliably.
+
 ---
 
-### Open Questions
+## Open Questions
 
 List anything that needs a decision before implementation can begin. Frame each
 as a question, not a task. Include who is best placed to answer (e.g. "confirm
@@ -98,7 +122,7 @@ Omit this section if there are no blockers.
 - Write for a mixed audience: a QA or PM should understand every section.
 - Avoid framework names, ORM methods, or architectural patterns unless the user
   explicitly works in a technical context and asked for that level of detail.
-- "What Needs to Be Built" should read like a feature spec, not a code review.
+- "What Needs to Be Built" should read like a feature spec, not a code review. A PM or QA should be able to understand every bullet without knowing how it was implemented.
 - Status ordering (Critical → Abnormal → Normal, or equivalent priority orderings)
   should be called out explicitly when sorting/ordering is part of the feature.
 - If a behaviour is marked as out of scope or pending in the original ticket,
@@ -108,8 +132,8 @@ Omit this section if there are no blockers.
 
 ## Quality Checklist (self-review before responding)
 
-- [ ] Every acceptance criterion is reflected somewhere in the output
-- [ ] Nullable / optional fields are covered in Edge Cases
+- [ ] Every requirement from the original ticket is reflected somewhere in the output
+- [ ] Acceptance Criteria covers both the happy path and all relevant edge cases
 - [ ] No section is padded — if a section has nothing to say, omit it
 - [ ] Open Questions are genuine blockers, not implementation details
 - [ ] The write-up could be handed to a QA to write test cases from
