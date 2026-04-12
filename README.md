@@ -8,6 +8,8 @@ Personal Claude Code configuration — agents, skills, and hooks synced across m
 .claude/
   agents/
     quality-checker.md      # QA subagent: runs type-check, linting, tests; returns concise summary
+  guidelines/
+    python.md               # General Python coding guidelines — import into any project's CLAUDE.md
   hooks/
     auto-format.sh          # PostToolUse hook: auto-formats edited files (stack-agnostic)
   skills/
@@ -43,6 +45,25 @@ git push
 ```
 
 `add_file.sh` moves the file into the repo and creates a symlink back, so your live Claude Code setup and the repo stay in sync automatically.
+
+## Bootstrapping a new Python project
+
+Add one line to the new project's `CLAUDE.md` to pull in the shared Python guidelines:
+
+```markdown
+@/home/guido/.claude/guidelines/python.md
+
+## Project-specific notes
+...
+```
+
+Claude Code's `@path` import loads the file at the start of every session, so the
+guidelines stay in sync with the dotfiles repo without copying anything. Add
+project-specific overrides or additions after the import.
+
+To add guidelines for another stack (JS, Rust, etc.) just create
+`.claude/guidelines/<stack>.md` in this repo — it will be symlinked automatically by
+`setup.sh`.
 
 ## Docs
 
