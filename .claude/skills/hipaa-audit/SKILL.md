@@ -15,6 +15,18 @@ Treat this as an investigation, not a checklist. Your job is to map how PHI flow
 
 ---
 
+## Step 0: Check for existing audit docs (do this before anything else)
+
+Glob for `**/HIPAA*.md`, `**/hipaa*.md`, `**/compliance*.md`, `**/COMPLIANCE*.md`, `**/security-audit*.md` in the repo root and any `docs/` directories. If prior audit reports exist:
+
+- Read them to understand what has already been found and remediated
+- Note which findings are marked REMEDIATED — do not re-raise these unless you find the fix is incomplete or was reverted
+- Note any open recommendations listed as "not yet implemented" — these are candidates to carry forward
+- Note any BAA statuses already confirmed by the team, so you don't flag them as unverified
+- If the prior doc conflicts with what you observe in code (e.g., says a fix was applied but the code doesn't show it), flag the discrepancy explicitly
+
+---
+
 ## Step 1: Orient yourself (do this first, before evaluating any control)
 
 Run these 7 discovery steps before forming any conclusions. Together they give you a map of the PHI surface.
@@ -144,14 +156,56 @@ In practice: if the system handles ePHI over the internet with no compensating c
 
 ## Reporting Format
 
-Report every finding with this structure:
+### Document header
 
+Start every report with:
+
+```markdown
+# HIPAA Security Rule Compliance Audit
+
+**System:** <app name>
+**Date:** <YYYY-MM-DD>
+**Auditor:** Claude Code (<model id>)
+**Scope:** <what was covered — e.g. "Full codebase static analysis — PHI data flows, access controls, audit trails, external integrations, session security, webhook surface, frontend storage">
 ```
-**[SEVERITY]** — [short title]
-File: path/to/file.ts:line (if known)
-Finding: What you observed
-Risk: The specific HIPAA violation or patient harm this enables
-Recommendation: Concrete fix
+
+### Overall Assessment
+
+Follow the header with a 2–4 sentence executive summary: what the system does well, where the gaps concentrate, and the highest-severity finding in plain language. This is what a non-technical stakeholder reads.
+
+### PHI Surface Map
+
+Before any findings, include:
+1. A **PHI-Bearing Tables** table: table name, PHI fields, encrypted (YES/NO + algorithm)
+2. An **External Services Receiving PHI** table: service, PHI received, BAA status (✅ Signed / ⚠️ Verify / ❌ None)
+
+### Findings
+
+Group findings under severity headings. Use sequential IDs within each severity so the remediation table can reference them unambiguously.
+
+```markdown
+### CRITICAL
+**C-1: <short title>**
+- File: `path/to/file.ts:line`
+- Finding: What you observed
+- Risk: The specific HIPAA violation or patient harm this enables (cite CFR section where relevant, e.g. § 164.312(b))
+- Recommendation: Concrete fix
+
+### HIGH
+**H-1: <short title>**
+...
+
+### MEDIUM
+**M-1: <short title>**
+...
+
+### LOW
+**L-1: <short title>**
+...
+
+### INFO
+**I-1: <short title>**
+...
 ```
 
 **Severity levels:**
@@ -159,8 +213,34 @@ Recommendation: Concrete fix
 - **HIGH** — PHI in logs, missing audit trail on PHI access, session tokens in localStorage, webhook auth bypassable
 - **MEDIUM** — Session TTL too long, missing CSRF on PHI mutations, PHI in URL params, password policy gaps
 - **LOW** — Missing security headers, no rate limiting on auth endpoints, non-critical audit gaps
-- **INFO** — Observations, questions for the team, items that cannot be verified from code (BAA status, server config, key management practices)
+- **INFO** — Two uses: (1) observations/questions that cannot be verified from code (BAA status, server config, key management); (2) **positive controls** — things the codebase does correctly that are worth documenting. Prefix positive controls with "Positive control —" so they're easy to distinguish.
 
-Open your report with a **PHI surface map** — a brief summary of what PHI exists, where it lives, and which external systems touch it. This gives the reader context before the findings list.
+Do not put "What's Working Well" in a separate section. Positive controls belong in `### INFO` as `I-*` findings — this keeps all observations in one place and makes strengths feel as deliberate as gaps.
 
-End with a **prioritized remediation list**: CRITICAL items first, then HIGH, with concrete next steps.
+### Prioritized Remediation
+
+Split into time-based tiers. Include an **Effort** column so engineers can plan. Reference finding IDs, not titles.
+
+```markdown
+## Prioritized Remediation
+
+### Address soon
+| # | Finding | Effort |
+|---|---|---|
+| H-1 | <title> | ~2 hr |
+
+### Address within 30 days
+| # | Finding | Effort |
+|---|---|---|
+| M-1 | <title> | ~3 hr |
+
+### Address within 90 days
+| # | Finding | Effort |
+|---|---|---|
+| L-1 | <title> | ~1 hr |
+| I-1 | <title> | ~4 hr |
+```
+
+### Key Files Reference
+
+End with a two-column table mapping file paths to their HIPAA-relevant purpose. This helps engineers navigate to the right place when acting on findings.
