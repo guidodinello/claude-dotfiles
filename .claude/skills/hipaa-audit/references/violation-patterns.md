@@ -214,3 +214,13 @@ In code, this means:
 | Transmission Security | Encryption in transit | Addressable |
 
 "Addressable" means: implement it, OR document why it's not reasonable/appropriate AND implement an equivalent alternative. It does not mean optional.
+
+---
+
+## OCR Enforcement Cases
+
+Real enforcement cases are in a separate file to keep this document under the line limit.
+
+See: [ocr-enforcement-cases.md](ocr-enforcement-cases.md)
+
+Key pattern: failure to conduct a risk analysis (§ 164.308(a)(1)(ii)(A)) is cited in virtually every OCR settlement. A missing or stale risk analysis is not a minor finding — it is the single most common basis for enforcement action. Eight cases from 2025–2026 are documented in that file.
