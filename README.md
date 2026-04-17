@@ -24,6 +24,8 @@ Personal Claude Code configuration — agents, skills, and hooks synced across m
 
 ## Setup on a new machine
 
+**Install everything:**
+
 ```bash
 git clone git@github.com:<you>/claude-dotfiles.git ~/claude-dotfiles
 cd ~/claude-dotfiles
@@ -31,6 +33,14 @@ bash setup.sh
 ```
 
 `setup.sh` symlinks every file under `.claude/` into `~/.claude/`, backing up any pre-existing files as `.bak`.
+
+**Install only what you need:**
+
+```bash
+bash select.sh
+```
+
+`select.sh` presents an interactive picker (uses `fzf` if available, plain numbered menu otherwise) grouped by category — skills, agents, hooks, guidelines, scripts. Select individual items and only those get symlinked. Useful when you cloned the repo for one specific skill and don't want the rest.
 
 ## Adding a new skill/agent/hook
 
