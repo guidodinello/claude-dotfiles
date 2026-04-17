@@ -38,7 +38,51 @@ For each vendor integration found in the codebase, answer these questions:
 - Prior auth services — receive diagnosis and medication data.
 
 ### Payment (careful with combination data)
-- **Stripe** — does not receive PHI directly, but linking payment records to patient IDs creates a combined record that may be PHI. Stripe has a BAA program.
+- **Payment processors (Stripe, Braintree, etc.)** — typically do not receive clinical PHI, but any vendor that receives data linkable to a patient's health record may require a BAA. The key question: does the integration pass patient name, diagnosis, medication, or other PHI fields into payment metadata or descriptions? If yes, a BAA is required regardless of the vendor's primary purpose.
+
+---
+
+---
+
+## BAA Program URLs
+
+Direct links to the BAA or HIPAA compliance program pages for major vendors. These should be confirmed with the vendor's current documentation at time of audit, as terms and covered services change.
+
+### Infrastructure
+
+| Vendor | BAA / HIPAA program URL | Notes |
+|---|---|---|
+| **AWS** | https://aws.amazon.com/compliance/hipaa-compliance/ | BAA available via AWS Artifact in the console. List of HIPAA-eligible services: https://aws.amazon.com/compliance/services-in-scope/HIPAA_BAA/ — only process ePHI on eligible services. |
+| **Cloudflare** | https://www.cloudflare.com/trust-hub/compliance-resources/ | BAA only available to Enterprise customers with a minimum spend threshold. Not available on self-serve or Pro/Business plans. Contact enterprise sales. |
+| **GCP** | https://cloud.google.com/security/compliance/hipaa | BAA available to all customers who accept the Google Cloud HIPAA BAA in the console. |
+| **Azure** | https://learn.microsoft.com/en-us/azure/compliance/offerings/offering-hipaa-us | BAA included in Microsoft Online Services Terms (OST) for eligible services. |
+
+### Communication
+
+| Vendor | BAA / HIPAA program URL | Notes |
+|---|---|---|
+| **Twilio (voice/SMS/video)** | https://www.twilio.com/en-us/hipaa | BAA available on Security Edition or Enterprise Edition only. Covered services: Programmable SMS, Voice, Video, SIP, and runtime tools. Not all Twilio products are covered — verify each service used. |
+| **Twilio SendGrid (email)** | https://www.twilio.com/docs/sendgrid/ui/account-and-settings/hipaa-compliant | SendGrid does NOT sign a BAA and is not HIPAA compliant for ePHI transmission. Do not send ePHI via SendGrid. Use an alternative HIPAA-compliant email provider (e.g., Paubox, AWS SES with BAA) if email must contain PHI. |
+| **Mailgun** | Contact Mailgun enterprise sales | Mailgun offers BAAs for enterprise customers. Verify coverage before transmitting ePHI. |
+
+### Payment
+
+Payment processors generally do not have documented BAA programs because they are not designed to handle PHI. If the integration passes PHI (including patient name, DOB, or clinical data in metadata fields), the team must contact the vendor's legal team to arrange a BAA or redesign the integration to exclude PHI.
+
+### Healthcare-Specific
+
+| Vendor | Notes |
+|---|---|
+| Pharmacy APIs (Belmar, PioneerRx, Surescripts) | These vendors are healthcare-specific and routinely handle ePHI. BAA should already be in place per their standard contracts. Verify. |
+| EHR connectors (Epic, Athena, Elation) | Standard BAA in vendor contracts. Confirm scope covers the specific integration (OAuth scopes, HL7/FHIR endpoints). |
+| Lab APIs (LabCorp, Quest) | BAA in standard contracts. Verify coverage for API integrations specifically, not just the broader service agreement. |
+
+### NIST SP 800-66r2 Reference
+
+NIST SP 800-66 Rev. 2 (February 2024) provides implementation guidance for the HIPAA Security Rule including mappings to NIST SP 800-53r5 controls and NIST Cybersecurity Framework subcategories.
+- PDF: https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-66r2.pdf
+- DOI: https://doi.org/10.6028/NIST.SP.800-66r2
+- Interactive CPRT: https://csrc.nist.gov/Projects/cprt/catalog#/cprt/framework/version/SP800_66_2_0_0/home
 
 ---
 
