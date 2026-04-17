@@ -1,0 +1,1716 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{PROJECT_NAME}} — Permissions Audit</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: #2e3250;
+      --accent: #6c63ff;
+      --accent2: #a78bfa;
+      --text: #e2e8f0;
+      --text-muted: #8892a4;
+      --green: #22c55e;
+      --red: #ef4444;
+      --yellow: #f59e0b;
+      --blue: #3b82f6;
+      --sidebar-w: 260px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      min-height: 100vh;
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ── Sidebar ─────────────────────────────────────────────── */
+    #sidebar {
+      width: var(--sidebar-w);
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      z-index: 100;
+      overflow-y: auto;
+    }
+
+    .sidebar-logo {
+      padding: 20px 20px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-logo h1 {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--accent2);
+      letter-spacing: .4px;
+    }
+
+    .sidebar-logo span {
+      display: block;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+
+    .nav-section {
+      padding: 12px 0 4px;
+    }
+
+    .nav-section-title {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 0 16px 6px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      cursor: pointer;
+      border-radius: 0;
+      transition: background .15s;
+      color: var(--text-muted);
+      font-size: 13px;
+      border-left: 3px solid transparent;
+    }
+
+    .nav-item:hover { background: var(--surface2); color: var(--text); }
+
+    .nav-item.active {
+      background: rgba(108,99,255,.12);
+      color: var(--accent2);
+      border-left-color: var(--accent);
+    }
+
+    .nav-item .icon { font-size: 15px; flex-shrink: 0; }
+
+    .nav-badge {
+      margin-left: auto;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1px 7px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    .nav-badge.red { background: rgba(239,68,68,.15); border-color: rgba(239,68,68,.4); color: #fca5a5; }
+    .nav-badge.yellow { background: rgba(245,158,11,.12); border-color: rgba(245,158,11,.35); color: #fcd34d; }
+    .nav-badge.green { background: rgba(34,197,94,.12); border-color: rgba(34,197,94,.3); color: #86efac; }
+
+    /* ── Main content ─────────────────────────────────────────── */
+    #main {
+      margin-left: var(--sidebar-w);
+      flex: 1;
+      padding: 32px 40px 80px;
+      max-width: 1200px;
+    }
+
+    .page { display: none; }
+    .page.active { display: block; }
+
+    .page-header {
+      margin-bottom: 28px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .page-header h2 {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .page-header p {
+      margin-top: 6px;
+      color: var(--text-muted);
+      font-size: 13.5px;
+      line-height: 1.6;
+    }
+
+    /* ── Stats row ────────────────────────────────────────────── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 18px;
+    }
+
+    .stat-card .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .6px; }
+    .stat-card .value { font-size: 28px; font-weight: 700; margin-top: 4px; }
+    .stat-card.purple .value { color: var(--accent2); }
+    .stat-card.green .value { color: var(--green); }
+    .stat-card.red .value { color: var(--red); }
+    .stat-card.yellow .value { color: var(--yellow); }
+
+    /* ── Cards / sections ─────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--surface2);
+    }
+
+    .card-header h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .card-body { padding: 18px; }
+
+    /* ── Tags / badges ────────────────────────────────────────── */
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 5px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .tag-ok { background: rgba(34,197,94,.15); color: #86efac; }
+    .tag-warn { background: rgba(245,158,11,.14); color: #fcd34d; }
+    .tag-err { background: rgba(239,68,68,.14); color: #fca5a5; }
+    .tag-info { background: rgba(59,130,246,.14); color: #93c5fd; }
+    .tag-purple { background: rgba(167,139,250,.14); color: #c4b5fd; }
+
+    /* ── Tables ───────────────────────────────────────────────── */
+    .tbl-wrap { overflow-x: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th {
+      text-align: left;
+      padding: 12px 16px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .7px;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface2);
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 12px 16px;
+      font-size: 13px;
+      border-bottom: 1px solid rgba(46,50,80,.5);
+      vertical-align: top;
+      line-height: 1.6;
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,.02); }
+
+    td code, th code {
+      background: rgba(108,99,255,.12);
+      color: var(--accent2);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    /* ── Permission row ───────────────────────────────────────── */
+    .perm-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 14px;
+      overflow: hidden;
+    }
+
+    .perm-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px;
+      cursor: pointer;
+      background: var(--surface2);
+      transition: background .15s;
+    }
+
+    .perm-header:hover { background: rgba(255,255,255,.04); }
+
+    .perm-header code {
+      background: rgba(108,99,255,.15);
+      color: var(--accent2);
+      padding: 3px 8px;
+      border-radius: 5px;
+      font-size: 12.5px;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      flex-shrink: 0;
+    }
+
+    .perm-header .perm-name {
+      color: var(--text);
+      font-weight: 500;
+      font-size: 13.5px;
+    }
+
+    .perm-badges { margin-left: auto; display: flex; gap: 6px; }
+
+    .perm-body {
+      padding: 0 18px;
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height .3s ease, padding .3s;
+    }
+
+    .perm-body.open {
+      max-height: 600px;
+      padding: 14px 18px;
+    }
+
+    .perm-body .row {
+      display: grid;
+      grid-template-columns: 90px 1fr;
+      gap: 8px 16px;
+      margin-bottom: 12px;
+      align-items: start;
+    }
+
+    .perm-body .row:last-child { margin-bottom: 0; }
+
+    .perm-body .row-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      color: var(--text-muted);
+      padding-top: 2px;
+    }
+
+    .perm-body .row-val {
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.7;
+      word-break: break-word;
+    }
+
+    /* ── Role matrix ──────────────────────────────────────────── */
+    .matrix-check { text-align: center !important; font-size: 16px; }
+
+    /* ── Gap items ────────────────────────────────────────────── */
+    .gap-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+
+    .gap-item.sev-high { border-left-color: var(--red); }
+    .gap-item.sev-medium { border-left-color: var(--yellow); }
+    .gap-item.sev-low { border-left-color: var(--blue); }
+
+    .gap-item h4 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .gap-item p, .gap-item li {
+      color: var(--text-muted);
+      font-size: 13.5px;
+      line-height: 1.75;
+    }
+
+    .gap-item ul { padding-left: 20px; margin-top: 8px; }
+    .gap-item ul li { margin-bottom: 4px; }
+
+    .gap-item .gap-meta {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: 100px 1fr;
+      gap: 8px 14px;
+    }
+
+    .gap-item .gap-meta dt { font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; padding-top: 2px; }
+    .gap-item .gap-meta dd { font-size: 13px; color: var(--text); line-height: 1.6; }
+
+    /* ── Section headers within page ─────────────────────────── */
+    .section-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      margin: 28px 0 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Category pills ───────────────────────────────────────── */
+    .cat-filter {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .cat-pill {
+      padding: 5px 12px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .15s;
+    }
+
+    .cat-pill:hover { border-color: var(--accent); color: var(--accent2); }
+    .cat-pill.active { background: rgba(108,99,255,.15); border-color: var(--accent); color: var(--accent2); }
+
+    /* ── Scrollbar ────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3e4268; }
+
+    /* ── Comparison table ─────────────────────────────────────── */
+    .compare-table th:first-child { min-width: 240px; }
+    .compare-table td:not(:first-child) { text-align: center; }
+
+    .chk-yes { color: var(--green); font-size: 17px; }
+    .chk-no { color: #334155; font-size: 17px; }
+
+    /* ── Overview / dashboard ─────────────────────────────────── */
+    .overview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .ov-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+    }
+
+    .ov-card h3 {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      margin-bottom: 14px;
+    }
+
+    .ov-card .ov-num {
+      font-size: 38px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .ov-card .ov-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .role-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .role-row:last-child { border-bottom: none; }
+    .role-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .role-bar-wrap { flex: 1; background: var(--surface2); border-radius: 4px; height: 8px; overflow: hidden; }
+    .role-bar { height: 100%; border-radius: 4px; }
+
+    /* ── Responsive ───────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      :root { --sidebar-w: 0px; }
+      #sidebar { transform: translateX(-260px); transition: transform .25s; }
+      #sidebar.open { transform: translateX(0); width: 260px; }
+      #main { margin-left: 0; padding: 20px 16px 60px; }
+      .hamburger { display: flex !important; }
+    }
+
+    .hamburger {
+      display: none;
+      position: fixed;
+      top: 12px; left: 12px;
+      z-index: 200;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 10px;
+      cursor: pointer;
+      font-size: 18px;
+    }
+    /* ── Search input ──────────────────────────────────────── */
+    .search-wrap {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .search-input {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: var(--text);
+      font-size: 12.5px;
+      outline: none;
+      transition: border-color .2s;
+    }
+
+    .search-input::placeholder { color: var(--text-muted); opacity: .6; }
+    .search-input:focus { border-color: var(--accent); }
+
+    /* ── Severity legend ──────────────────────────────────── */
+    .severity-legend {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+      padding: 12px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .severity-legend .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .severity-legend .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+    }
+
+    /* ── Better code blocks ───────────────────────────────── */
+    code {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+      font-size: 0.88em;
+    }
+
+    /* ── Smooth page transitions ──────────────────────────── */
+    .page {
+      display: none;
+      animation: fadeIn .2s ease;
+    }
+    .page.active { display: block; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Timestamp / generated info ───────────────────────── */
+    .gen-info {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    /* ── Print styles ─────────────────────────────────────── */
+    @media print {
+      #sidebar { display: none; }
+      #main { margin-left: 0; padding: 20px; max-width: none; }
+      .page { display: block !important; page-break-before: always; }
+      .page:first-child { page-break-before: avoid; }
+      body { background: white; color: black; font-size: 12px; }
+      .stat-card, .card, .gap-item, .ov-card, .perm-card { border-color: #ddd; background: #fafafa; }
+      .stat-card .value { color: #333 !important; }
+      .perm-body { max-height: none !important; padding: 14px 18px !important; }
+      .hamburger { display: none !important; }
+      code { background: #f0f0f0; color: #333; }
+    }
+  </style>
+</head>
+<body>
+
+<button class="hamburger" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+
+<!-- ═══════════════ SIDEBAR ═══════════════ -->
+<nav id="sidebar">
+  <div class="sidebar-logo">
+    <h1>{{PROJECT_NAME}}</h1>
+    <span>Permissions Audit</span>
+  </div>
+
+  <div class="search-wrap">
+    <input type="text" class="search-input" id="search-input" placeholder="Search permissions..." oninput="searchPerms(this.value)">
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-title">Overview</div>
+    <div class="nav-item active" onclick="navigate('overview')">
+      <span class="icon">🏠</span> Dashboard
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-title">Permissions</div>
+    <div class="nav-item" onclick="navigate('all-perms')">
+      <span class="icon">🔑</span> All Permissions
+      <span class="nav-badge green">30</span>
+    </div>
+    <div class="nav-item" onclick="navigate('cat-statements')">
+      <span class="icon">📄</span> Statements
+      <span class="nav-badge">6</span>
+    </div>
+    <div class="nav-item" onclick="navigate('cat-edit')">
+      <span class="icon">✏️</span> Edit Mode
+      <span class="nav-badge">1</span>
+    </div>
+    <div class="nav-item" onclick="navigate('cat-calc')">
+      <span class="icon">🧮</span> Calculations
+      <span class="nav-badge">3</span>
+    </div>
+    <div class="nav-item" onclick="navigate('cat-viz')">
+      <span class="icon">👁️</span> Visualization
+      <span class="nav-badge">2</span>
+    </div>
+    <div class="nav-item" onclick="navigate('cat-ops')">
+      <span class="icon">⚙️</span> Operations
+      <span class="nav-badge">3</span>
+    </div>
+    <div class="nav-item" onclick="navigate('cat-users')">
+      <span class="icon">👥</span> User Management
+      <span class="nav-badge">5</span>
+    </div>
+    <div class="nav-item" onclick="navigate('cat-approvals')">
+      <span class="icon">✅</span> Approvals
+      <span class="nav-badge">4</span>
+    </div>
+    <div class="nav-item" onclick="navigate('cat-payments')">
+      <span class="icon">💳</span> Payments / Invoices
+      <span class="nav-badge">3</span>
+    </div>
+    <div class="nav-item" onclick="navigate('cat-templates')">
+      <span class="icon">📋</span> Templates
+      <span class="nav-badge">2</span>
+    </div>
+    <div class="nav-item" onclick="navigate('cat-comments')">
+      <span class="icon">💬</span> Comments
+      <span class="nav-badge">2</span>
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-title">Roles</div>
+    <div class="nav-item" onclick="navigate('roles')">
+      <span class="icon">🛡️</span> Permissions by Role
+    </div>
+    <div class="nav-item" onclick="navigate('matrix')">
+      <span class="icon">📊</span> Role Matrix
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-title">Analysis</div>
+    <div class="nav-item" onclick="navigate('gaps-back')">
+      <span class="icon">⚠️</span> Backend Gaps
+      <span class="nav-badge red">7</span>
+    </div>
+    <div class="nav-item" onclick="navigate('gaps-front')">
+      <span class="icon">🖥️</span> Frontend Gaps
+      <span class="nav-badge yellow">5</span>
+    </div>
+    <div class="nav-item" onclick="navigate('inconsistencies')">
+      <span class="icon">🔀</span> Inconsistencies
+      <span class="nav-badge red">6</span>
+    </div>
+    <div class="nav-item" onclick="navigate('unused')">
+      <span class="icon">🗑️</span> Unused Perms
+      <span class="nav-badge yellow">2</span>
+    </div>
+  </div>
+</nav>
+
+<!-- ═══════════════ MAIN ═══════════════ -->
+<main id="main">
+
+  <!-- ═══ OVERVIEW ═══ -->
+  <section class="page active" id="page-overview">
+    <div class="page-header">
+      <h2>🏠 Dashboard</h2>
+      <p>Resumen del sistema de permisos. Generado automáticamente por el skill <code>permissions-audit</code>.</p>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card purple"><div class="label">Total permisos</div><div class="value">30</div></div>
+      <div class="stat-card green"><div class="label">Roles</div><div class="value">3</div></div>
+      <div class="stat-card red"><div class="label">Backend gaps</div><div class="value">7</div></div>
+      <div class="stat-card yellow"><div class="label">Inconsistencias</div><div class="value">6</div></div>
+    </div>
+
+    <div class="overview-grid">
+      <div class="ov-card">
+        <h3>Roles</h3>
+        <div class="role-row">
+          <div class="role-dot" style="background:#6c63ff"></div>
+          <div style="flex:1">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Admin</span><span style="color:#a78bfa;font-weight:700">30/30</span></div>
+            <div class="role-bar-wrap"><div class="role-bar" style="width:100%;background:#6c63ff"></div></div>
+          </div>
+        </div>
+        <div class="role-row">
+          <div class="role-dot" style="background:#3b82f6"></div>
+          <div style="flex:1">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>Internal Report User</span><span style="color:#93c5fd;font-weight:700">21/30</span></div>
+            <div class="role-bar-wrap"><div class="role-bar" style="width:70%;background:#3b82f6"></div></div>
+          </div>
+        </div>
+        <div class="role-row">
+          <div class="role-dot" style="background:#22c55e"></div>
+          <div style="flex:1">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span>External Report User</span><span style="color:#86efac;font-weight:700">4/30</span></div>
+            <div class="role-bar-wrap"><div class="role-bar" style="width:13%;background:#22c55e"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ov-card">
+        <h3>Categorías</h3>
+        <div class="tbl-wrap">
+          <table>
+            <tr><td>📄 Statements</td><td><span class="tag tag-info">6</span></td></tr>
+            <tr><td>👥 User Management</td><td><span class="tag tag-info">5</span></td></tr>
+            <tr><td>✅ Approvals</td><td><span class="tag tag-info">4</span></td></tr>
+            <tr><td>⚙️ Operations</td><td><span class="tag tag-info">3</span></td></tr>
+            <tr><td>🧮 Calculations</td><td><span class="tag tag-info">3</span></td></tr>
+            <tr><td>💳 Payments / Invoices</td><td><span class="tag tag-info">3</span></td></tr>
+            <tr><td>📋 Templates</td><td><span class="tag tag-info">2</span></td></tr>
+            <tr><td>💬 Comments</td><td><span class="tag tag-info">2</span></td></tr>
+            <tr><td>👁️ Visualization</td><td><span class="tag tag-info">2</span></td></tr>
+            <tr><td>✏️ Edit Mode</td><td><span class="tag tag-info">1</span></td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="ov-card">
+        <h3>Issues encontrados</h3>
+        <div class="role-row">
+          <span style="font-size:18px">🔴</span>
+          <div><div style="font-weight:600">Backend endpoints sin permiso</div><div style="color:var(--text-muted);font-size:12px">calculations.edit, calculations.create, statements.sync, POST /statements/sync...</div></div>
+          <span style="margin-left:auto;color:#fca5a5;font-weight:700">4 alta</span>
+        </div>
+        <div class="role-row">
+          <span style="font-size:18px">🟡</span>
+          <div><div style="font-weight:600">Backend media severidad</div><div style="color:var(--text-muted);font-size:12px">download.statements, yearly view, list all</div></div>
+          <span style="margin-left:auto;color:#fcd34d;font-weight:700">3 media</span>
+        </div>
+        <div class="role-row">
+          <span style="font-size:18px">🔴</span>
+          <div><div style="font-weight:600">Back ↔ Front críticas</div><div style="color:var(--text-muted);font-size:12px">User Mgmt, Operations Create, Templates Modify</div></div>
+          <span style="margin-left:auto;color:#fca5a5;font-weight:700">3 crítico</span>
+        </div>
+        <div class="role-row">
+          <span style="font-size:18px">🟡</span>
+          <div><div style="font-weight:600">Back ↔ Front medio</div><div style="color:var(--text-muted);font-size:12px">invoices toggle, publish logic, edit-mode access</div></div>
+          <span style="margin-left:auto;color:#fcd34d;font-weight:700">3 medio</span>
+        </div>
+        <div class="role-row">
+          <span style="font-size:18px">⚪</span>
+          <div><div style="font-weight:600">Permisos no usados</div><div style="color:var(--text-muted);font-size:12px">download.statements, invoices.view</div></div>
+          <span style="margin-left:auto;color:var(--text-muted);font-weight:700">2</span>
+        </div>
+      </div>
+
+      <div class="ov-card">
+        <h3>Archivos clave</h3>
+        <div style="font-size:12px;color:var(--text-muted);line-height:2">
+          <div><code>PermissionNamesEnum.php</code> — 30 permisos</div>
+          <div><code>PermissionNamesEnum.ts</code> — 27 permisos ⚠️</div>
+          <div><code>RolesEnum.php</code> — 3 roles</div>
+          <div><code>useHasPermission.tsx</code> — hook principal</div>
+          <div><code>StatementPolicy.php</code> — policy más compleja</div>
+          <div><code>routes/api/v1.php</code> — admin routes</div>
+          <div><code>routes/api/v2.php</code> — main API</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ ALL PERMISSIONS ═══ -->
+  <section class="page" id="page-all-perms">
+    <div class="page-header">
+      <h2>🔑 All Permissions</h2>
+      <p>Los 30 permisos del sistema con su uso en backend y frontend. Haz click en cada permiso para expandir detalles.</p>
+    </div>
+    <div class="cat-filter">
+      <div class="cat-pill active" onclick="filterPerms('all',this)">Todos</div>
+      <div class="cat-pill" onclick="filterPerms('statements',this)">Statements</div>
+      <div class="cat-pill" onclick="filterPerms('edit',this)">Edit Mode</div>
+      <div class="cat-pill" onclick="filterPerms('calculations',this)">Calculations</div>
+      <div class="cat-pill" onclick="filterPerms('visualization',this)">Visualization</div>
+      <div class="cat-pill" onclick="filterPerms('operations',this)">Operations</div>
+      <div class="cat-pill" onclick="filterPerms('usermgmt',this)">User Mgmt</div>
+      <div class="cat-pill" onclick="filterPerms('approvals',this)">Approvals</div>
+      <div class="cat-pill" onclick="filterPerms('payments',this)">Payments</div>
+      <div class="cat-pill" onclick="filterPerms('templates',this)">Templates</div>
+      <div class="cat-pill" onclick="filterPerms('comments',this)">Comments</div>
+      <div class="cat-pill" onclick="filterPerms('warn',this)">⚠️ Con issues</div>
+    </div>
+    <div id="perms-list"></div>
+  </section>
+
+  <!-- Category detail pages (single-category views) -->
+  <section class="page" id="page-cat-statements">
+    <div class="page-header"><h2>📄 Statements Permissions</h2></div>
+    <div id="perms-statements"></div>
+  </section>
+  <section class="page" id="page-cat-edit">
+    <div class="page-header"><h2>✏️ Edit Mode Permissions</h2></div>
+    <div id="perms-edit"></div>
+  </section>
+  <section class="page" id="page-cat-calc">
+    <div class="page-header"><h2>🧮 Calculations Permissions</h2></div>
+    <div id="perms-calc"></div>
+  </section>
+  <section class="page" id="page-cat-viz">
+    <div class="page-header"><h2>👁️ Visualization Permissions</h2></div>
+    <div id="perms-viz"></div>
+  </section>
+  <section class="page" id="page-cat-ops">
+    <div class="page-header"><h2>⚙️ Operations Permissions</h2></div>
+    <div id="perms-ops"></div>
+  </section>
+  <section class="page" id="page-cat-users">
+    <div class="page-header"><h2>👥 User Management Permissions</h2></div>
+    <div id="perms-users"></div>
+  </section>
+  <section class="page" id="page-cat-approvals">
+    <div class="page-header"><h2>✅ Approvals Permissions</h2></div>
+    <div id="perms-approvals"></div>
+  </section>
+  <section class="page" id="page-cat-payments">
+    <div class="page-header"><h2>💳 Payments / Invoices Permissions</h2></div>
+    <div id="perms-payments"></div>
+  </section>
+  <section class="page" id="page-cat-templates">
+    <div class="page-header"><h2>📋 Templates Permissions</h2></div>
+    <div id="perms-templates"></div>
+  </section>
+  <section class="page" id="page-cat-comments">
+    <div class="page-header"><h2>💬 Comments Permissions</h2></div>
+    <div id="perms-comments"></div>
+  </section>
+
+  <!-- ═══ ROLES ═══ -->
+  <section class="page" id="page-roles">
+    <div class="page-header">
+      <h2>🛡️ Permissions by Role</h2>
+      <p>Qué permisos tiene asignado cada rol según el seeder.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span style="color:var(--accent2);font-size:18px">👑</span>
+        <h3>Admin</h3>
+        <span class="tag tag-purple" style="margin-left:auto">30 / 30 permisos</span>
+      </div>
+      <div class="card-body">
+        <p style="color:var(--text-muted);margin-bottom:12px">Acceso global sin restricción de operación. El check en backend es <code>isAdmin()</code> o el middleware <code>admin</code>.</p>
+        <span class="tag tag-ok">Todos los permisos ✅</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span style="color:#3b82f6;font-size:18px">🔵</span>
+        <h3>Internal Report User</h3>
+        <span class="tag tag-info" style="margin-left:auto">21 / 30 permisos</span>
+      </div>
+      <div class="card-body">
+        <p style="color:var(--text-muted);margin-bottom:14px">Usuario interno con acceso a operaciones asignadas. Puede editar, aprobar, sincronizar y descargar.</p>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Permiso</th><th>Slug</th></tr></thead>
+            <tbody>
+              <tr><td>View operations</td><td><code>operations.view</code></td></tr>
+              <tr><td>View approved statements</td><td><code>statements.view.approved</code></td></tr>
+              <tr><td>View unapproved statements</td><td><code>statements.view.unapproved</code></td></tr>
+              <tr><td>View published statements</td><td><code>statements.view.published</code></td></tr>
+              <tr><td>Sync statements</td><td><code>statements.sync</code></td></tr>
+              <tr><td>Access Edit Mode</td><td><code>edit-mode.access</code></td></tr>
+              <tr><td>View calculations</td><td><code>calculations.view</code></td></tr>
+              <tr><td>Edit calculations</td><td><code>calculations.edit</code></td></tr>
+              <tr><td>Toggle "View as Client"</td><td><code>view.as.client</code></td></tr>
+              <tr><td>View hidden concepts</td><td><code>view.hidden.concepts</code></td></tr>
+              <tr><td>Create operations</td><td><code>operations.create</code></td></tr>
+              <tr><td>Edit/Delete operations</td><td><code>operations.edit.delete</code></td></tr>
+              <tr><td>Download statements</td><td><code>download.statements</code></td></tr>
+              <tr><td>Toggle payments download</td><td><code>payments.download.toggle</code></td></tr>
+              <tr><td>Approve statements</td><td><code>approvals.approve.statements</code></td></tr>
+              <tr><td>Decline statements</td><td><code>approvals.decline.statements</code></td></tr>
+              <tr><td>Submit statements</td><td><code>submit.statements</code></td></tr>
+              <tr><td>View internal comments</td><td><code>comments.view.internal</code></td></tr>
+              <tr><td>View external comments</td><td><code>comments.view.external</code></td></tr>
+              <tr><td>Toggle Invoice Visibility</td><td><code>invoices.visibility.toggle</code></td></tr>
+              <tr><td>View Invoices</td><td><code>invoices.view</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="margin-top:16px">
+          <div style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:8px">Permisos ausentes:</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            <span class="tag tag-err">statements.apply-template</span>
+            <span class="tag tag-err">calculations.create</span>
+            <span class="tag tag-err">user.management.create</span>
+            <span class="tag tag-err">user.management.assign.permissions</span>
+            <span class="tag tag-err">user.management.edit.users</span>
+            <span class="tag tag-err">user.management.view.users</span>
+            <span class="tag tag-err">user.management.delete.users</span>
+            <span class="tag tag-err">templates.view</span>
+            <span class="tag tag-err">templates.modify</span>
+            <span class="tag tag-err">statements.publish</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span style="color:#22c55e;font-size:18px">🟢</span>
+        <h3>External Report User</h3>
+        <span class="tag tag-ok" style="margin-left:auto">4 / 30 permisos</span>
+      </div>
+      <div class="card-body">
+        <p style="color:var(--text-muted);margin-bottom:14px">Usuario externo/cliente. Acceso de solo lectura a operaciones publicadas.</p>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Permiso</th><th>Slug</th></tr></thead>
+            <tbody>
+              <tr><td>View operations</td><td><code>operations.view</code></td></tr>
+              <tr><td>View published statements</td><td><code>statements.view.published</code></td></tr>
+              <tr><td>Download statements</td><td><code>download.statements</code></td></tr>
+              <tr><td>View external comments</td><td><code>comments.view.external</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="margin-top:12px;color:var(--text-muted);font-size:13px">Todos los demás 26 permisos están ausentes.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ MATRIX ═══ -->
+  <section class="page" id="page-matrix">
+    <div class="page-header">
+      <h2>📊 Role Matrix</h2>
+      <p>Tabla comparativa de los 30 permisos × 3 roles.</p>
+    </div>
+    <div class="card">
+      <div class="card-body" style="padding:0">
+        <div class="tbl-wrap">
+          <table class="compare-table">
+            <thead>
+              <tr>
+                <th>Permiso</th>
+                <th>👑 Admin</th>
+                <th>🔵 Internal</th>
+                <th>🟢 External</th>
+              </tr>
+            </thead>
+            <tbody id="matrix-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ BACKEND GAPS ═══ -->
+  <section class="page" id="page-gaps-back">
+    <div class="page-header">
+      <h2>⚠️ Backend Gaps</h2>
+      <p>Endpoints del backend que no verifican permisos o los verifican incorrectamente.</p>
+    </div>
+
+    <div class="stats-row" style="margin-bottom:20px">
+      <div class="stat-card red"><div class="label">Alta severidad</div><div class="value">4</div></div>
+      <div class="stat-card yellow"><div class="label">Media severidad</div><div class="value">3</div></div>
+    </div>
+
+    <div class="severity-legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div> Alta — Endpoint sin protección, riesgo de acceso no autorizado</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--yellow)"></div> Media — Verificación parcial o lógica incompleta</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div> Baja — Mejora recomendada, sin riesgo inmediato</div>
+    </div>
+
+    <div class="section-title">🔴 Alta Severidad</div>
+
+    <div class="gap-item sev-high">
+      <h4><span class="tag tag-err">POST</span> /v2/statements/sync — Sync masivo</h4>
+      <p>No usa <code>can</code> ni policy. Cualquier usuario autenticado puede hacer un sync masivo de statements, sin verificar <code>statements.sync</code>.</p>
+      <dl class="gap-meta">
+        <dt>Archivo</dt><dd><code>routes/api/v2.php</code> → <code>SyncStatementsController</code></dd>
+        <dt>Fix</dt><dd>Agregar <code>can:sync,Statement::class</code> o verificar <code>hasPermissionTo(StatementsSync)</code> en el controller/request.</dd>
+      </dl>
+    </div>
+
+    <div class="gap-item sev-high">
+      <h4><span class="tag tag-err">PUT</span> /v2/calculations/{calculation} — Editar cálculo</h4>
+      <p>No tiene <code>can</code> ni policy. Solo requiere <code>auth</code>. El permiso <code>calculations.edit</code> existe pero nunca se verifica.</p>
+      <dl class="gap-meta">
+        <dt>Archivo</dt><dd><code>routes/api/v2.php</code></dd>
+        <dt>Fix</dt><dd>Crear <code>CalculationPolicy::update()</code> que verifique <code>hasPermissionTo(CalculationsEdit)</code>.</dd>
+      </dl>
+    </div>
+
+    <div class="gap-item sev-high">
+      <h4><span class="tag tag-err">DELETE</span> y <span class="tag tag-err">POST</span> /v2/calculations/* — CRUD cálculos</h4>
+      <p>Misma situación que edit — ninguna ruta de cálculos valida permisos más allá de <code>auth</code>.</p>
+      <dl class="gap-meta">
+        <dt>Afecta</dt><dd><code>DELETE /calculations/{calculation}</code>, <code>POST /calculations/</code></dd>
+        <dt>Fix</dt><dd>Implementar <code>CalculationPolicy</code> con métodos <code>create</code>, <code>update</code>, <code>delete</code>.</dd>
+      </dl>
+    </div>
+
+    <div class="gap-item sev-high">
+      <h4><span class="tag tag-err">POST</span> /v2/statements/receipt-upload-url</h4>
+      <p>No se identificó un check explícito de permiso en el controller de upload de recibos.</p>
+      <dl class="gap-meta">
+        <dt>Riesgo</dt><dd>Cualquier usuario autenticado con acceso al statement puede subir recibos.</dd>
+        <dt>Fix</dt><dd>Verificar <code>can:update,statement</code> o equivalente con <code>EditModeAccess</code>.</dd>
+      </dl>
+    </div>
+
+    <div class="section-title">🟡 Media Severidad</div>
+
+    <div class="gap-item sev-medium">
+      <h4><span class="tag tag-warn">POST</span> /{statement}/sync — Sync individual</h4>
+      <p><code>StatementPolicy::sync()</code> verifica <code>canBeSynced() && (isAdmin || !isPublished)</code> pero <strong>no verifica el permiso <code>statements.sync</code></strong>. Cualquier usuario autenticado con acceso al statement podría sincronizarlo si no está publicado.</p>
+      <dl class="gap-meta">
+        <dt>Fix</dt><dd>Agregar <code>$user->hasPermissionTo(StatementsSync, $statement->operation_id)</code> en <code>StatementPolicy::sync()</code>.</dd>
+      </dl>
+    </div>
+
+    <div class="gap-item sev-medium">
+      <h4><span class="tag tag-warn">GET</span> /v2/statements/view/yearly — Vista anual</h4>
+      <p>Usa <code>ValidOperation</code> rule que chequea <code>$user->can('view', $operation)</code> ✅ pero no verifica si el user tiene <code>statements.view.approved / unapproved / published</code>.</p>
+      <dl class="gap-meta">
+        <dt>Fix</dt><dd>Validar el permiso de vista según el estado de los statements en la operación.</dd>
+      </dl>
+    </div>
+
+    <div class="gap-item sev-medium">
+      <h4><span class="tag tag-warn">GET</span> /v2/statements/all — Listar todos</h4>
+      <p>El filtrado se hace implícitamente vía el trait <code>StatementsQuery</code> según el rol del usuario. No hay una policy explícita.</p>
+      <dl class="gap-meta">
+        <dt>Observación</dt><dd>El filtrado es funcionalmente correcto pero depende de lógica implícita en el trait. Un bug ahí podría exponer statements incorrectos.</dd>
+      </dl>
+    </div>
+  </section>
+
+  <!-- ═══ FRONTEND GAPS ═══ -->
+  <section class="page" id="page-gaps-front">
+    <div class="page-header">
+      <h2>🖥️ Frontend Gaps</h2>
+      <p>Features del frontend que se muestran o ejecutan sin verificar el permiso adecuado.</p>
+    </div>
+
+    <div class="section-title">🔴 Sin verificación alguna</div>
+
+    <div class="gap-item sev-high">
+      <h4>Pestaña "Templates" — sidebar</h4>
+      <p>El sidebar chequea <code>hasPermission(TemplatesView)</code> ✅, pero la backend <code>TemplatePolicy::view()</code> retorna <code>true</code> para cualquier usuario autenticado. El permiso <code>templates.view</code> no está asignado a Internal ni External en el seeder, así que el sidebar los bloquea pero el backend los dejaría pasar si acceden directamente.</p>
+      <dl class="gap-meta">
+        <dt>Archivo</dt><dd><code>Sidebar.tsx</code> + <code>TemplatePolicy.php</code></dd>
+        <dt>Fix</dt><dd>Hacer que <code>TemplatePolicy::view()</code> verifique el permiso <code>templates.view</code> en vez de devolver <code>true</code>.</dd>
+      </dl>
+    </div>
+
+    <div class="gap-item sev-high">
+      <h4>Download monthly/yearly view — botones descarga</h4>
+      <p><code>StatementView.tsx</code> muestra botones de descarga sin chequear el permiso <code>download.statements</code>. El permiso existe y está asignado a roles, pero nunca se usa ni en front ni en back.</p>
+      <dl class="gap-meta">
+        <dt>Archivo</dt><dd><code>StatementView.tsx</code></dd>
+        <dt>Fix</dt><dd>Agregar <code>canDownloadStatements = hasPermission(DownloadStatements, selectedOperation.id)</code> para controlar los botones.</dd>
+      </dl>
+    </div>
+
+    <div class="gap-item sev-high">
+      <h4>Botón "Publish" en <code>StatementActions.tsx</code></h4>
+      <p><code>canPublishStatement()</code> chequea solo <code>status === APPROVED && (accountantId == user.id || user.isAdmin)</code>. No usa el permiso <code>statements.publish</code>. Un InternalReportUser que sea accountant ve el botón aunque no tenga el permiso.</p>
+      <dl class="gap-meta">
+        <dt>Archivo</dt><dd><code>StatementActions.tsx</code> + <code>useHasPermission.tsx</code></dd>
+        <dt>Fix</dt><dd>Agregar check de <code>hasPermission(StatementsPublish, operationId)</code> en <code>canPublishStatement()</code>.</dd>
+      </dl>
+    </div>
+
+    <div class="section-title">🟡 Verificación parcial</div>
+
+    <div class="gap-item sev-medium">
+      <h4><code>canEditStatement()</code> usa permiso incorrecto</h4>
+      <p>Chequea <code>PermissionNamesEnum.OperationsView</code> en vez de <code>edit-mode.access</code>. <code>operations.view</code> es un permiso de lectura — lo tienen tanto Internal como External, lo que podría mostrar opciones de edición a ExternalReportUser.</p>
+      <dl class="gap-meta">
+        <dt>Archivo</dt><dd><code>useHasPermission.tsx</code></dd>
+        <dt>Fix</dt><dd>Cambiar el check a <code>hasPermission(EditModeAccess, operationId)</code> para alinear con el backend.</dd>
+      </dl>
+    </div>
+
+    <div class="gap-item sev-medium">
+      <h4>Permisos ausentes del enum frontend</h4>
+      <p><code>PermissionNamesEnum.ts</code> tiene 27 permisos — le faltan 3 del backend:</p>
+      <ul>
+        <li><code>StatementsViewPublished</code> — no existe en el enum frontend</li>
+        <li><code>DeclineStatements</code> — no existe, se delega a <code>statement.canBeDeclinedByCurrentUser</code></li>
+        <li><code>SubmitStatements</code> — no existe, se delega a <code>statement.canBeSubmittedByCurrentUser</code></li>
+      </ul>
+      <dl class="gap-meta">
+        <dt>Impacto</dt><dd>Funcionalmente correcto porque el servidor provee los campos <code>canBe*</code>, pero el front pierde visibilidad explícita del permiso.</dd>
+      </dl>
+    </div>
+  </section>
+
+  <!-- ═══ INCONSISTENCIES ═══ -->
+  <section class="page" id="page-inconsistencies">
+    <div class="page-header">
+      <h2>🔀 Back ↔ Front Inconsistencies</h2>
+      <p>Casos donde el backend y el frontend verifican cosas diferentes para la misma acción.</p>
+    </div>
+
+    <div class="section-title">🔴 Crítico</div>
+
+    <div class="gap-item sev-high">
+      <h4>User Management — backend usa <code>isAdmin</code>, frontend usa permisos individuales</h4>
+      <div class="tbl-wrap" style="margin:12px 0">
+        <table>
+          <thead><tr><th>Acción</th><th>Backend</th><th>Frontend</th></tr></thead>
+          <tbody>
+            <tr><td>Crear usuario</td><td><code>admin</code> middleware</td><td><code>UserManagementCreate</code></td></tr>
+            <tr><td>Ver usuarios</td><td><code>admin</code> middleware</td><td><code>UserManagementViewUsers</code></td></tr>
+            <tr><td>Editar usuario</td><td><code>admin</code> middleware</td><td><code>UserManagementEditUsers</code></td></tr>
+            <tr><td>Eliminar usuario</td><td><code>admin</code> middleware</td><td><code>UserManagementDeleteUsers</code></td></tr>
+            <tr><td>Asignar roles</td><td><code>admin</code> middleware</td><td><code>UserManagementAssignPermissions</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p><strong>Impacto:</strong> El backend siempre rechazará a non-Admins. Si en el futuro se asignan estos permisos a un InternalReportUser, el frontend los mostraría pero el backend los rechazaría.</p>
+    </div>
+
+    <div class="gap-item sev-high">
+      <h4>Operations Create — backend es <code>isAdmin</code>, frontend chequea <code>operations.create</code></h4>
+      <p>Backend: ruta <code>POST /operations/</code> usa middleware <code>admin</code>. Frontend: <code>canCreateOperations = hasPermission(OperationsCreate)</code>.</p>
+      <p style="margin-top:8px"><strong>Impacto:</strong> Un InternalReportUser tiene <code>operations.create</code> en el seeder pero el backend lo rechazaría. Hoy no genera bug visible (Admin tiene ambos), pero el modelo es inconsistente.</p>
+    </div>
+
+    <div class="gap-item sev-high">
+      <h4>Templates Modify — backend es <code>isAdmin</code>, frontend chequea <code>templates.modify</code></h4>
+      <p>Backend: <code>TemplatePolicy::create()</code> y <code>delete()</code> verifican <code>isAdmin()</code>. Frontend: <code>hasPermission(TemplatesModify)</code>.</p>
+      <p style="margin-top:8px"><strong>Impacto:</strong> Si <code>templates.modify</code> se asignara a un non-Admin, el front mostraría los botones pero el back los rechazaría.</p>
+    </div>
+
+    <div class="section-title">🟡 Medio</div>
+
+    <div class="gap-item sev-medium">
+      <h4><code>invoices.visibility.toggle</code> — lógica diferente</h4>
+      <div class="tbl-wrap" style="margin:12px 0">
+        <table>
+          <thead><tr><th>Capa</th><th>Lógica</th></tr></thead>
+          <tbody>
+            <tr><td>Backend</td><td><code>(user.id === accountant_id &amp;&amp; !isPublished) || isAdmin</code></td></tr>
+            <tr><td>Frontend</td><td><code>isAdmin || (isAccountant &amp;&amp; hasPermission(InvoicesToggleVisibility) &amp;&amp; !isPublished)</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>El backend no verifica el permiso <code>invoices.visibility.toggle</code>. Si el accountant NO tiene el permiso, el frontend lo bloquea pero el backend lo permitiría.</p>
+    </div>
+
+    <div class="gap-item sev-medium">
+      <h4><code>statements.publish</code> — lógica diferente</h4>
+      <div class="tbl-wrap" style="margin:12px 0">
+        <table>
+          <thead><tr><th>Capa</th><th>Lógica</th></tr></thead>
+          <tbody>
+            <tr><td>Backend</td><td><code>(hasPermission(StatementsPublish) || isAccountant) &amp;&amp; isApproved</code></td></tr>
+            <tr><td>Frontend</td><td><code>isApproved &amp;&amp; (accountantId == user.id || isAdmin)</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>El backend también acepta si el user tiene el permiso (independientemente de ser accountant). El frontend solo chequea accountant/Admin. Un InternalReportUser con <code>statements.publish</code> no vería el botón en el front pero el back sí lo aceptaría.</p>
+    </div>
+
+    <div class="gap-item sev-medium">
+      <h4><code>edit-mode.access</code> — <code>canEditStatement()</code> usa permiso diferente</h4>
+      <div class="tbl-wrap" style="margin:12px 0">
+        <table>
+          <thead><tr><th>Capa</th><th>Lógica</th></tr></thead>
+          <tbody>
+            <tr><td>Backend</td><td><code>hasPermission(EditModeAccess, operationId)</code></td></tr>
+            <tr><td>Frontend</td><td><code>isAccountant || hasPermission(OperationsView, operationId)</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>El frontend usa <code>operations.view</code> (permiso de lectura) para decidir si puede editar. <code>operations.view</code> lo tienen tanto Internal como External, potencialmente mostrando opciones de edición a ExternalReportUser.</p>
+    </div>
+  </section>
+
+  <!-- ═══ UNUSED ═══ -->
+  <section class="page" id="page-unused">
+    <div class="page-header">
+      <h2>🗑️ Unused Permissions</h2>
+      <p>Permisos definidos en los enums y asignados a roles, pero que nunca se verifican en ningún lado.</p>
+    </div>
+
+    <div class="gap-item sev-medium">
+      <h4><code>download.statements</code></h4>
+      <p>Asignado a Admin, Internal Report User y External Report User en el seeder. Definido en ambos enums (PHP y TS). Pero:</p>
+      <ul>
+        <li>Ningún controller ni policy del backend lo verifica</li>
+        <li>Ningún componente del frontend lo referencia</li>
+        <li>Los endpoints de descarga (<code>/view/monthly/download</code>, <code>/view/yearly/download</code>) no tienen check de este permiso</li>
+      </ul>
+      <dl class="gap-meta">
+        <dt>Fix</dt><dd>Implementar el check en los endpoints de descarga del backend y en los botones de descarga del frontend (<code>StatementView.tsx</code>).</dd>
+      </dl>
+    </div>
+
+    <div class="gap-item sev-medium">
+      <h4><code>invoices.view</code></h4>
+      <p>Definido en ambos enums. Asignado a Admin e Internal Report User. Pero:</p>
+      <ul>
+        <li>Ningún controller ni policy del backend lo verifica</li>
+        <li>Ningún componente del frontend lo referencia directamente</li>
+      </ul>
+      <dl class="gap-meta">
+        <dt>Fix</dt><dd>Determinar si este permiso debe controlar la visibilidad de la sección de invoices, y si es así implementarlo en <code>InvoiceSection.tsx</code> y en una policy de backend.</dd>
+      </dl>
+    </div>
+
+    <div class="card" style="margin-top:20px">
+      <div class="card-header"><h3>⚠️ Permiso en backend no presente en frontend enum</h3></div>
+      <div class="card-body">
+        <p style="color:var(--text-muted);margin-bottom:14px">Estos permisos existen en <code>PermissionNamesEnum.php</code> pero no están en <code>PermissionNamesEnum.ts</code>:</p>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div class="gap-item" style="margin:0;border-left-color:var(--yellow)">
+            <h4><code>statements.view.published</code></h4>
+            <p>No está en el enum frontend. El filtrado se hace implícitamente — ExternalReportUser solo ve publicados porque el backend filtra.</p>
+          </div>
+          <div class="gap-item" style="margin:0;border-left-color:var(--yellow)">
+            <h4><code>approvals.decline.statements</code></h4>
+            <p>No está en el enum frontend. La lógica delega en <code>statement.canBeDeclinedByCurrentUser</code> (campo del servidor).</p>
+          </div>
+          <div class="gap-item" style="margin:0;border-left-color:var(--yellow)">
+            <h4><code>submit.statements</code></h4>
+            <p>No está en el enum frontend. La lógica delega en <code>statement.canBeSubmittedByCurrentUser</code> (campo del servidor).</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="gen-info" id="gen-info">Generated by permissions-audit skill</div>
+
+</main>
+
+<script>
+// ─── Data ──────────────────────────────────────────────────────────────────
+const PERMS = [
+  {
+    slug: 'statements.view.approved',
+    name: 'View Approved Statements',
+    cat: 'statements',
+    warn: false,
+    roles: { admin: true, internal: true, external: false },
+    backend: 'StatementPolicy::view() + StatementsQuery trait filtra por rol.',
+    frontend: 'Sidebar.tsx, Statements.tsx — hasPermission(StatementsViewApproved).',
+  },
+  {
+    slug: 'statements.view.unapproved',
+    name: 'View Unapproved Statements',
+    cat: 'statements',
+    warn: false,
+    roles: { admin: true, internal: true, external: false },
+    backend: 'StatementPolicy::view() + StatementsQuery.',
+    frontend: 'Statements.tsx — hasPermission(StatementsViewUnapproved).',
+  },
+  {
+    slug: 'statements.sync',
+    name: 'Sync Statements',
+    cat: 'statements',
+    warn: true,
+    roles: { admin: true, internal: true, external: false },
+    backend: '⚠️ POST /statements/sync no verifica el permiso. POST /{statement}/sync — StatementPolicy::sync() tampoco lo verifica (solo isAdmin || !isPublished).',
+    frontend: 'SyncPanel.tsx — canSyncStatement(): isAdmin || isAccountant || hasPermission(StatementsSync). Más restrictivo que el backend.',
+  },
+  {
+    slug: 'statements.apply-template',
+    name: 'Apply Template to Statement',
+    cat: 'statements',
+    warn: false,
+    roles: { admin: true, internal: false, external: false },
+    backend: 'StatementPolicy::applyTemplate() verifica el permiso + que no esté publicado.',
+    frontend: 'SyncPanel.tsx — canApplyTemplate(statement).',
+  },
+  {
+    slug: 'statements.publish',
+    name: 'Publish Statement',
+    cat: 'statements',
+    warn: true,
+    roles: { admin: true, internal: false, external: false },
+    backend: 'StatementPolicy::publish() acepta hasPermission(StatementsPublish) OR isAccountant, AND isApproved.',
+    frontend: '⚠️ StatementActions.tsx — canPublishStatement() solo chequea accountantId == user.id || isAdmin. No usa el permiso statements.publish.',
+  },
+  {
+    slug: 'statements.view.published',
+    name: 'View Published Statements',
+    cat: 'statements',
+    warn: true,
+    roles: { admin: true, internal: true, external: true },
+    backend: 'StatementPolicy::view() + StatementsQuery — ExternalReportUser solo ve publicados.',
+    frontend: '⚠️ No está en el enum PermissionNamesEnum.ts. El filtrado es implícito (backend filtra).',
+  },
+  {
+    slug: 'edit-mode.access',
+    name: 'Access Edit Mode',
+    cat: 'edit',
+    warn: true,
+    roles: { admin: true, internal: true, external: false },
+    backend: 'OperationPolicy::manageConceptConfigs() + AccountInvoicePolicy::update() verifican este permiso.',
+    frontend: '⚠️ MonthlyTable.tsx usa hasPermission(EditModeAccess) ✅ pero canEditStatement() en useHasPermission.tsx usa OperationsView en su lugar (incorrecto).',
+  },
+  {
+    slug: 'calculations.view',
+    name: 'View Calculations',
+    cat: 'calculations',
+    warn: true,
+    roles: { admin: true, internal: true, external: false },
+    backend: 'CalculationPolicy::viewCalculations() retorna true. ⚠️ GET /calculations/ (listado) no tiene policy ni gate.',
+    frontend: 'Sidebar.tsx item Calculations. Calculations.tsx — canViewCalculations.',
+  },
+  {
+    slug: 'calculations.edit',
+    name: 'Edit Calculations',
+    cat: 'calculations',
+    warn: true,
+    roles: { admin: true, internal: true, external: false },
+    backend: '⚠️ PUT /calculations/{calculation} no tiene can ni policy. Solo requiere auth.',
+    frontend: 'Calculations.tsx — canEditCalculations, controla formulario de edición.',
+  },
+  {
+    slug: 'calculations.create',
+    name: 'Create Calculations',
+    cat: 'calculations',
+    warn: true,
+    roles: { admin: true, internal: false, external: false },
+    backend: '⚠️ POST /calculations/ no tiene can ni policy. Solo requiere auth.',
+    frontend: 'Calculations.tsx — canCreateCalculations, controla botón "Create Calculation".',
+  },
+  {
+    slug: 'view.as.client',
+    name: 'View as Client',
+    cat: 'visualization',
+    warn: true,
+    roles: { admin: true, internal: true, external: false },
+    backend: 'No se usa en ningún gate/policy.',
+    frontend: '⚠️ Está en el enum pero no se usa. TableViewActions.tsx usa isInternalUser() || isAdmin en su lugar.',
+  },
+  {
+    slug: 'view.hidden.concepts',
+    name: 'View Hidden Concepts',
+    cat: 'visualization',
+    warn: false,
+    roles: { admin: true, internal: true, external: false },
+    backend: 'OperationPolicy::seeAliasedAndHiddenConcepts(). Usado en DownloadYearlyViewRequest y DownloadMonthlyViewRequest.',
+    frontend: 'StatementView.tsx — hasPermission(ViewHiddenConcepts) para mostrar botón "All".',
+  },
+  {
+    slug: 'operations.create',
+    name: 'Create Operations',
+    cat: 'operations',
+    warn: true,
+    roles: { admin: true, internal: true, external: false },
+    backend: '⚠️ POST /operations/ usa middleware admin (isAdmin()). OperationPolicy::create() también verifica isAdmin().',
+    frontend: 'Operations.tsx — canCreateOperations = hasPermission(OperationsCreate). Inconsistencia: back usa isAdmin, front usa el permiso.',
+  },
+  {
+    slug: 'operations.edit.delete',
+    name: 'Edit / Delete Operations',
+    cat: 'operations',
+    warn: false,
+    roles: { admin: true, internal: true, external: false },
+    backend: 'OperationPolicy::editOrDelete() verifica este permiso por operación.',
+    frontend: 'Operations.tsx — canEditDeleteOperations.',
+  },
+  {
+    slug: 'operations.view',
+    name: 'View Operations',
+    cat: 'operations',
+    warn: true,
+    roles: { admin: true, internal: true, external: true },
+    backend: 'OperationPolicy::view() verifica este permiso.',
+    frontend: '⚠️ canEditStatement() usa este permiso (incorrecto — es de lectura). También usado en Sidebar, Statements.tsx, Operations.tsx.',
+  },
+  {
+    slug: 'user.management.create',
+    name: 'Create Users',
+    cat: 'usermgmt',
+    warn: true,
+    roles: { admin: true, internal: false, external: false },
+    backend: 'POST /v1/users/ usa middleware admin.',
+    frontend: '⚠️ Users.tsx — hasPermission(UserManagementCreate). Back usa isAdmin, front usa permiso.',
+  },
+  {
+    slug: 'user.management.assign.permissions',
+    name: 'Assign Permissions to Users',
+    cat: 'usermgmt',
+    warn: true,
+    roles: { admin: true, internal: false, external: false },
+    backend: 'POST/DELETE /v1/users/{user}/roles/* usan middleware admin.',
+    frontend: '⚠️ Users.tsx — hasPermission(UserManagementAssignPermissions). Inconsistencia con backend.',
+  },
+  {
+    slug: 'user.management.edit.users',
+    name: 'Edit Users',
+    cat: 'usermgmt',
+    warn: true,
+    roles: { admin: true, internal: false, external: false },
+    backend: 'PUT /v1/users/{user} usa middleware admin.',
+    frontend: '⚠️ Users.tsx — hasPermission(UserManagementEditUsers). Inconsistencia con backend.',
+  },
+  {
+    slug: 'user.management.view.users',
+    name: 'View Users',
+    cat: 'usermgmt',
+    warn: true,
+    roles: { admin: true, internal: false, external: false },
+    backend: 'GET /v1/users/ y GET /v1/users/{user} usan middleware admin.',
+    frontend: '⚠️ Sidebar.tsx + Users.tsx — hasPermission(UserManagementViewUsers). Inconsistencia con backend.',
+  },
+  {
+    slug: 'user.management.delete.users',
+    name: 'Delete Users',
+    cat: 'usermgmt',
+    warn: true,
+    roles: { admin: true, internal: false, external: false },
+    backend: 'DELETE /v1/users/{user} usa middleware admin.',
+    frontend: '⚠️ Users.tsx — hasPermission(UserManagementDeleteUsers). Inconsistencia con backend.',
+  },
+  {
+    slug: 'approvals.approve.statements',
+    name: 'Approve Statements',
+    cat: 'approvals',
+    warn: false,
+    roles: { admin: true, internal: true, external: false },
+    backend: 'ApproveStatementsRequest::authorize() → StatementPolicy::approve() verifica permiso + canBeApprovedBy().',
+    frontend: 'Statements.tsx tab aprobación. StatementViewHeader.tsx — hasPermission(ApproveStatements). useStatementPermissions usa statement.canBeApprovedByCurrentUser.',
+  },
+  {
+    slug: 'download.statements',
+    name: 'Download Statements',
+    cat: 'approvals',
+    warn: true,
+    roles: { admin: true, internal: true, external: true },
+    backend: '⚠️ No verificado en ningún controller ni policy.',
+    frontend: '⚠️ No se usa en ningún componente — está en el enum pero sin referencia.',
+  },
+  {
+    slug: 'approvals.decline.statements',
+    name: 'Decline Statements',
+    cat: 'approvals',
+    warn: true,
+    roles: { admin: true, internal: true, external: false },
+    backend: 'StatementPolicy::decline() verifica el permiso + canBeDeclinedBy().',
+    frontend: '⚠️ No está en el enum TS. useStatementPermissions usa statement.canBeDeclinedByCurrentUser del servidor.',
+  },
+  {
+    slug: 'submit.statements',
+    name: 'Submit Statements',
+    cat: 'approvals',
+    warn: true,
+    roles: { admin: true, internal: true, external: false },
+    backend: 'StatementPolicy::submit() verifica el permiso + canBeSubmittedBy().',
+    frontend: '⚠️ No está en el enum TS. useStatementPermissions usa statement.canBeSubmittedByCurrentUser del servidor.',
+  },
+  {
+    slug: 'payments.download.toggle',
+    name: 'Toggle Payments Download',
+    cat: 'payments',
+    warn: false,
+    roles: { admin: true, internal: true, external: false },
+    backend: 'AccountInvoicePolicy::canSetDownloadAvailable(). FilterAvailableInvoiceToDownloadAction filtra si no tiene el permiso.',
+    frontend: 'PaymentRow.tsx — canTogglePaymentsDownload.',
+  },
+  {
+    slug: 'invoices.view',
+    name: 'View Invoices',
+    cat: 'payments',
+    warn: true,
+    roles: { admin: true, internal: true, external: false },
+    backend: '⚠️ No verificado en ningún controller ni policy.',
+    frontend: '⚠️ No se usa en ningún componente frontend.',
+  },
+  {
+    slug: 'invoices.visibility.toggle',
+    name: 'Toggle Invoice Visibility',
+    cat: 'payments',
+    warn: true,
+    roles: { admin: true, internal: true, external: false },
+    backend: '⚠️ StatementPolicy::canChangeInvoiceVisibility() NO verifica este permiso — solo accountant_id && !isPublished || isAdmin.',
+    frontend: 'canEditInvoices() — isAdmin || (isAccountant && hasPermission(InvoicesToggleVisibility) && !isPublished). Más restrictivo que backend.',
+  },
+  {
+    slug: 'templates.view',
+    name: 'View Templates',
+    cat: 'templates',
+    warn: true,
+    roles: { admin: true, internal: false, external: false },
+    backend: '⚠️ TemplatePolicy::view() retorna true para todo usuario autenticado — el permiso no se verifica.',
+    frontend: 'Sidebar.tsx — hasPermission(TemplatesView). El backend los dejaría pasar aunque no tengan el permiso.',
+  },
+  {
+    slug: 'templates.modify',
+    name: 'Modify Templates',
+    cat: 'templates',
+    warn: true,
+    roles: { admin: true, internal: false, external: false },
+    backend: '⚠️ TemplatePolicy::create() y delete() verifican isAdmin(), no el permiso templates.modify.',
+    frontend: 'TemplatesTab.tsx — canCreateTemplates y canDeleteTemplates = hasPermission(TemplatesModify). Inconsistencia con backend.',
+  },
+  {
+    slug: 'comments.view.internal',
+    name: 'View Internal Comments',
+    cat: 'comments',
+    warn: false,
+    roles: { admin: true, internal: true, external: false },
+    backend: 'StatementPolicy::canViewComment() y canCreateInternalComment() verifican este permiso.',
+    frontend: 'Comments.tsx — canSeeInternalComments = hasPermission(InternalCommentsView) || isAdmin.',
+  },
+  {
+    slug: 'comments.view.external',
+    name: 'View External Comments',
+    cat: 'comments',
+    warn: false,
+    roles: { admin: true, internal: true, external: true },
+    backend: 'StatementPolicy::canViewComment() y canCreateExternalComment().',
+    frontend: 'Comments.tsx — sección de comentarios externos.',
+  },
+];
+
+// ─── Navigation ────────────────────────────────────────────────────────────
+function navigate(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
+  const page = document.getElementById('page-' + id);
+  if (page) page.classList.add('active');
+
+  // find the nav item with the same onclick
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.getAttribute('onclick') === `navigate('${id}')`) n.classList.add('active');
+  });
+
+  // populate content for category pages
+  const catMap = {
+    'all-perms': null,
+    'cat-statements': 'statements',
+    'cat-edit': 'edit',
+    'cat-calc': 'calculations',
+    'cat-viz': 'visualization',
+    'cat-ops': 'operations',
+    'cat-users': 'usermgmt',
+    'cat-approvals': 'approvals',
+    'cat-payments': 'payments',
+    'cat-templates': 'templates',
+    'cat-comments': 'comments',
+  };
+
+  if (id === 'all-perms') {
+    renderPerms('perms-list', PERMS);
+  } else if (catMap[id] !== undefined) {
+    const containerId = 'perms-' + id.replace('cat-', '');
+    renderPerms(containerId, PERMS.filter(p => p.cat === catMap[id]));
+  } else if (id === 'matrix') {
+    renderMatrix();
+  }
+
+  window.scrollTo(0, 0);
+}
+
+// ─── Render permissions ────────────────────────────────────────────────────
+function renderPerms(containerId, perms) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = perms.map(p => `
+    <div class="perm-card" data-cat="${p.cat}" data-warn="${p.warn}">
+      <div class="perm-header" onclick="togglePerm(this)">
+        <code>${p.slug}</code>
+        <span class="perm-name">${p.name}</span>
+        <div class="perm-badges">
+          ${p.warn ? '<span class="tag tag-warn">⚠️ issue</span>' : ''}
+          ${p.roles.admin ? '<span class="tag tag-purple" title="Admin">A</span>' : ''}
+          ${p.roles.internal ? '<span class="tag tag-info" title="Internal">I</span>' : ''}
+          ${p.roles.external ? '<span class="tag tag-ok" title="External">E</span>' : ''}
+        </div>
+      </div>
+      <div class="perm-body">
+        <div class="row">
+          <div class="row-label">Backend</div>
+          <div class="row-val">${p.backend}</div>
+        </div>
+        <div class="row">
+          <div class="row-label">Frontend</div>
+          <div class="row-val">${p.frontend}</div>
+        </div>
+        <div class="row">
+          <div class="row-label">Roles</div>
+          <div class="row-val" style="display:flex;gap:6px;flex-wrap:wrap">
+            ${p.roles.admin ? '<span class="tag tag-purple">Admin ✅</span>' : '<span class="tag" style="color:var(--text-muted)">Admin ❌</span>'}
+            ${p.roles.internal ? '<span class="tag tag-info">Internal ✅</span>' : '<span class="tag" style="color:var(--text-muted)">Internal ❌</span>'}
+            ${p.roles.external ? '<span class="tag tag-ok">External ✅</span>' : '<span class="tag" style="color:var(--text-muted)">External ❌</span>'}
+          </div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function togglePerm(header) {
+  const body = header.nextElementSibling;
+  body.classList.toggle('open');
+}
+
+function filterPerms(cat, pill) {
+  document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
+  pill.classList.add('active');
+
+  const filtered = cat === 'all' ? PERMS
+    : cat === 'warn' ? PERMS.filter(p => p.warn)
+    : PERMS.filter(p => p.cat === cat);
+
+  renderPerms('perms-list', filtered);
+}
+
+// ─── Render matrix ─────────────────────────────────────────────────────────
+function renderMatrix() {
+  const tbody = document.getElementById('matrix-body');
+  if (!tbody) return;
+
+  const catLabels = {
+    statements: '📄 Statements',
+    edit: '✏️ Edit Mode',
+    calculations: '🧮 Calculations',
+    visualization: '👁️ Visualization',
+    operations: '⚙️ Operations',
+    usermgmt: '👥 User Management',
+    approvals: '✅ Approvals',
+    payments: '💳 Payments',
+    templates: '📋 Templates',
+    comments: '💬 Comments',
+  };
+
+  let lastCat = null;
+  let html = '';
+  PERMS.forEach(p => {
+    if (p.cat !== lastCat) {
+      lastCat = p.cat;
+      html += `<tr><td colspan="4" style="background:var(--surface2);font-weight:700;font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;padding:8px 14px">${catLabels[p.cat]}</td></tr>`;
+    }
+    html += `<tr>
+      <td><code>${p.slug}</code>${p.warn ? ' <span class="tag tag-warn" style="font-size:10px">⚠️</span>' : ''}</td>
+      <td class="matrix-check">${p.roles.admin ? '<span class="chk-yes">✓</span>' : '<span class="chk-no">✗</span>'}</td>
+      <td class="matrix-check">${p.roles.internal ? '<span class="chk-yes">✓</span>' : '<span class="chk-no">✗</span>'}</td>
+      <td class="matrix-check">${p.roles.external ? '<span class="chk-yes">✓</span>' : '<span class="chk-no">✗</span>'}</td>
+    </tr>`;
+  });
+  tbody.innerHTML = html;
+}
+
+// ─── Search ───────────────────────────────────────────────────────────────
+function searchPerms(query) {
+  query = query.toLowerCase().trim();
+  if (!query) {
+    // If on all-perms page, re-render all
+    const page = document.querySelector('.page.active');
+    if (page && page.id === 'page-all-perms') {
+      renderPerms('perms-list', PERMS);
+    }
+    return;
+  }
+
+  const filtered = PERMS.filter(p =>
+    p.slug.toLowerCase().includes(query) ||
+    p.name.toLowerCase().includes(query) ||
+    p.cat.toLowerCase().includes(query) ||
+    p.backend.toLowerCase().includes(query) ||
+    p.frontend.toLowerCase().includes(query)
+  );
+
+  // Navigate to all-perms and show filtered results
+  navigate('all-perms');
+  renderPerms('perms-list', filtered);
+
+  // Update filter pills - deactivate all
+  document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
+}
+
+// ─── Init ──────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // Pre-render all-perms so it's ready
+  renderPerms('perms-list', PERMS);
+
+  // Add generated timestamp
+  const genInfo = document.getElementById('gen-info');
+  if (genInfo) {
+    genInfo.textContent = 'Generated on ' + new Date().toLocaleString();
+  }
+});
+</script>
+</body>
+</html>
