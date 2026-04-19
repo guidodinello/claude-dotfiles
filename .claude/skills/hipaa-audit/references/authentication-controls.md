@@ -67,6 +67,38 @@ if the server doesn't invalidate the session token, a client-side redirect can b
 
 ---
 
+## § 164.312(a)(2)(iv) — Encryption and Decryption
+
+**Designation:** Addressable
+
+**Regulatory text:** Implement a mechanism to encrypt and decrypt electronic protected health
+information.
+
+**What this means for code review:**
+
+Encryption of ePHI at rest. Addressable means: implement it, or document why it is not
+reasonable/appropriate and implement an equivalent alternative. For systems handling ePHI over
+the internet or in cloud storage, absence of encryption at rest is difficult to justify as
+unreasonable — treat it as effectively required in most contexts.
+
+### How to check in code
+
+- Find every storage layer that holds ePHI: databases, file systems, object storage (S3/GCS),
+  backups, message queues, caches (Redis). Is encryption at rest enabled for each?
+- For databases: check whether column-level encryption is used for PHI fields, or whether
+  full-disk/transparent encryption is in place (and whether it protects against the threat
+  model — e.g., TDE doesn't protect against a compromised DB credential).
+- For object storage: is server-side encryption enabled? Is the key managed by the team (SSE-C
+  or KMS) or provider-managed (SSE-S3)? Note key management posture as INFO.
+- For backups: are backup archives encrypted? Is the backup encryption key separate from the
+  data encryption key?
+- Grep for hardcoded encryption keys in source — these defeat the purpose of encryption.
+- Check that encryption is applied at the *application or infrastructure layer*, not as an
+  afterthought. An unencrypted export path (e.g., `mysqldump` output written to an unencrypted
+  temp file) is a gap even if the primary DB is encrypted.
+
+---
+
 ## NIST SP 800-63B-4 Password Requirements
 
 NIST SP 800-63B-4 is the current version (April 2024). Rev 3 is withdrawn.

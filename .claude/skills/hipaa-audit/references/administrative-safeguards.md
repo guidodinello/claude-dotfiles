@@ -22,6 +22,7 @@ Standards covered here (selected for code-audit relevance):
 |---|---|---|
 | (a)(1) | Security Management Process | Required (risk analysis, risk mgmt, sanction policy, activity review) |
 | (a)(4) | Information Access Management | Mixed (see below) |
+| (a)(5) | Security Awareness and Training | Required standard; all specs Addressable |
 | (a)(6) | Security Incident Procedures | Required |
 | (a)(7) | Contingency Plan | Mixed (see below) |
 | (a)(8) | Evaluation | Required |

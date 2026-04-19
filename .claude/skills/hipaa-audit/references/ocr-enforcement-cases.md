@@ -21,7 +21,7 @@ intrusion or insider misuse.
 
 ---
 
-## Cases (2021–2026, reverse chronological)
+## Cases (2019–2026, 7 cases, reverse chronological)
 
 ---
 
@@ -191,7 +191,7 @@ patient complains. Both controls must exist and both must be operative.
 
 ### BST & Co. CPAs, LLP
 **Date:** Settlement announced post-2020 (breach report filed February 16, 2020)
-**Settlement:** Paid to OCR + 2-year CAP
+**Settlement:** Amount not confirmed from available sources — see https://www.hhs.gov/press-room/hhs-ocr-bst-hipaa-settlement.html + 2-year CAP
 **Entity type:** Business associate — public accounting and management consulting firm (New York)
 **Incident date:** December 7, 2019 (ransomware discovered)
 

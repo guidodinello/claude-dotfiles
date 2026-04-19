@@ -4,7 +4,7 @@
 
 ---
 
-## Sources fetched successfully
+## Sources referenced (via WebSearch — direct fetch blocked)
 
 All direct WebFetch calls returned HTTP 403 (blocked by the execution environment). Content
 was gathered via WebSearch, which returned structured snippets from the same authoritative URLs.
@@ -106,10 +106,10 @@ invented — all claims are grounded in search result text.
 
 ## Changes made
 
-- `references/ocr-enforcement-cases.md` — **Created.** 8 cases from 2021–2026 (BST & Co.,
-  Montefiore, BayCare, Comstar, NERAD, Deer Oaks, TWRTC, plus cross-reference to others).
-  Each case documents: entity, date, settlement amount, violation found, technical failure,
-  and CAP requirements. Includes a pattern summary and enforcement-validated control table.
+- `references/ocr-enforcement-cases.md` — **Created.** 7 cases from 2019–2026 (BST & Co.
+  [2019 incident], Montefiore, BayCare, Comstar, NERAD, Deer Oaks, TWRTC). Each case documents:
+  entity, date, settlement amount (where confirmed), violation found, technical failure, and CAP
+  requirements. Includes a pattern summary and enforcement-validated control table.
 
 - `references/authentication-controls.md` — **Created.** Covers:
   - § 164.312(d) with code-audit methodology
