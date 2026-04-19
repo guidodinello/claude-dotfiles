@@ -62,8 +62,10 @@ Direct links to the BAA or HIPAA compliance program pages for major vendors. The
 | Vendor | BAA / HIPAA program URL | Notes |
 |---|---|---|
 | **Twilio (voice/SMS/video)** | https://www.twilio.com/en-us/hipaa | BAA available on Security Edition or Enterprise Edition only. Covered services: Programmable SMS, Voice, Video, SIP, and runtime tools. Not all Twilio products are covered — verify each service used. |
-| **Twilio SendGrid (email)** | https://www.twilio.com/docs/sendgrid/ui/account-and-settings/hipaa-compliant | SendGrid does NOT sign a BAA and is not HIPAA compliant for ePHI transmission. Do not send ePHI via SendGrid. Use an alternative HIPAA-compliant email provider (e.g., Paubox, AWS SES with BAA) if email must contain PHI. |
+| **Twilio SendGrid (email)** | https://www.twilio.com/docs/sendgrid/ui/account-and-settings/hipaa-compliant | SendGrid does NOT sign a BAA and is not HIPAA compliant for ePHI transmission. Do not send ePHI via SendGrid. Use an alternative HIPAA-compliant email provider if email must contain PHI — see HIPAA-compliant email alternatives below. |
 | **Mailgun** | Contact Mailgun enterprise sales | Mailgun offers BAAs for enterprise customers. Verify coverage before transmitting ePHI. |
+| **Paubox** | https://www.paubox.com/hipaa | HIPAA-compliant email provider. BAA included. Designed specifically for healthcare; encrypts email end-to-end without requiring the recipient to use a portal. Use as a SendGrid replacement when email bodies contain ePHI. |
+| **AWS SES** | https://aws.amazon.com/compliance/hipaa-compliance/ | AWS SES is a HIPAA-eligible service under the AWS BAA (sign via AWS Artifact). Requires the organization to already have an AWS BAA in place. |
 
 ### Payment
 
