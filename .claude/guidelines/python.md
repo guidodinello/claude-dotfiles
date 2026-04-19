@@ -562,6 +562,162 @@ These patterns are warning signs that the design needs rethinking:
 - **Classes with no shared state** — if every method could be a free function, it
   probably should be. (See: Jack Diederich, *Stop Writing Classes*.)
 
+- **Mutable module-level state** — module globals that get mutated are hidden shared
+  state. They break encapsulation, make testing hard, and cause subtle bugs across imports.
+  Constants (`ALL_CAPS`) are fine; mutable dicts and lists at module scope are not.
+
+- **`assert` for input validation** — `assert` is disabled with `python -O` and must
+  never be used for validation. Use `ValueError` or `TypeError` at boundaries:
+  ```python
+  # Bad — silently skipped in optimised builds
+  assert user_id > 0, "user_id must be positive"
+
+  # Good
+  if user_id <= 0:
+      raise ValueError(f"user_id must be positive, got {user_id}")
+  ```
+
+---
+
+## Exception handling
+
+### Raise low, catch high
+
+Lower-level functions should raise specific, descriptive exceptions and let them
+propagate. Only catch at system edges — CLI entry points, request handlers, event loop
+callbacks — where you have enough context to decide what to do.
+
+```python
+# Bad — swallows the error mid-stack, caller can't recover
+def load_user(user_id: int) -> User:
+    try:
+        return db.get(user_id)
+    except Exception:
+        return None  # caller has no idea what went wrong
+
+# Good — raise specifically, catch at the handler boundary
+def load_user(user_id: int) -> User:
+    return db.get(user_id)  # let DBError propagate
+
+async def handle_request(user_id: int) -> Response:
+    try:
+        user = load_user(user_id)
+    except DBError as e:
+        logger.exception("DB lookup failed for user %d", user_id)
+        return Response(500)
+```
+
+### Custom domain exceptions
+
+Define a base exception per package so callers can catch your errors specifically
+without catching everything:
+
+```python
+class AppError(Exception):
+    """Base for all application errors."""
+
+class AuthError(AppError):
+    """Session expired or token invalid."""
+
+class NotFoundError(AppError):
+    """Requested resource does not exist."""
+```
+
+Prefer built-in exceptions (`ValueError`, `TypeError`, `FileNotFoundError`) for
+generic programming errors. Use custom exceptions for domain concepts.
+
+---
+
+## Async
+
+### Never block the event loop
+
+`time.sleep()`, synchronous HTTP calls, and CPU-bound work stall every other coroutine.
+Use async-native alternatives or offload to a thread:
+
+```python
+# Bad — blocks the entire event loop
+import time
+async def wait():
+    time.sleep(5)
+
+# Good
+import asyncio
+async def wait():
+    await asyncio.sleep(5)
+
+# Good — offload blocking I/O to a thread pool
+loop = asyncio.get_running_loop()
+result = await loop.run_in_executor(None, blocking_function, arg)
+```
+
+### Store `asyncio.create_task()` results
+
+Tasks not referenced by a variable can be garbage-collected and silently canceled
+before they finish. Always keep a reference:
+
+```python
+# Bad — task may be GC'd before completion
+asyncio.create_task(background_job())
+
+# Good
+task = asyncio.create_task(background_job())
+# keep `task` alive (store on self, in a set, etc.)
+```
+
+### Prefer `asyncio.Queue` for producer-consumer patterns
+
+`asyncio.Queue` decouples producers from consumers cleanly and handles backpressure
+without manual coordination:
+
+```python
+queue: asyncio.Queue[str] = asyncio.Queue(maxsize=100)
+
+async def producer() -> None:
+    async for item in source:
+        await queue.put(item)
+
+async def consumer() -> None:
+    while True:
+        item = await queue.get()
+        await process(item)
+        queue.task_done()
+```
+
+---
+
+## Generators
+
+### Generator expressions over list comprehensions
+
+When the caller only iterates the result, pass a generator expression instead of
+building a full list in memory:
+
+```python
+# Bad — materialises the whole list
+total = sum([x * x for x in range(1_000_000)])
+
+# Good — streams one element at a time
+total = sum(x * x for x in range(1_000_000))
+```
+
+### `yield from` for delegation
+
+Replace manual loops that re-yield from a sub-iterator with `yield from`:
+
+```python
+# Bad
+def flatten(nested):
+    for sublist in nested:
+        for item in sublist:
+            yield item
+
+# Good
+def flatten(nested):
+    for sublist in nested:
+        yield from sublist
+```
+
 ---
 
 ## Tests
