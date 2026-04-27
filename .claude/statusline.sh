@@ -16,25 +16,36 @@ SEP="${MUTED}  │  ${NC}"
 
 # --- Model ---
 MODEL=$(echo "$input" | jq -r '.model.display_name // "Claude"')
-case "$MODEL" in
-  *Opus*)   MODEL_ICON="🎭" ;;
-  *Sonnet*) MODEL_ICON="📝" ;;
-  *Haiku*)  MODEL_ICON="🍃" ;;
-  *)        MODEL_ICON="🤖" ;;
-esac
-MODEL_PART="${BOLD}${PURPLE}${MODEL_ICON} ${MODEL}${NC}"
+MODEL_PART="${BOLD}${PURPLE}${MODEL}${NC}"
 
-# --- Directory + git ---
+# --- Directory + git (cached per session_id) ---
 DIR=$(echo "$input" | jq -r '.workspace.current_dir // "~"')
+SESSION_ID=$(echo "$input" | jq -r '.session_id // "default"')
+WORKTREE=$(echo "$input" | jq -r '.workspace.git_worktree // empty')
 DIR_NAME=$(basename "$DIR")
 DIR_PART="${ACCENT}${DIR_NAME}${NC}"
 
+GIT_CACHE="/tmp/statusline-git-${SESSION_ID}"
+GIT_CACHE_TTL=5
+
+cache_stale() {
+  [ ! -f "$GIT_CACHE" ] && return 0
+  local age=$(( $(date +%s) - $(stat -f %m "$GIT_CACHE" 2>/dev/null || stat -c %Y "$GIT_CACHE" 2>/dev/null || echo 0) ))
+  [ "$age" -gt "$GIT_CACHE_TTL" ]
+}
+
 GIT_PART=""
 if git -C "$DIR" rev-parse --git-dir >/dev/null 2>&1; then
-  BRANCH=$(git -C "$DIR" branch --show-current 2>/dev/null)
-  STAGED=$(git -C "$DIR" diff --cached --numstat 2>/dev/null | wc -l | tr -d ' ')
-  MODIFIED=$(git -C "$DIR" diff --numstat 2>/dev/null | wc -l | tr -d ' ')
+  if cache_stale; then
+    BRANCH=$(git -C "$DIR" branch --show-current 2>/dev/null)
+    STAGED=$(git -C "$DIR" diff --cached --numstat 2>/dev/null | wc -l | tr -d ' ')
+    MODIFIED=$(git -C "$DIR" diff --numstat 2>/dev/null | wc -l | tr -d ' ')
+    echo "${BRANCH}|${STAGED}|${MODIFIED}" > "$GIT_CACHE"
+  else
+    IFS='|' read -r BRANCH STAGED MODIFIED < "$GIT_CACHE"
+  fi
   GIT_PART=" ${MUTED}on${NC} ${SUCCESS}${BRANCH}${NC}"
+  [ -n "$WORKTREE" ]  && GIT_PART="${GIT_PART} ${MUTED}(${WORKTREE})${NC}"
   [ "$STAGED"   -gt 0 ] && GIT_PART="${GIT_PART} ${SUCCESS}+${STAGED}${NC}"
   [ "$MODIFIED" -gt 0 ] && GIT_PART="${GIT_PART} ${WARN}~${MODIFIED}${NC}"
 fi
