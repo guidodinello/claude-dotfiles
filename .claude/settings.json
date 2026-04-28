@@ -1,5 +1,27 @@
 {
+  "permissions": {
+    "allow": [
+      "Read(./**)",
+      "Read(.env.local)"
+    ],
+    "deny": [
+      "Read(.env*)"
+    ]
+  },
   "model": "sonnet",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "rtk hook claude"
+          }
+        ]
+      }
+    ]
+  },
   "statusLine": {
     "type": "command",
     "command": "~/.claude/statusline.sh",
@@ -17,20 +39,9 @@
   "mcpServers": {
     "engram": {
       "command": "engram",
-      "args": ["mcp"]
+      "args": [
+        "mcp"
+      ]
     }
-  },
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "rtk hook claude"
-          }
-        ]
-      }
-    ]
   }
 }
