@@ -1,47 +1,51 @@
 {
-  "permissions": {
-    "allow": [
-      "Read(./**)",
-      "Read(.env.local)"
-    ],
-    "deny": [
-      "Read(.env*)"
-    ]
-  },
-  "model": "sonnet",
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "rtk hook claude"
-          }
+    "permissions": {
+        "allow": ["Read(./**)"],
+        "deny": ["Read(.env*)"]
+    },
+    "model": "sonnet",
+    "hooks": {
+        "PreToolUse": [
+            {
+                "matcher": "Bash",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "rtk hook claude"
+                    }
+                ]
+            }
+        ],
+        "PostToolUse": [
+            {
+                "matcher": "Edit|Write",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "if [[ $CLAUDE_FILE_PATH == *.json ]]; then jq . \"$CLAUDE_FILE_PATH\" > /dev/null || echo \"Warning: $CLAUDE_FILE_PATH is not valid JSON\"; fi"
+                    }
+                ]
+            }
         ]
-      }
-    ]
-  },
-  "statusLine": {
-    "type": "command",
-    "command": "~/.claude/statusline.sh",
-    "refreshInterval": 30
-  },
-  "enabledPlugins": {
-    "frontend-design@claude-plugins-official": true,
-    "php-lsp@claude-plugins-official": true,
-    "skill-creator@claude-plugins-official": true,
-    "code-simplifier@claude-plugins-official": true,
-    "pyright-lsp@claude-plugins-official": true
-  },
-  "effortLevel": "medium",
-  "skipAutoPermissionPrompt": true,
-  "mcpServers": {
-    "engram": {
-      "command": "engram",
-      "args": [
-        "mcp"
-      ]
+    },
+    "statusLine": {
+        "type": "command",
+        "command": "~/.claude/statusline.sh",
+        "refreshInterval": 30
+    },
+    "enabledPlugins": {
+        "frontend-design@claude-plugins-official": true,
+        "php-lsp@claude-plugins-official": true,
+        "skill-creator@claude-plugins-official": true,
+        "code-simplifier@claude-plugins-official": true,
+        "pyright-lsp@claude-plugins-official": true
+    },
+    "effortLevel": "medium",
+    "skipAutoPermissionPrompt": true,
+    "mcpServers": {
+        "engram": {
+            "command": "engram",
+            "args": ["mcp"]
+        }
     }
-  }
 }
