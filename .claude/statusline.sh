@@ -72,7 +72,18 @@ if   [ "$PCT" -ge 80 ]; then BAR_COLOR="$ERROR"
 elif [ "$PCT" -ge 50 ]; then BAR_COLOR="$WARN"
 else                         BAR_COLOR="$SUCCESS"; fi
 
-CTX_PART="${MUTED}ctx${NC} ${BAR_COLOR}[${BAR_STR}]${NC} ${MUTED}${PCT}%${NC}"
+COST_RAW=$(echo "$input" | jq -r '.cost.total_cost_usd // empty')
+COST_SUFFIX=""
+if [ -n "$COST_RAW" ]; then
+  COST_FMT=$(python3 -c "print(f'\${float(\"$COST_RAW\"):.2f}')" 2>/dev/null)
+  COST_VAL=$(python3 -c "v=float(\"$COST_RAW\"); print(1 if v>=0.50 else (2 if v>=0.10 else 3))" 2>/dev/null)
+  if   [ "$COST_VAL" = "1" ]; then COST_COLOR="$ERROR"
+  elif [ "$COST_VAL" = "2" ]; then COST_COLOR="$WARN"
+  else                              COST_COLOR="$SUCCESS"; fi
+  COST_SUFFIX=" ${MUTED}(${NC}${COST_COLOR}${COST_FMT}${NC}${MUTED})${NC}"
+fi
+
+CTX_PART="${MUTED}ctx${NC} ${BAR_COLOR}[${BAR_STR}]${NC} ${MUTED}${PCT}%${NC}${COST_SUFFIX}"
 
 # --- Rate limits with reset times ---
 format_reset() {
