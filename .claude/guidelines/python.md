@@ -61,6 +61,52 @@ Functions and classes should do one thing. If a function's docstring needs the w
 consider splitting it. If a class has methods that don't share any state, consider
 splitting it into free functions.
 
+The naming test: if you can't find a single, precise name that covers everything a
+function does, it's doing too much. A function is a set of semantically related
+actions — finding the name is how you verify they belong together.
+
+```python
+# Bad — the name has to say "and", revealing two responsibilities
+def validate_and_save_user(user: User) -> None: ...
+
+# Good — each function has one job and a name that fits it exactly
+def validate_user(user: User) -> None: ...
+def save_user(user: User) -> None: ...
+```
+
+### Locality of Behavior
+
+Code that changes together should live together. A reader should be able to understand
+a behavior by reading one place, not by chasing references across files.
+
+- Define constants near the code that uses them — not in a shared `constants.py` that
+  becomes a catch-all.
+- Keep validators next to the data structures they validate.
+- Keep a helper function adjacent to its only caller rather than hoisting it to a
+  utilities module it doesn't belong in.
+- Subsystem configuration belongs in the subsystem, not scattered across a top-level
+  config file.
+
+The test: if understanding one behavior requires opening more than two files, the
+behavior has too much distance.
+
+```python
+# Bad — MAX_RETRIES lives far from where it's used; reader has to go find it
+# constants.py
+MAX_RETRIES = 3
+
+# network.py
+from mypackage.constants import MAX_RETRIES
+
+def fetch(url: str) -> bytes: ...
+
+# Good — constant lives next to its only user
+# network.py
+_MAX_RETRIES = 3
+
+def fetch(url: str) -> bytes: ...
+```
+
 ### Fail fast
 
 Validate inputs at the boundary (user input, external APIs, file I/O). Inside the system,
