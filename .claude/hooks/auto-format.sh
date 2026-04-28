@@ -72,6 +72,15 @@ case "$EXT" in
     fi
     ;;
 
+  py|pyi)
+    if command -v ruff &>/dev/null; then
+      ruff format "$FILE" --quiet 2>/dev/null
+      ruff check --fix "$FILE" --quiet 2>/dev/null
+    elif command -v black &>/dev/null; then
+      black "$FILE" --quiet 2>/dev/null
+    fi
+    ;;
+
 esac
 
 exit 0
