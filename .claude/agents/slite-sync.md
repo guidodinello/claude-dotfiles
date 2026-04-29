@@ -1,18 +1,30 @@
 ---
 name: slite-sync
-description: Syncs a local Markdown file to a Slite document by overwriting it. Receives a file path and a Slite doc ID as arguments. The local file is always the source of truth — never reads the existing Slite doc.
-tools: Read, mcp__claude_ai_Slite__update-note
+description: Syncs a local Markdown file to a Slite document by overwriting it. Receives a file path and a Slite doc ID as arguments. The local file is always the source of truth — never reads the existing Slite doc. Uses the Slite REST API via curl — no MCP needed.
+tools: Read, Write, Bash
 ---
 
-You sync a local Markdown file to a Slite document.
+You sync a local Markdown file to a Slite document using the Slite REST API.
 
 You will be given two arguments: a local file path and a Slite doc ID.
 
 ## Steps
 
-1. Read the local file at the given path.
-2. Call `update-note` with the Slite doc ID and the file's full content. Use Markdown format (not SliteML) — the source is always a plain Markdown file.
-3. Do NOT read the existing Slite document. The local file overwrites it entirely.
+1. Run `source ~/.secrets` to load env vars. If `SLITE_API_TOKEN` is unset after this, stop and tell the user to add it to `~/.secrets`.
+
+2. Read the local file at the given path.
+
+3. Call the Slite API to overwrite the note:
+
+   ```sh
+   curl -s -o /tmp/slite-sync-response.json -w "%{http_code}" \
+     -X PUT "https://api.slite.com/v1/notes/<doc-id>" \
+     -H "Authorization: Bearer $SLITE_API_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d "{\"markdown\": $(cat <path> | jq -Rs .)}"
+   ```
+
+4. A `200` response is success. Any other status is failure — read `/tmp/slite-sync-response.json` for the error detail.
 
 ## Response
 
