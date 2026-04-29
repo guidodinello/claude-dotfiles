@@ -1,0 +1,23 @@
+{
+  "skill_name": "slite-to-clickup",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I have a Slite doc with 9 bug reports from our intake submission flow audit. Can you push all of them to ClickUp? The parent doc ID is aD6BhXMBnfhr7D. Stop after showing the batch preview — do NOT actually create tickets.",
+      "expected_output": "A batch preview table showing all 9 bugs with extracted title, severity, issue_type, and role. Should correctly map [High] severity docs to Critical/Major, [Low] to Minor. Should ask the user once for shared fields (environment, detected by, needs design) before showing the preview.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "push these slite bugs to clickup: aD6BhXMBnfhr7D — just the preview, don't create yet",
+      "expected_output": "Same as eval 1 but triggered from a casual short prompt. Tests that the skill triggers correctly on informal language and still produces a well-structured batch preview.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "I want to import just the file upload bug to ClickUp. The Slite doc is oOrofSsJ8uN8E5 — show me the preview first. It's a backend bug, High severity, found in prod by the dev team.",
+      "expected_output": "A single-bug preview for the file upload bug. Should extract: severity=Critical or Major (High label + data loss impact), role=Backend, issue_type=Functional gap or Crash. The user provided environment=prod and detected_by=dev team — skill should use those without asking.",
+      "files": []
+    }
+  ]
+}
