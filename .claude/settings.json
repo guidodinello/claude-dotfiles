@@ -1,7 +1,18 @@
 {
   "permissions": {
     "allow": [
-      "Read(./**)"
+      "Read(./**)",
+      "Bash(source ~/.secrets)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(rtk git *)",
+      "Bash(rtk ls *)",
+      "Bash(rtk read *)",
+      "Bash(rtk find *)",
+      "Bash(rtk grep *)",
+      "Bash(./add_file.sh *)",
+      "Bash(./promote.sh *)",
+      "Bash(awk '{print $2}')"
     ],
     "deny": [
       "Read(.env*)"
@@ -45,13 +56,5 @@
     "pyright-lsp@claude-plugins-official": true
   },
   "effortLevel": "medium",
-  "skipAutoPermissionPrompt": true,
-  "mcpServers": {
-    "engram": {
-      "command": "engram",
-      "args": [
-        "mcp"
-      ]
-    }
-  }
+  "skipAutoPermissionPrompt": true
 }
