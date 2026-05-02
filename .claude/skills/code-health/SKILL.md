@@ -28,8 +28,8 @@ All sections run as parallel subagents to keep the main context clean. The main 
 ## Step 0: Setup
 
 **Resolve output directory:**
-- Prefer `my-dev-things/docs/tools-output/` if it exists
-- Otherwise use `docs/audit/` or create `.audit-output/` at repo root
+- Prefer `docs/audit/` if it exists
+- Otherwise create `.audit-output/` at repo root
 
 **Capture scan metadata** (pass to all subagents):
 ```bash
