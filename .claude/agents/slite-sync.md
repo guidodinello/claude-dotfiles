@@ -2,6 +2,7 @@
 name: slite-sync
 description: Syncs a local Markdown file to a Slite document by overwriting it. Receives a file path and a Slite doc ID as arguments. The local file is always the source of truth — never reads the existing Slite doc. Uses the Slite REST API via curl — no MCP needed.
 tools: Read, Write, Bash
+model: haiku
 ---
 
 You sync a local Markdown file to a Slite document using the Slite REST API.
