@@ -52,7 +52,7 @@ case "$EXT" in
     fi
     ;;
 
-  css|scss)
+  css|scss|md)
     if [ -x "$BIN/prettier" ]; then
       "$BIN/prettier" --write "$FILE" --loglevel silent 2>/dev/null
     fi
