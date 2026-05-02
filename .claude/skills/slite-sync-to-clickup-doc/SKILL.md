@@ -65,58 +65,27 @@ print(f"Title: {title}, Content length: {len(content)}")
 
 ## Step 3 — Push content to ClickUp
 
-Build the payload and PUT it to the ClickUp Docs API:
+Write the Slite content to a temp file, then spawn the `clickup-sync` agent:
 
 ```bash
 python3 -c "
 import json
 with open('/tmp/slite-doc.json') as f:
     data = json.load(f)
-payload = {'name': data.get('title', ''), 'content': data.get('content', '')}
-with open('/tmp/clickup-payload.json', 'w') as f:
-    json.dump(payload, f)
+with open('/tmp/slite-content.md', 'w') as f:
+    f.write(data.get('content', ''))
 "
-
-curl -s -X PUT \
-  -H "Authorization: $CLICKUP_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d @/tmp/clickup-payload.json \
-  -o /tmp/clickup-response.json \
-  -w "%{http_code}" \
-  "https://api.clickup.com/api/v3/workspaces/WORKSPACE_ID/docs/DOC_ID/pages/PAGE_ID"
 ```
 
-ClickUp returns an **empty body** (HTTP 200) on success — an empty `/tmp/clickup-response.json` is expected and correct. Only treat it as a failure if the HTTP status code is 4xx or 5xx.
+Spawn the `clickup-sync` agent using the Agent tool, passing:
 
-Note: ClickUp auth uses no Bearer prefix — the header is `Authorization: $CLICKUP_API_TOKEN` directly.
-
-## Step 4 — Verify
-
-Re-fetch the page to confirm content was saved:
-
-```bash
-curl -s -H "Authorization: $CLICKUP_API_TOKEN" \
-  "https://api.clickup.com/api/v3/workspaces/WORKSPACE_ID/docs/DOC_ID/pages/PAGE_ID" \
-  -o /tmp/clickup-verify.json
+```
+File path: /tmp/slite-content.md
+Workspace ID: <workspace-id>
+Doc ID: <doc-id>
+Page ID: <page-id>
 ```
 
-Parse with Python, stripping control characters before JSON parsing (the API sometimes includes them in content):
+## Step 4 — Report
 
-```python
-import json, re
-with open('/tmp/clickup-verify.json', 'rb') as f:
-    raw = f.read()
-cleaned = re.sub(rb'[\x00-\x08\x0b\x0c\x0e-\x1f]', b' ', raw)
-d = json.loads(cleaned)
-content = d.get('content', '')
-print(f"Page name: {d.get('name')}, Content length: {len(content)}")
-```
-
-If content length is 0, report failure. Otherwise report success with the page name and character count.
-
-## Step 5 — Report
-
-Tell the user:
-- The ClickUp page name and URL that was updated
-- How many characters were written
-- A one-liner confirming the Slite doc that was the source
+Tell the user the agent's one-line result plus a note confirming which Slite doc was the source.

@@ -240,64 +240,37 @@ Do NOT create the ticket until the user explicitly confirms. If changes are requ
 
 ### Step 7 — Create the ticket
 
-```bash
-curl -s -o /tmp/clickup-task.json -w "%{http_code}" -X POST \
-  -H "Authorization: $CLICKUP_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
+Write a params file and spawn the `clickup-create-task` agent:
+
+```python
+import json
+params = {
+    "list_id": "LIST_ID",
     "name": "TICKET_TITLE",
     "description": "FILLED_TEMPLATE_BODY",
-    "custom_type": "Bug",
+    "custom_type": "Bug",  # or "Improvement" / "Task"
     "status": "to do",
     "custom_fields": [
-      { "id": "FIELD_UUID", "value": "OPTION_UUID" },
-      ...
-    ]
-  }' \
-  "https://api.clickup.com/api/v2/list/LIST_ID/task"
+        {"id": "FIELD_UUID", "value": "OPTION_UUID"},
+    ],
+    # Include only for Bug tickets with a related task:
+    "related_task_id": "RELATED_TASK_ID",
+}
+# Omit custom_fields for non-Bug tickets.
+# Omit related_task_id if none.
+with open('/tmp/clickup-new-ticket.json', 'w') as f:
+    json.dump(params, f)
 ```
 
-- `custom_type`: `"Bug"`, `"Improvement"`, or `"Task"` (controls the task type icon in ClickUp).
-- For non-Bug tickets, omit `custom_fields`.
-- A `200` status code is success. On failure, read `/tmp/clickup-task.json` for the error body.
+Spawn the `clickup-create-task` agent using the Agent tool, passing:
 
-Parse `/tmp/clickup-task.json` to extract `id` (task ID) and `url` (task URL) — save both for the next step.
-
-### Step 8 — Cross-comment related tasks (Bugs only, if related task exists)
-
-First, get the related task's name:
-```bash
-curl -s -o /tmp/clickup-related-task.json \
-  -H "Authorization: $CLICKUP_API_TOKEN" \
-  "https://api.clickup.com/api/v2/task/RELATED_TASK_ID"
+```
+Params file: /tmp/clickup-new-ticket.json
 ```
 
-Parse `/tmp/clickup-related-task.json` to get the task name and URL.
+### Step 8 — Confirm
 
-Then add two comments:
-
-**Comment on the new bug** (referencing the related task):
-```bash
-curl -s -o /tmp/clickup-comment.json -w "%{http_code}" -X POST \
-  -H "Authorization: $CLICKUP_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"comment_text":"🔗 This bug is related to task [TASK_NAME](TASK_URL).","notify_all":true}' \
-  "https://api.clickup.com/api/v2/task/NEW_BUG_ID/comment"
-```
-
-**Comment on the related task** (referencing the new bug):
-```bash
-curl -s -o /tmp/clickup-comment.json -w "%{http_code}" -X POST \
-  -H "Authorization: $CLICKUP_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"comment_text":"🐛 Bug found related to this task: [BUG_NAME](BUG_URL) — Severity: **SEVERITY**","notify_all":true}' \
-  "https://api.clickup.com/api/v2/task/RELATED_TASK_ID/comment"
-```
-
-If no related task was provided, skip this step entirely.
-
-### Step 9 — Confirm
-Reply with the ticket title and its ClickUp URL. If cross-comments were added, confirm: "Se agregaron comentarios cruzados en ambas tareas."
+Reply with the agent's one-line result. If cross-comments were added, append: "Se agregaron comentarios cruzados en ambas tareas."
 
 ---
 

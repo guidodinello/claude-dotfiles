@@ -35,7 +35,7 @@ Before syncing, enforce these rules on the file content:
 
 2. Read the local file. Apply the style rules above to the content. Overwrite the local file with the cleaned content.
 
-3. Spawn the `slite-sync` agent using the Agent tool with `model: "haiku"`, passing only the file path and doc ID:
+3. Spawn the `slite-sync` agent using the Agent tool, passing only the file path and doc ID:
 
    ```
    File path: <path>
