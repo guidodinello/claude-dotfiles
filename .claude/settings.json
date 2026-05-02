@@ -5,14 +5,8 @@
       "Bash(source ~/.secrets)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(rtk git *)",
-      "Bash(rtk ls *)",
-      "Bash(rtk read *)",
-      "Bash(rtk find *)",
-      "Bash(rtk grep *)",
-      "Bash(./add_file.sh *)",
-      "Bash(./promote.sh *)",
-      "Bash(awk '{print $2}')"
+      "Bash(rtk:*)",
+      "mcp__plugin_engram_engram__mem_context"
     ],
     "deny": [
       "Read(.env*)"
@@ -54,7 +48,7 @@
     "skill-creator@claude-plugins-official": true,
     "code-simplifier@claude-plugins-official": true,
     "pyright-lsp@claude-plugins-official": true,
-    "svelte@svelte": true,
+    "svelte@svelte": false,
     "engram@engram": true
   },
   "extraKnownMarketplaces": {
