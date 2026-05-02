@@ -1,22 +1,22 @@
 ---
-name: slite-sync-to-clickup-doc
+name: slite-to-clickup
 description: Syncs the content of a Slite document to a ClickUp Doc page, overwriting the ClickUp page with the Slite content. The Slite doc is always the source of truth. Use this skill whenever the user wants to push, sync, mirror, or copy a Slite doc to ClickUp, says things like "sync Slite to ClickUp", "move this Slite doc to ClickUp", "update the ClickUp doc from Slite", or provides both a Slite URL/ID and a ClickUp doc URL.
 ---
 
-# slite-to-clickup-doc
+# slite-to-clickup
 
 Fetches a Slite document's markdown content and overwrites a ClickUp Doc page with it. Slite is the source of truth — the ClickUp page is always overwritten.
 
 ## Usage
 
 ```
-/slite-to-clickup-doc <slite-doc-id-or-url> <clickup-page-url>
+/slite-to-clickup <slite-doc-id-or-url> <clickup-page-url>
 ```
 
 **Examples:**
 ```
-/slite-to-clickup-doc Zaw50HTALbpo69 https://app.clickup.com/3015277/v/dc/2w0kd-311357/2w0kd-147937
-/slite-to-clickup-doc https://lightit.slite.com/api/s/Zaw50HTALbpo69/DB-Migration-Plan https://app.clickup.com/3015277/v/dc/2w0kd-311357/2w0kd-147937
+/slite-to-clickup Zaw50HTALbpo69 https://app.clickup.com/3015277/v/dc/2w0kd-311357/2w0kd-147937
+/slite-to-clickup https://lightit.slite.com/api/s/Zaw50HTALbpo69/DB-Migration-Plan https://app.clickup.com/3015277/v/dc/2w0kd-311357/2w0kd-147937
 ```
 
 ## Prerequisites
