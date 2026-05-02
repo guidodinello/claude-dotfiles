@@ -3,8 +3,6 @@
     "allow": [
       "Read(./**)",
       "Bash(source ~/.secrets)",
-      "Bash(git add *)",
-      "Bash(git commit *)",
       "Bash(rtk:*)",
       "mcp__plugin_engram_engram__mem_context"
     ],
