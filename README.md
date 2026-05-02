@@ -20,7 +20,6 @@ Personal Claude Code configuration — agents, skills, hooks, and guidelines syn
 | `/address-pr-comments` | Fetches unresolved PR review threads, fixes valid ones, commits and pushes, then replies |
 | `/clean-permissions` | Generalizes overly-specific Bash permission rules in settings files |
 | `/clickup-create-ticket` | Creates Bug/Improvement/Task tickets in ClickUp for the active project |
-| `/clickup-qa-handoff-comment` | Generates a post-implementation QA handoff comment for a completed backend feature |
 | `/clickup-task-description` | Writes a QA-oriented ClickUp subtask description for completed backend work |
 | `/code-health` | Codebase readiness audit: type safety, dead code, test coverage, complexity, deps |
 | `/conventional-commits` | Generates granular conventional commits from staged changes |
@@ -34,7 +33,6 @@ Personal Claude Code configuration — agents, skills, hooks, and guidelines syn
 | `/permissions-audit` | Comprehensive authorization audit across roles, permissions, and auth logic |
 | `/qa-check` | Runs type-check, linting, and tests via the quality-checker subagent (Laravel + React) |
 | `/security-audit` | Application security audit covering OWASP Top 10 vulnerability patterns |
-| `/slite-bugs-to-clickup` | Imports bug reports from a Slite parent doc into ClickUp as Bug tickets |
 | `/slite-compare-docs` | Compares two Slite documents to check whether one fully supersedes the other |
 | `/slite-publish-markdown` | Syncs a local Markdown file to a Slite document (local file is source of truth) |
 | `/slite-sync-to-clickup-doc` | Syncs a Slite document to a ClickUp Doc page (Slite is source of truth) |
@@ -48,6 +46,8 @@ Personal Claude Code configuration — agents, skills, hooks, and guidelines syn
 
 | Agent | Description |
 |---|---|
+| `clickup-create-task` | Creates a single ClickUp task via REST API; receives a params file, optionally cross-comments |
+| `clickup-sync` | Pushes a local Markdown file to a ClickUp Doc page via REST API |
 | `quality-checker` | Runs the full QA pipeline and returns a concise summary of issues |
 | `slite-sync` | Syncs a local Markdown file to a Slite document |
 | `stats-analyzer` | Analyzes `stats-cache.json` and `history.jsonl` for token/cost usage reports |
