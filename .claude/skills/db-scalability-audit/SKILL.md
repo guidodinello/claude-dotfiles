@@ -130,6 +130,8 @@ Flag it as HIGH or MEDIUM severity depending on urgency. The `db-migration-plann
 
 ## Reporting Format
 
+Follow the shared structure in `.claude/guidelines/audit-template.md` for document header, findings format, severity levels, dead code rule, effort labels, and remediation tiers. DB-specific additions are below.
+
 ### Document header
 
 Start every report with:

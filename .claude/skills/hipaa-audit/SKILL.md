@@ -156,6 +156,8 @@ In practice: if the system handles ePHI over the internet with no compensating c
 
 ## Reporting Format
 
+Follow the shared structure in `.claude/guidelines/audit-template.md` for document header, findings format, severity levels, dead code rule, effort labels, and remediation tiers. HIPAA-specific additions are below.
+
 ### Document header
 
 Start every report with:
@@ -219,26 +221,22 @@ Do not put "What's Working Well" in a separate section. Positive controls belong
 
 ### Prioritized Remediation
 
-Split into time-based tiers. Include an **Effort** column so engineers can plan. Reference finding IDs, not titles.
+Split into time-based tiers. Include an **Effort** column (Tiny/Small/Medium/Large/XL — see audit-template.md). Reference finding IDs, not titles.
 
 ```markdown
 ## Prioritized Remediation
 
-### Address soon
+### Address immediately
 | # | Finding | Effort |
 |---|---|---|
-| H-1 | <title> | ~2 hr |
 
 ### Address within 30 days
 | # | Finding | Effort |
 |---|---|---|
-| M-1 | <title> | ~3 hr |
 
 ### Address within 90 days
 | # | Finding | Effort |
 |---|---|---|
-| L-1 | <title> | ~1 hr |
-| I-1 | <title> | ~4 hr |
 ```
 
 ### Key Files Reference
