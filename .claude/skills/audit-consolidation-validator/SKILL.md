@@ -89,15 +89,24 @@ For each issue, record: type, finding ID (if applicable), and a one-line descrip
 
 ## Phase 4: Code verification for HIGH and CRITICAL findings
 
-For every HIGH or CRITICAL severity finding in the consolidated doc, spawn a sub-agent
-(subagent_type: Explore) in parallel. Give each sub-agent:
+For every HIGH or CRITICAL severity finding in the consolidated doc, spawn an
+`audit-finding-verifier` agent in parallel. The prompt must include:
 
-- The finding ID, title, and full text of the finding (including the specific file:line references)
-- This question: "Does this finding accurately describe the current codebase? Check whether the
-  route, function, pattern, or code reference described actually exists at the path and line cited.
-  Report one of: confirmed / false-positive / partially-accurate. Include one sentence of evidence."
+```
+Codebase root: <path to the codebase being audited>
 
-Wait for all sub-agents to return, then record their verdicts in a Code Verification table.
+FINDING ID: <id>
+SEVERITY: <severity>
+TITLE: <title>
+
+FULL FINDING TEXT:
+<verbatim finding body including all file:line references>
+
+FILE REFERENCES CITED:
+<list of file:line references, or "none stated">
+```
+
+Wait for all agents to return, then record their verdicts in a Code Verification table.
 
 If a HIGH/CRITICAL finding comes back as false-positive from the sub-agent, add it to the issue
 list under category 2 (False positives included) with the sub-agent's evidence.
