@@ -1,16 +1,16 @@
 ---
-name: slite-publish-markdown
+name: markdown-to-slite
 description: Syncs a local Markdown file to a Slite document, overwriting the Slite doc with the local file's content. The local file is always the source of truth — no Slite read needed. Use this skill whenever the user wants to publish, update, or sync a local .md file to Slite, or says things like "sync to Slite", "update Slite doc", "push to Slite", "write this to Slite", "upload to Slite". Also use it when the user has just edited a local doc and wants to reflect those changes in Slite.
 ---
 
-# slite-sync
+# markdown-to-slite
 
 Syncs a local Markdown file to a Slite document by overwriting the doc's content. The local file is the source of truth — never read the existing Slite doc first.
 
 ## Usage
 
 ```
-/slite-sync <path/to/file.md> <slite-doc-id>
+/markdown-to-slite <path/to/file.md> <slite-doc-id>
 ```
 
 ## Prerequisites
