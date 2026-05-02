@@ -47,6 +47,60 @@ Duplicate code is a maintenance hazard. Extract shared logic — but only once y
 same thing repeated at least three times and are confident the repetition isn't
 coincidental. Premature abstraction is worse than duplication.
 
+### SSOT — Single Source of Truth
+
+Every piece of knowledge — a constant, a schema, a business rule — should have exactly
+one authoritative definition. Everything else derives from or references that definition;
+nothing duplicates it.
+
+Violations manifest as drift: two places that *should* agree but don't, because one was
+updated and the other wasn't.
+
+```python
+# Bad — the valid states are defined twice; the list and the Enum can drift
+VALID_STATES = ["pending", "active", "closed"]
+
+class Status(Enum):
+    PENDING = "pending"
+    ACTIVE  = "active"
+    CLOSED  = "closed"
+
+def is_valid(state: str) -> bool:
+    return state in VALID_STATES  # duplicates knowledge already in Status
+
+# Good — one definition; the validation derives from it
+class Status(Enum):
+    PENDING = "pending"
+    ACTIVE  = "active"
+    CLOSED  = "closed"
+
+def is_valid(state: str) -> bool:
+    return state in {s.value for s in Status}
+```
+
+Apply SSOT to schemas too — don't define the same shape in a dataclass *and* a
+serialisation dict and a validation function. Define the dataclass; let the others derive:
+
+```python
+# Bad — field names duplicated in the dataclass and the serialiser
+@dataclass
+class Config:
+    lr: float
+    batch_size: int
+
+def to_dict(cfg: Config) -> dict:
+    return {"lr": cfg.lr, "batch_size": cfg.batch_size}  # will drift on rename
+
+# Good — derive the dict automatically
+import dataclasses
+
+def to_dict(cfg: Config) -> dict:
+    return dataclasses.asdict(cfg)
+```
+
+The test: if renaming or removing one thing requires finding and updating a second place,
+you have two sources of truth.
+
 ### KISS — Keep It Simple
 
 Prefer a flat structure over a deep hierarchy. Prefer a function over a class. Prefer a
