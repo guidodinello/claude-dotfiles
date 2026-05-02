@@ -53,7 +53,17 @@
     "php-lsp@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true,
     "code-simplifier@claude-plugins-official": true,
-    "pyright-lsp@claude-plugins-official": true
+    "pyright-lsp@claude-plugins-official": true,
+    "svelte@svelte": true,
+    "engram@engram": true
+  },
+  "extraKnownMarketplaces": {
+    "engram": {
+      "source": {
+        "source": "github",
+        "repo": "Gentleman-Programming/engram"
+      }
+    }
   },
   "effortLevel": "medium",
   "skipAutoPermissionPrompt": true

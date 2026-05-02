@@ -17,8 +17,11 @@ Personal Claude Code configuration — agents, skills, hooks, and guidelines syn
 
 | Skill | Description |
 |---|---|
+| `/address-pr-comments` | Fetches unresolved PR review threads, fixes valid ones, commits and pushes, then replies |
 | `/clean-permissions` | Generalizes overly-specific Bash permission rules in settings files |
-| `/clickup-item-generator` | Creates Bug/Improvement/Task tickets in ClickUp for the active project |
+| `/clickup-create-ticket` | Creates Bug/Improvement/Task tickets in ClickUp for the active project |
+| `/clickup-qa-handoff-comment` | Generates a post-implementation QA handoff comment for a completed backend feature |
+| `/clickup-task-description` | Writes a QA-oriented ClickUp subtask description for completed backend work |
 | `/code-health` | Codebase readiness audit: type safety, dead code, test coverage, complexity, deps |
 | `/conventional-commits` | Generates granular conventional commits from staged changes |
 | `/db-migration-planner` | Plans a database migration between providers with schema and data steps |
@@ -31,6 +34,10 @@ Personal Claude Code configuration — agents, skills, hooks, and guidelines syn
 | `/permissions-audit` | Comprehensive authorization audit across roles, permissions, and auth logic |
 | `/qa-check` | Runs type-check, linting, and tests via the quality-checker subagent (Laravel + React) |
 | `/security-audit` | Application security audit covering OWASP Top 10 vulnerability patterns |
+| `/slite-bugs-to-clickup` | Imports bug reports from a Slite parent doc into ClickUp as Bug tickets |
+| `/slite-compare-docs` | Compares two Slite documents to check whether one fully supersedes the other |
+| `/slite-publish-markdown` | Syncs a local Markdown file to a Slite document (local file is source of truth) |
+| `/slite-sync-to-clickup-doc` | Syncs a Slite document to a ClickUp Doc page (Slite is source of truth) |
 | `/ticket-refinement` | Writes and refines subtasks for software tickets (endpoints, components, APIs) |
 | `/token-report` | Token usage report from Claude Code stats |
 | `/writing-react-effects` | Reviews/writes React components to eliminate unnecessary useEffect usage |
@@ -53,6 +60,8 @@ Personal Claude Code configuration — agents, skills, hooks, and guidelines syn
 
 Import into any project's `CLAUDE.md` with `@~/.claude/guidelines/python.md`. The file is loaded fresh each session, so it stays in sync with this repo without copying.
 
+Add new guidelines here as you encounter patterns worth sharing across projects (e.g. `guidelines/laravel.md`, `guidelines/react.md`).
+
 ## Hooks
 
 **`auto-format.sh`** — `PostToolUse` hook that auto-formats files after edits. Detects the project stack automatically via local binaries (`node_modules/.bin`, `vendor/bin`). Supports ESLint/Prettier (JS/TS/CSS) and PHP-CS-Fixer/Pint. Always exits 0 so formatter failures never block Claude.
@@ -73,6 +82,18 @@ Wire it globally in `~/.claude/settings.json`:
 ```
 
 Override per-project by creating `.claude/hooks/auto-format.sh` in the project root.
+
+**`statusline.sh`** — status bar rendered by Claude Code's `statusLine` feature. Displays model name, directory, git branch + staged/modified counts, context window usage bar with cost, and 5h/7d rate-limit percentages with reset times. Wire it in `~/.claude/settings.json`:
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/statusline.sh",
+    "refreshInterval": 30
+  }
+}
+```
 
 ## Setup on a new machine
 
