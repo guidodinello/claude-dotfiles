@@ -59,13 +59,10 @@ rather than a specific code location), note this — the sub-agent will need to 
 
 ## Step 2: Spawn one sub-agent per finding, all in parallel
 
-For each finding in scope, spawn a sub-agent with `subagent_type: Explore`.
-
-The sub-agent prompt must include all of the following:
+For each finding in scope, spawn an `audit-finding-verifier` agent. The prompt must include:
 
 ```
-You are fact-checking a single reported audit finding against the codebase at <codebase_root>.
-Your job is to determine if the finding accurately describes reality. Do not fix anything.
+Codebase root: <codebase_root>
 
 FINDING ID: <id>
 SEVERITY: <severity>
@@ -76,44 +73,9 @@ FULL FINDING TEXT:
 
 FILE REFERENCES CITED:
 <list of file:line references, or "none stated">
-
-VERIFICATION STEPS — work through these in order, stopping when you have enough evidence:
-
-1. For each cited file:line reference:
-   - Does the file exist at that path?
-   - Does the code at (or near) that line match what the finding describes?
-   - If the file or line doesn't exist, that is evidence of a false positive.
-
-2. For the core claim (what the finding says is wrong):
-   - If the finding says something is MISSING (e.g. "no MFA enforcement"):
-     grep the codebase for any code that would constitute the control being present.
-     Search broadly — look for the function name, the middleware name, the check pattern.
-     If you find it: report where and what you found.
-     If you don't: that confirms the gap.
-   - If the finding says something IS PRESENT and problematic (e.g. "raw IP written to logs"):
-     grep for the pattern. Confirm it exists and is reachable.
-   - If the finding describes a behavioral flow (A calls B which leaks C):
-     trace the call chain and confirm each step.
-
-3. Check if there is any remediation code that postdates the finding:
-   - Look for recent changes near the cited files (git is not available — infer from code patterns).
-   - If a fix is clearly in place (the vulnerable code no longer exists, or a guard was added),
-     report it as potentially remediated.
-
-VERDICT — choose exactly one:
-- **confirmed**: the finding accurately describes a real gap in the current code
-- **false-positive**: the finding is wrong — the problem does not exist, the code reference
-  is invalid, or a fix is already in place
-- **partially-accurate**: the core issue exists but details are wrong (wrong line, wrong severity,
-  partially fixed, or only present in some code paths)
-
-RESPONSE FORMAT — return exactly:
-VERDICT: <confirmed|false-positive|partially-accurate>
-EVIDENCE: <one or two sentences — cite the specific file:line or pattern you found or did not find>
-NOTES: <optional — any nuance, e.g. "fix appears to be in place but only for the happy path">
 ```
 
-Dispatch all sub-agents simultaneously. Do not wait for one before starting the next.
+Dispatch all agents simultaneously. Do not wait for one before starting the next.
 
 ---
 
