@@ -57,6 +57,5 @@
       }
     }
   },
-  "effortLevel": "medium",
-  "skipAutoPermissionPrompt": true
+  "effortLevel": "medium"
 }
