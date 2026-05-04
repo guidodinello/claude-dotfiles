@@ -30,6 +30,7 @@ Personal Claude Code configuration — agents, skills, hooks, and guidelines syn
 | `/figma-to-tailwind` | Implements UI components from Figma designs using Tailwind 4 + tailwind-variants |
 | `/git-brag` | Finds your commits on a path, formatted for perf-review docs |
 | `/hipaa-audit` | HIPAA Security Rule compliance audit for healthcare codebases |
+| `/improve-codebase-architecture` | Surfaces architectural friction and proposes deepening opportunities — refactors that turn shallow modules into deep, testable, AI-navigable ones † |
 | `/markdown-to-slite` | Syncs a local Markdown file to a Slite document (local file is source of truth) |
 | `/meta-skill-db-scalability-audit-improver` | Refreshes provider limits and anti-patterns in the db-scalability-audit skill |
 | `/meta-skill-hipaa-audit-improver` | Refreshes regulatory guidance and enforcement cases in the hipaa-audit skill |
@@ -150,6 +151,16 @@ git add .claude/<rel-path>
 git commit -m "feat: add my-skill"
 git push
 ```
+
+## Credits
+
+Some skills in this repo originate from external authors and are vendored here with attribution:
+
+| Skill | Author | Source |
+|---|---|---|
+| `/improve-codebase-architecture` † | [Matt Pocock](https://github.com/mattpocock) | [mattpocock/skills](https://github.com/mattpocock/skills) |
+
+Skills are vendored into `.claude/skills/` so they work with Claude Code's slash-command system. The originals are installable via `npx skills add mattpocock/skills`.
 
 ## Docs
 
