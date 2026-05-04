@@ -1,6 +1,6 @@
 # Claude Dotfiles
 
-This repo is the source of truth for `~/.claude/` — skills, agents, hooks, and settings scaffolded globally across machines.
+This repo is the source of truth for `~/.claude/` and `~/.agents/` — skills, agents, hooks, and settings scaffolded globally across machines.
 
 ## Skills vs Agents
 
@@ -23,6 +23,15 @@ If the skill does preprocessing (e.g. `markdown-to-slite` applies style rules be
 ## Audit Skills
 
 All audit skills share a common reporting structure. See `.claude/guidelines/audit-template.md` for the shared contract: document header, findings format (severity IDs, dead code rule), remediation tiers, and key files reference. Each audit skill adds its own discovery steps and domain-specific violation patterns on top.
+
+## Cross-Agent Skills (`.agents/skills/`)
+
+`.agents/skills/` is a cross-agent standard maintained by Vercel Labs, recognized by Claude Code, Copilot, Cursor, Gemini CLI, and others. Skills installed here via `npx skills` are tracked in `skills-lock.json` (equivalent to `package-lock.json`).
+
+This layer is separate from `.claude/` — don't put Claude Code-specific agents or slash-command skills here. Use it for ecosystem skills installable via `npx skills add <owner/repo>`.
+
+To install a skill: `npx skills add <owner/repo>`
+To update all skills: `npx skills update`
 
 ## Naming Conventions
 
