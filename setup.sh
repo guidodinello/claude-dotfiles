@@ -15,29 +15,37 @@ NC='\033[0m'
 log_info() { echo -e "${GREEN}[INFO]${NC}  $*"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 
-if [ ! -d "${CLAUDE_SRC}" ]; then
-    echo "No .claude/ directory found in repo — nothing to do."
-    exit 0
-fi
+symlink_tree() {
+    local src="$1"
+    local dst="$2"
+    local label="$3"
 
-while IFS= read -r -d '' file; do
-    rel="${file#"${CLAUDE_SRC}"/}"
-    target="${CLAUDE_DST}/${rel}"
-    target_dir="$(dirname "${target}")"
-
-    mkdir -p "${target_dir}"
-
-    if [ -L "${target}" ]; then
-        log_warn "Already a symlink, skipping: ~/.claude/${rel}"
-        continue
-    elif [ -f "${target}" ]; then
-        log_warn "Backing up existing file: ~/.claude/${rel} → ${target}.bak"
-        mv "${target}" "${target}.bak"
+    if [ ! -d "${src}" ]; then
+        log_warn "No ${label}/ directory found — skipping."
+        return
     fi
 
-    ln -s "${file}" "${target}"
-    log_info "Linked: ~/.claude/${rel}"
-done < <(find "${CLAUDE_SRC}" -type f -print0)
+    while IFS= read -r -d '' file; do
+        rel="${file#"${src}"/}"
+        target="${dst}/${rel}"
+        target_dir="$(dirname "${target}")"
+
+        mkdir -p "${target_dir}"
+
+        if [ -L "${target}" ]; then
+            log_warn "Already a symlink, skipping: ~/${label}/${rel}"
+            continue
+        elif [ -f "${target}" ]; then
+            log_warn "Backing up existing file: ~/${label}/${rel} → ${target}.bak"
+            mv "${target}" "${target}.bak"
+        fi
+
+        ln -s "${file}" "${target}"
+        log_info "Linked: ~/${label}/${rel}"
+    done < <(find "${src}" -type f -print0)
+}
+
+symlink_tree "${CLAUDE_SRC}" "${CLAUDE_DST}" ".claude"
 
 # Ensure hooks are executable
 find "${CLAUDE_DST}/hooks" -type f -name "*.sh" -exec chmod +x {} \; 2>/dev/null || true
