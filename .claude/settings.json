@@ -57,5 +57,6 @@
       }
     }
   },
-  "effortLevel": "medium"
+  "effortLevel": "medium",
+  "advisorModel": "opus"
 }
