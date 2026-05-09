@@ -19,6 +19,10 @@
           {
             "type": "command",
             "command": "rtk hook claude"
+          },
+          {
+            "type": "command",
+            "command": "cmd=$(cat | jq -r '.command // \"\"'); if echo \"$cmd\" | grep -qP 'docker\\s+(compose|stack)\\s+.*\\bdown\\b.*(-v|--volumes)\\b|docker\\s+volume\\s+(rm|remove|prune)\\b'; then echo \"BLOCKED: destructive Docker volume command. Volumes hold persistent data and removal is irreversible. Ask the user before running this.\"; exit 2; fi"
           }
         ]
       }
