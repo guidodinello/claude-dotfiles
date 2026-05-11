@@ -6,9 +6,7 @@
       "Bash(rtk:*)",
       "mcp__plugin_engram_engram__mem_context"
     ],
-    "deny": [
-      "Read(.env*)"
-    ]
+    "deny": ["Read(.env*)"]
   },
   "model": "sonnet",
   "hooks": {
@@ -23,6 +21,10 @@
           {
             "type": "command",
             "command": "cmd=$(cat | jq -r '.command // \"\"'); if echo \"$cmd\" | grep -qP 'docker\\s+(compose|stack)\\s+.*\\bdown\\b.*(-v|--volumes)\\b|docker\\s+volume\\s+(rm|remove|prune)\\b'; then echo \"BLOCKED: destructive Docker volume command. Volumes hold persistent data and removal is irreversible. Ask the user before running this.\"; exit 2; fi"
+          },
+          {
+            "type": "command",
+            "command": "cmd=$(cat | jq -r '.command // \"\"'); if [ -n \"$CLOUDFLARE_ENV\" ] && echo \"$cmd\" | grep -qP 'wrangler(\\s+|$)'; then echo \"BLOCKED: CLOUDFLARE_ENV=$CLOUDFLARE_ENV is set — wrangler may silently target that environment. Unset it and use explicit --env flags instead.\"; exit 2; fi; if echo \"$cmd\" | grep -qP 'wrangler(\\s+|$)(?=.*d1\\s+(?:execute|migrations\\s+apply))(?!.*--local)'; then echo \"BLOCKED: wrangler d1 execute/migrations apply without --local targets production. Run the command manually with --remote after reviewing.\"; exit 2; fi"
           }
         ]
       }
