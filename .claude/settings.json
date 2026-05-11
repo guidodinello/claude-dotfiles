@@ -66,5 +66,6 @@
     }
   },
   "effortLevel": "medium",
-  "advisorModel": "opus"
+  "advisorModel": "opus",
+  "skipAutoPermissionPrompt": true
 }
