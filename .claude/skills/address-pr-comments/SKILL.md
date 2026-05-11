@@ -103,7 +103,6 @@ fix: address PR review comments
 
 - <one bullet per FIX, referencing file and what changed>
 
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 EOF
 )"
 git push
