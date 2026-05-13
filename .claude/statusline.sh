@@ -44,7 +44,9 @@ if git -C "$DIR" rev-parse --git-dir >/dev/null 2>&1; then
   else
     IFS='|' read -r BRANCH STAGED MODIFIED < "$GIT_CACHE"
   fi
-  GIT_PART=" ${MUTED}on${NC} ${SUCCESS}${BRANCH}${NC}"
+  BRANCH_DISPLAY="${BRANCH}"
+  [ "${#BRANCH}" -gt 40 ] && BRANCH_DISPLAY="${BRANCH:0:39}…"
+  GIT_PART=" ${MUTED}on${NC} ${SUCCESS}${BRANCH_DISPLAY}${NC}"
   [ -n "$WORKTREE" ]  && GIT_PART="${GIT_PART} ${MUTED}(${WORKTREE})${NC}"
   [ "$STAGED"   -gt 0 ] && GIT_PART="${GIT_PART} ${SUCCESS}+${STAGED}${NC}"
   [ "$MODIFIED" -gt 0 ] && GIT_PART="${GIT_PART} ${WARN}~${MODIFIED}${NC}"
