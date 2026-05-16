@@ -29,4 +29,5 @@ Slash-command skills available in Claude Code via `/skill-name`.
 | `/slite-to-clickup` | Syncs a Slite document to a ClickUp Doc page (Slite is source of truth) |
 | `/ticket-refinement` | Writes and refines subtasks for software tickets (endpoints, components, APIs) |
 | `/token-report` | Token usage report from Claude Code stats |
+| `/write-tests` | Writes tests from a spec-driven philosophy: tests as executable specifications, behavior not implementation |
 | `/writing-react-effects` | Reviews/writes React components to eliminate unnecessary useEffect usage |
