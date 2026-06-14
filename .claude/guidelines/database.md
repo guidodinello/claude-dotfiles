@@ -2,8 +2,7 @@
 
 Guidelines for PostgreSQL schema design, constraint discipline, indexing, and migration
 hygiene. These rules are expressed at the SQL/schema level and apply regardless of the
-ORM or migration tool in use. For ORM-specific patterns see `backend/CLAUDE.md`; for
-Alembic commands and workflow see `backend/alembic/CLAUDE.md`.
+ORM or migration tool in use.
 
 ---
 
@@ -41,7 +40,7 @@ Always supply explicit constraint and index names — never let the tool auto-ge
 
 ## Column design
 
-### Nullable timestamp over boolean flag (ADR-013)
+### Nullable timestamp over boolean flag
 
 For any **permanent, one-way state transition**, use a nullable `TIMESTAMPTZ` column
 instead of a `BOOLEAN`. `NULL` means "not yet happened"; a non-`NULL` value means
@@ -68,7 +67,7 @@ ALTER TABLE users ADD COLUMN email_verified_at TIMESTAMPTZ NULL;
 UPDATE users SET email_verified_at = NOW();  -- grandfather existing rows
 ```
 
-### Store enum values as text, enforce at the application layer (ADR-012)
+### Store enum values as text, enforce at the application layer
 
 Do not use PostgreSQL `ENUM` types for application-defined enumerations. Store values as
 `VARCHAR` / `TEXT` and enforce the valid-value constraint at the ORM or application
@@ -105,7 +104,7 @@ value must be `NOT NULL`. Add a `DEFAULT` if the column is added to an existing 
 
 ---
 
-## Foreign keys and cascade deletes (ADR-014)
+## Foreign keys and cascade deletes
 
 ### Declare `ON DELETE CASCADE` for FK children of hard-deletable parents
 
@@ -248,7 +247,7 @@ with significant traffic:
 ### Adding a new column
 
 - [ ] Timestamp columns use `TIMESTAMPTZ`, never `TIMESTAMP`
-- [ ] Boolean-like columns: check ADR-013 — should this be a nullable `TIMESTAMPTZ` instead?
+- [ ] Boolean-like columns: should this be a nullable `TIMESTAMPTZ` instead? (see "Nullable timestamp over boolean flag" above)
 - [ ] `NOT NULL` unless absence is semantically meaningful
 - [ ] Backfill included in the migration if existing rows need a value
 - [ ] `DEFAULT` provided if the column is `NOT NULL` on an existing table
@@ -257,10 +256,10 @@ with significant traffic:
 
 - [ ] Table name is plural `snake_case`
 - [ ] Primary key is `id` (autoincrement integer)
-- [ ] FK columns referencing `users` include `ON DELETE CASCADE` (ADR-014)
+- [ ] FK columns referencing hard-deletable parents include `ON DELETE CASCADE`
 - [ ] FK columns referencing `items` omit `ON DELETE` (items are never deleted)
 - [ ] Every FK column has a corresponding index (`ix_{table}_{col}`)
-- [ ] Enum-like columns use `VARCHAR` / `TEXT`, not PostgreSQL `ENUM` (ADR-012)
+- [ ] Enum-like columns use `VARCHAR` / `TEXT`, not PostgreSQL `ENUM`
 - [ ] All constraint and index names are explicit
 
 ### Adding a new migration
