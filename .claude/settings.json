@@ -15,7 +15,7 @@
       "Bash(echo * >> *.env*)"
     ]
   },
-  "model": "opus[1m]",
+  "model": "sonnet",
   "hooks": {
     "PreToolUse": [
       {
