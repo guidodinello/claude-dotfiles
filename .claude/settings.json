@@ -7,9 +7,15 @@
       "mcp__plugin_engram_engram__mem_context"
     ],
     "deny": [
-      "Read(.env*)"
+      "Read(.env*)",
+      "Write(**/.env)",
+      "Bash(*>> *.env)",
+      "Bash(*> *.env)",
+      "Bash(echo * > *.env*)",
+      "Bash(echo * >> *.env*)"
     ]
   },
+  "model": "opus[1m]",
   "hooks": {
     "PreToolUse": [
       {
