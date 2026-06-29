@@ -1,0 +1,9 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "opencode/deepseek-v4-flash-free",
+  "agent": {
+    "plan": {
+      "model": "opencode/nemotron-3-ultra-free"
+    }
+  }
+}

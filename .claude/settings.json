@@ -15,7 +15,7 @@
       "Bash(echo * >> *.env*)"
     ]
   },
-  "model": "sonnet",
+  "model": "opusplan",
   "hooks": {
     "PreToolUse": [
       {
@@ -76,5 +76,6 @@
   },
   "effortLevel": "medium",
   "advisorModel": "opus",
-  "skipAutoPermissionPrompt": true
+  "skipAutoPermissionPrompt": true,
+  "tui": "fullscreen"
 }

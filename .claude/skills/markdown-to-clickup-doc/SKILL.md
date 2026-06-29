@@ -29,6 +29,30 @@ source ~/.secrets
 
 Check that `CLICKUP_API_TOKEN` is set. If it is missing, stop and tell the user to add it to `~/.secrets`.
 
+## Markdown format support & limitations
+
+The v3 Docs API ingests **standard Markdown** via `content_format: text/md`. Standard block types
+work: headings (`#`/`##`/`###`), bold/italic, bullet and numbered lists, links, code blocks, blockquotes,
+tables. Use these freely.
+
+What does **not** work (verified empirically, 2026-06-17):
+
+- **Collapsible / toggle sections are not creatable via the API.** Toggles are an editor-only block
+  type. There is no Markdown or HTML syntax you can send that produces a real fold/expand toggle:
+  - `+++ Heading ... +++` (the syntax some ClickUp surfaces accept) renders as **literal `+++` text**.
+  - On *read*, an existing toggle round-trips as a plain indented bullet (`*   Heading` with the body
+    indented 4 spaces beneath it) — so even copying that representation back in just yields a nested
+    bullet list, not a toggle.
+  - `content_format: text/html` returns an **empty body** on GET, so the HTML route is not usable for
+    round-tripping either.
+  - **If the user asks for collapsible sections, do not attempt `+++`.** Use `##` headings instead
+    (clean and skimmable), and tell the user that true toggles can only be added by hand in the editor
+    (`/toggle`), and that any future re-sync from the file will flatten them back to bullets.
+
+When unsure whether a given block type survives, the reliable test is: have the user create it manually
+in the editor, then GET the page with `?content_format=text/md` and inspect how it comes back. If it
+round-trips as something you can't reproduce with standard Markdown, fall back to headings.
+
 ## Step 1 — Parse arguments
 
 From the file path argument, resolve the absolute path of the markdown file. Verify it exists and is readable; if not, stop and report the error.

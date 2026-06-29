@@ -37,6 +37,15 @@ Note: ClickUp auth uses no `Bearer` prefix — the token is sent as a raw header
 - **Always infer the ticket type** from context: Bug, Improvement, or Task.
 - **Always preview the ticket as .md** before creating it in ClickUp. Wait for explicit user confirmation.
 - Ask clarifying questions if you don't have enough information to fill out the template properly.
+- **Before creating a new ticket**, search ClickUp filtered by epic (`[EllaDx] Epic`) to check if a similar ticket already exists. If one does, complete or update that ticket instead of creating a duplicate. Tickets must reflect the issue at the product/business level — not as isolated technical items.
+- **Title and first paragraph must describe the business or user flow impact.** The technical explanation comes after. Never put `[FE]`, `[MB]`, `[High]`, or similar tags in the title — those go in the board's custom field columns.
+
+### Bug vs Improvement
+
+- **Bug** = something broken or behaving unexpectedly.
+- **Improvement** = something that works but could be improved, implying a change in the flow or business logic. **Requires a product decision before implementing.**
+
+**Special case — Bug needing a definition**: If the issue is clearly a bug but the correct behavior is ambiguous or undefined, mark the Expected Result field with a note that a product definition is required, then ask the user how they want it to work before proceeding.
 
 ---
 
@@ -200,8 +209,11 @@ Use these exact UUIDs as the `value` for dropdown fields in the API payload.
 
 ## Workflow
 
+### Step 0 — Check for duplicate tickets
+Before doing anything else, search ClickUp for existing tickets in the same epic (`[EllaDx] Epic` field) that may already cover the same issue. If a match is found, surface it to the user and ask whether to update the existing ticket instead.
+
 ### Step 1 — Identify ticket type
-Determine if it's a **Bug**, **Improvement**, or **Task** from the user's message and any context (including screenshots or videos).
+Determine if it's a **Bug**, **Improvement**, or **Task** from the user's message and any context (including screenshots or videos). If the issue is a bug but the expected behavior is unclear or undefined, flag this immediately and ask the user to define the expected behavior before proceeding.
 
 ### Step 2 — Gather required info
 - If anything is missing, ask the user.
@@ -226,7 +238,7 @@ Parse `/tmp/clickup-lists.json` to find the list whose `start_date`/`due_date` r
 
 ### Step 5 — Generate preview as .md
 Fill the appropriate template and present the full ticket to the user, including:
-- **Title** (with `[FE]`/`[BE]` prefix for bugs)
+- **Title** (must describe the business/user flow impact — no `[FE]`/`[BE]`/severity tags in the title)
 - **Type** (Bug / Improvement / Task)
 - **Description** (filled template)
 - **Custom fields summary** (for Bugs)
@@ -284,7 +296,7 @@ Reply with the agent's one-line result. If cross-comments were added, append: "S
    - ¿En qué ambiente ocurre? (prod, uat, stg, dev...)
    - Sugiero severity **Major** — ¿confirmás?
    - Parece un issue tipo **Functional gap** — ¿confirmás?
-   - ¿Es `[FE]`, `[BE]`, o ambos?
+   - ¿Es Frontend, Backend, o ambos? (para el campo Role — no va en el título)
    - ¿Quién lo detectó? (QA Team, Dev Team, Automation, Client/User)
    - ¿Necesita pasar por diseño primero?
 3. Ask: ¿Este bug está relacionado a alguna task existente en ClickUp?

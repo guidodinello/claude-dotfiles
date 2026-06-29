@@ -1,12 +1,14 @@
 #!/bin/bash
-# Claude Code dotfiles setup
-# Symlinks all .claude/ files from this repo into ~/.claude/
+# Dotfiles setup
+# Symlinks config files from this repo into their home-directory locations
 
 set -e
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_SRC="${DOTFILES_DIR}/.claude"
 CLAUDE_DST="${HOME}/.claude"
+OPENCODE_SRC="${DOTFILES_DIR}/.config/opencode"
+OPENCODE_DST="${HOME}/.config/opencode"
 
 GREEN='\033[1;32m'
 YELLOW='\033[1;33m'
@@ -46,6 +48,7 @@ symlink_tree() {
 }
 
 symlink_tree "${CLAUDE_SRC}" "${CLAUDE_DST}" ".claude"
+symlink_tree "${OPENCODE_SRC}" "${OPENCODE_DST}" ".config/opencode"
 
 # Ensure hooks are executable
 find "${CLAUDE_DST}/hooks" -type f -name "*.sh" -exec chmod +x {} \; 2>/dev/null || true
