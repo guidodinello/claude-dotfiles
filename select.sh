@@ -86,15 +86,15 @@ select_with_fzf() {
 }
 
 select_plain() {
-    header "Available items"
+    header "Available items" >&2
     local i=1
     for item in "${CANDIDATES[@]}"; do
-        printf "  %3d) %s\n" "${i}" "${item}"
+        printf "  %3d) %s\n" "${i}" "${item}" >&2
         (( i++ ))
     done
-    echo
-    echo "Enter numbers separated by spaces (e.g. 1 3 5), or 'all':"
-    read -r input
+    echo >&2
+    echo "Enter numbers separated by spaces (e.g. 1 3 5), or 'all':" >&2
+    read -r input </dev/tty
     if [ "${input}" = "all" ]; then
         printf '%s\n' "${CANDIDATES[@]}"
         return
@@ -103,18 +103,19 @@ select_plain() {
         if [[ "${n}" =~ ^[0-9]+$ ]] && (( n >= 1 && n <= ${#CANDIDATES[@]} )); then
             echo "${CANDIDATES[$((n-1))]}"
         else
-            log_warn "Ignoring invalid selection: ${n}"
+            log_warn "Ignoring invalid selection: ${n}" >&2
         fi
     done
 }
 
 header "Select items to install"
 
+SELECTED=()
 if command -v fzf &>/dev/null; then
-    mapfile -t SELECTED < <(select_with_fzf)
+    while IFS= read -r line; do SELECTED+=("${line}"); done < <(select_with_fzf)
 else
     echo "(fzf not found — using plain menu)"
-    mapfile -t SELECTED < <(select_plain)
+    while IFS= read -r line; do SELECTED+=("${line}"); done < <(select_plain)
 fi
 
 if [ ${#SELECTED[@]} -eq 0 ]; then

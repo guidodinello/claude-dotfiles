@@ -1,9 +1,8 @@
-@guidelines/engram.md
-
-@guidelines/reasoning-discipline.md
-
-@guidelines/debugging-patterns.md
-
-@RTK.md
+@guidelines/tools/engram.md
+@guidelines/tools/RTK.md
+@guidelines/tools/github-accounts.md
 
 @guidelines/client-issue-workflow.md
+
+@guidelines/reasoning-discipline.md
+@guidelines/debugging-patterns.md
