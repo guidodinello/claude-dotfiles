@@ -54,12 +54,8 @@
     "refreshInterval": 30
   },
   "enabledPlugins": {
-    "frontend-design@claude-plugins-official": true,
-    "php-lsp@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true,
     "code-simplifier@claude-plugins-official": true,
-    "pyright-lsp@claude-plugins-official": true,
-    "svelte@svelte": false,
     "engram@engram": true,
     "claude-code-setup@claude-plugins-official": true,
     "security-guidance@claude-plugins-official": true,
