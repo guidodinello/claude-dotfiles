@@ -57,6 +57,14 @@ Python project doesn't carry the PHP LSP and vice versa:
 - `typescript-lsp` — TypeScript/JS LSP
 - `frontend-design` — UI/design helper (frontend projects)
 
+### High-overhead plugins to keep per-project (reference)
+These are deliberately **not** enabled globally because their always-on cost is
+high — enable them only in the specific projects that need them:
+- `github` — GitHub MCP (~30–50 tool definitions injected every request)
+- `svelte@svelte` — Svelte MCP + LSP (MCP overhead not worth it globally)
+- `superpowers` — SessionStart hook injects ~800 words into every session
+- `huggingface-skills` — HuggingFace MCP server
+
 ---
 
 ## Per-project LSP: the scheme
@@ -82,22 +90,26 @@ from it without redeclaring the marketplace.
 
 ### `project-init` (stack detection)
 
-Run once per project to scaffold the right settings. It auto-detects the stack
-and **deep-merges** into any existing settings file (won't clobber committed
-team config):
+Run it from this repo against any project — no global install; it mirrors the
+other repo scripts (e.g. `promote.sh`) by taking the target path as an argument.
+It auto-detects the stack and **deep-merges** into any existing settings file
+(won't clobber committed team config):
 
 ```bash
-project-init            # auto-detect: pyproject/requirements/setup.py/Pipfile→python,
-                       #              composer.json→php, package.json→node
-project-init python     # force a stack
-project-init node --local   # write gitignored settings.local.json (team repos)
+cd ~/claude-dotfiles
+./project-init /path/to/project              # auto-detect: pyproject/requirements/setup.py/Pipfile→python,
+                                             #              composer.json→php, package.json→node
+./project-init /path/to/project python       # force a stack
+./project-init /path/to/project node --local # write gitignored settings.local.json (team repos)
 ```
+
+The project directory defaults to the current directory if omitted.
 
 - **Default** → writes committed `.claude/settings.json`, so it travels via
   `git clone`. Best for your own repos.
 - **`--local`** → writes `.claude/settings.local.json` (gitignored). Use in team
   repos where you don't want to commit personal plugin prefs. Trade-off: local
-  files don't travel with clone, so re-run `project-init --local` per machine.
+  files don't travel with clone, so re-run per machine.
   (Ensure the project's `.gitignore` lists `.claude/settings.local.json`.)
 
 Templates live in [`templates/claude-settings/`](../templates/claude-settings/)

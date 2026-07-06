@@ -30,13 +30,18 @@ TEMPLATE_DIR="$SCRIPT_DIR/templates/claude-settings"
 
 usage() {
   cat <<EOF
-Usage: project-init [stack] [--local]
+Usage: project-init [project-dir] [stack] [--local]
 
 Scaffolds .claude/settings.json (or settings.local.json) enabling the LSP/plugins
 for a stack. Deep-merges into an existing settings file rather than clobbering it.
 
+Run it from this repo against any project:
+  ./project-init /path/to/project
+  ./project-init /path/to/project python
+
 Arguments:
-  stack     One of: python, php, node. Auto-detected from the project if omitted.
+  project-dir  Target project directory. Defaults to the current directory.
+  stack        One of: python, php, node. Auto-detected from the project if omitted.
 
 Options:
   --local   Write .claude/settings.local.json (gitignored) instead of the
@@ -49,17 +54,29 @@ EOF
 
 STACK=""
 LOCAL=0
+TARGET_INPUT=""
 for arg in "$@"; do
   case "$arg" in
     --local)      LOCAL=1 ;;
     -h|--help)    usage; exit 0 ;;
     python|php|node) STACK="$arg" ;;
-    *) echo "Unknown argument: $arg" >&2; usage; exit 1 ;;
+    *)
+      if [ -d "$arg" ]; then
+        TARGET_INPUT="$arg"
+      else
+        echo "Unknown argument (not a stack, flag, or directory): $arg" >&2
+        usage; exit 1
+      fi
+      ;;
   esac
 done
 
-# ── Project root: git root if available, else cwd ────────────────────────────
-ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+# ── Project root: explicit dir arg > git root > cwd ──────────────────────────
+if [ -n "$TARGET_INPUT" ]; then
+  ROOT="$(cd "$TARGET_INPUT" && (git rev-parse --show-toplevel 2>/dev/null || pwd))"
+else
+  ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+fi
 
 # ── Auto-detect stack from marker files ──────────────────────────────────────
 if [ -z "$STACK" ]; then
