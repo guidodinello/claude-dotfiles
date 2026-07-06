@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+# project-init — scaffold per-project Claude Code LSP/plugin settings by detected stack.
+#
+# Why: language-specific LSP plugins (pyright, php, typescript) are enabled
+# per-project rather than globally, so a Python project doesn't carry the PHP
+# LSP and vice versa. Project settings live in the project repo, so they travel
+# with `git clone` — you configure a project once, ever, not once per machine.
+#
+# Usage:
+#   project-init [stack] [--local]
+#
+#   stack     python | php | node  (auto-detected from the project if omitted)
+#   --local   write .claude/settings.local.json (gitignored) instead of the
+#             committed .claude/settings.json — for team repos where you don't
+#             want to commit personal plugin prefs.
+#
+# Templates live in templates/claude-settings/ next to this script.
+
+set -euo pipefail
+
+# ── Resolve this script's real directory (follow symlinks) to find templates ──
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+TEMPLATE_DIR="$SCRIPT_DIR/templates/claude-settings"
+
+usage() {
+  cat <<EOF
+Usage: project-init [project-dir] [stack] [--local]
+
+Scaffolds .claude/settings.json (or settings.local.json) enabling the LSP/plugins
+for a stack. Deep-merges into an existing settings file rather than clobbering it.
+
+Run it from this repo against any project:
+  ./project-init /path/to/project
+  ./project-init /path/to/project python
+
+Arguments:
+  project-dir  Target project directory. Defaults to the current directory.
+  stack        One of: python, php, node. Auto-detected from the project if omitted.
+
+Options:
+  --local   Write .claude/settings.local.json (gitignored) instead of the
+            committed .claude/settings.json.
+  -h,--help Show this help.
+
+Available templates: $(ls "$TEMPLATE_DIR" 2>/dev/null | sed 's/\.json$//' | tr '\n' ' ')
+EOF
+}
+
+STACK=""
+LOCAL=0
+TARGET_INPUT=""
+for arg in "$@"; do
+  case "$arg" in
+    --local)      LOCAL=1 ;;
+    -h|--help)    usage; exit 0 ;;
+    python|php|node) STACK="$arg" ;;
+    *)
+      if [ -d "$arg" ]; then
+        TARGET_INPUT="$arg"
+      else
+        echo "Unknown argument (not a stack, flag, or directory): $arg" >&2
+        usage; exit 1
+      fi
+      ;;
+  esac
+done
+
+# ── Project root: explicit dir arg > git root > cwd ──────────────────────────
+if [ -n "$TARGET_INPUT" ]; then
+  ROOT="$(cd "$TARGET_INPUT" && (git rev-parse --show-toplevel 2>/dev/null || pwd))"
+else
+  ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+fi
+
+# ── Auto-detect stack from marker files ──────────────────────────────────────
+if [ -z "$STACK" ]; then
+  if [ -f "$ROOT/pyproject.toml" ] || [ -f "$ROOT/requirements.txt" ] || [ -f "$ROOT/setup.py" ] || [ -f "$ROOT/Pipfile" ]; then
+    STACK=python
+  elif [ -f "$ROOT/composer.json" ]; then
+    STACK=php
+  elif [ -f "$ROOT/package.json" ]; then
+    STACK=node
+  else
+    echo "Could not detect a stack in $ROOT." >&2
+    echo "Pass one explicitly: project-init <python|php|node>" >&2
+    exit 1
+  fi
+  echo "Detected stack: $STACK"
+fi
+
+TEMPLATE="$TEMPLATE_DIR/$STACK.json"
+[ -f "$TEMPLATE" ] || { echo "No template for stack '$STACK' at $TEMPLATE" >&2; exit 1; }
+
+# ── Target file ──────────────────────────────────────────────────────────────
+mkdir -p "$ROOT/.claude"
+if [ "$LOCAL" -eq 1 ]; then
+  TARGET="$ROOT/.claude/settings.local.json"
+else
+  TARGET="$ROOT/.claude/settings.json"
+fi
+
+# ── Merge into existing settings (deep merge, template wins), else copy ──────
+if [ -f "$TARGET" ]; then
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "jq is required to merge into existing $TARGET (install jq, or remove the file first)." >&2
+    exit 1
+  fi
+  TMP="$(mktemp)"
+  jq -s '.[0] * .[1]' "$TARGET" "$TEMPLATE" > "$TMP"
+  mv "$TMP" "$TARGET"
+  echo "Merged $STACK plugins into existing $TARGET"
+else
+  cp "$TEMPLATE" "$TARGET"
+  echo "Wrote $TARGET"
+fi
+
+echo "Enabled plugins:"
+jq -r '.enabledPlugins | to_entries[] | "  \(.key) = \(.value)"' "$TARGET" 2>/dev/null || cat "$TARGET"
+
+if [ "$LOCAL" -eq 1 ]; then
+  echo "Note: settings.local.json is gitignored — it won't travel with the repo (regenerate per machine with project-init)."
+else
+  echo "Tip: commit .claude/settings.json so the config travels via git clone to any machine."
+fi

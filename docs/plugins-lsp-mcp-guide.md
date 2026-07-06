@@ -36,31 +36,97 @@ Expose tools to Claude via the Model Context Protocol.
 
 ## Current global plugin config (~/.claude/settings.json)
 
-### Always-on globally (low/no overhead)
-- `rust-analyzer-lsp` — Rust LSP
-- `pyright-lsp` — Python LSP (installed via `uv tool install pyright`)
-- `typescript-lsp` — TypeScript LSP
-- `code-simplifier` — on-demand skill/agent
-- `claude-md-management` — on-demand skill
-- `claude-code-setup` — on-demand skill
-- `skill-creator` — on-demand skill
-- `security-guidance` — PreToolUse hook, checks for XSS/injection patterns on every file edit
+Global config is kept to **universal-only** plugins — anything language- or
+stack-specific is enabled per-project (see below).
 
-### Disabled globally (enable per-project)
-- `github` — GitHub MCP (30-50 tools, high overhead)
+### Always-on globally (universal, low/no overhead)
+- `skill-creator` — on-demand skill
+- `code-simplifier` — on-demand skill/agent
+- `engram` — persistent-memory MCP (kept global by choice; note MCP tool defs
+  are the main per-conversation cost)
+- `claude-code-setup` — on-demand skill
+- `security-guidance` — PreToolUse hook, checks for XSS/injection patterns on every file edit
+- `claude-md-management` — on-demand skill
+- `code-review` — disabled globally (`false`)
+
+### Enabled per-project (not global)
+Language-specific LSPs and stack tools live in the **project's** settings so a
+Python project doesn't carry the PHP LSP and vice versa:
+- `pyright-lsp` — Python LSP
+- `php-lsp` — PHP LSP
+- `typescript-lsp` — TypeScript/JS LSP
+- `frontend-design` — UI/design helper (frontend projects)
+
+### High-overhead plugins to keep per-project (reference)
+These are deliberately **not** enabled globally because their always-on cost is
+high — enable them only in the specific projects that need them:
+- `github` — GitHub MCP (~30–50 tool definitions injected every request)
 - `svelte@svelte` — Svelte MCP + LSP (MCP overhead not worth it globally)
-- `superpowers` — SessionStart hook injects ~800 words every session
+- `superpowers` — SessionStart hook injects ~800 words into every session
 - `huggingface-skills` — HuggingFace MCP server
 
-### Enabling a plugin per-project
-Add to `.claude/settings.json` at the project root:
+---
+
+## Per-project LSP: the scheme
+
+**Key idea:** Claude Code deep-merges settings across scopes
+(`~/.claude/settings.json` → `<project>/.claude/settings.json` →
+`<project>/.claude/settings.local.json`). `enabledPlugins` is an object map, so
+a project can switch on a plugin that global left off, and it stays isolated to
+that project. Verified empirically: enabling `code-review` at project scope
+showed `enabled=true` inside the project and `enabled=false` in `$HOME`.
+
+Because project settings live **in the project repo**, they travel with
+`git clone`. You configure a project **once, ever** — not once per machine. On a
+new PC: clone dotfiles (global) + clone your projects (each carries its own LSP
+config). Nothing extra to run.
+
+The official marketplace only needs to be known at user scope — keep
+`extraKnownMarketplaces` in `~/.claude/settings.json`. Projects reference plugins
+from it without redeclaring the marketplace.
+
+> First time a project enables `typescript-lsp` (not installed by default),
+> Claude Code auto-installs it from the official marketplace on session start.
+
+### `project-init` (stack detection)
+
+Run it from this repo against any project — no global install; it mirrors the
+other repo scripts (e.g. `promote.sh`) by taking the target path as an argument.
+It auto-detects the stack and **deep-merges** into any existing settings file
+(won't clobber committed team config):
+
+```bash
+cd ~/claude-dotfiles
+./project-init /path/to/project              # auto-detect: pyproject/requirements/setup.py/Pipfile→python,
+                                             #              composer.json→php, package.json→node
+./project-init /path/to/project python       # force a stack
+./project-init /path/to/project node --local # write gitignored settings.local.json (team repos)
+```
+
+The project directory defaults to the current directory if omitted.
+
+- **Default** → writes committed `.claude/settings.json`, so it travels via
+  `git clone`. Best for your own repos.
+- **`--local`** → writes `.claude/settings.local.json` (gitignored). Use in team
+  repos where you don't want to commit personal plugin prefs. Trade-off: local
+  files don't travel with clone, so re-run per machine.
+  (Ensure the project's `.gitignore` lists `.claude/settings.local.json`.)
+
+Templates live in [`templates/claude-settings/`](../templates/claude-settings/)
+(`python.json`, `php.json`, `node.json`) — edit these to change what each stack enables.
+
+### Enabling any plugin per-project manually
+Either add to `.claude/settings.json` at the project root:
 ```json
 {
   "enabledPlugins": {
-    "github@claude-plugins-official": true,
-    "svelte@svelte": true
+    "pyright-lsp@claude-plugins-official": true
   }
 }
+```
+…or let the CLI write it for you:
+```bash
+claude plugin enable pyright-lsp@claude-plugins-official --scope project
 ```
 
 ---

@@ -76,6 +76,27 @@ git commit -m "feat: add my-skill"
 git push
 ```
 
+### Enable per-project LSP (`project-init`)
+
+Language-specific LSP plugins (pyright, php, typescript) are enabled per-project,
+not globally, so each project only loads the LSP it needs. Project settings live
+in the project repo, so they travel with `git clone` — configure a project once,
+ever, not once per machine.
+
+Run it from this repo (like the other scripts — no global install needed),
+passing the target project directory:
+
+```bash
+cd ~/claude-dotfiles
+./project-init /path/to/project              # auto-detect stack (python/php/node)
+./project-init /path/to/project python       # force a stack
+./project-init /path/to/project node --local # write gitignored settings.local.json (team repos)
+```
+
+The project directory defaults to the current directory if omitted. It deep-merges
+into any existing settings without clobbering. Stack templates live in
+`templates/claude-settings/`. See [Plugins, LSP & MCP guide](docs/plugins-lsp-mcp-guide.md#per-project-lsp-the-scheme) for the full scheme.
+
 ## Credits
 
 Some skills in this repo originate from external authors and are vendored here with attribution:
