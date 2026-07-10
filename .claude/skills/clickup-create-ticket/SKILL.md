@@ -11,13 +11,13 @@ Creates structured ClickUp tickets in the **current sprint** using the correct t
 
 ## Prerequisites
 
-Requires `CLICKUP_API_TOKEN` set in the environment. Before any curl call, run:
+Requires `CLICKUP_API_TOKEN` set in the environment. Before any curl call, load it from the macOS keychain:
 
 ```bash
-source ~/.secrets
+export CLICKUP_API_TOKEN=$(security find-generic-password -s CLICKUP_API_TOKEN -w)
 ```
 
-If `CLICKUP_API_TOKEN` is still unset after sourcing, stop and tell the user to add it to `~/.secrets`.
+If `CLICKUP_API_TOKEN` is still unset after this, stop and tell the user to add it to the keychain (`security add-generic-password -U -s CLICKUP_API_TOKEN -a "$USER" -w '<token>'`).
 
 All API calls use:
 ```

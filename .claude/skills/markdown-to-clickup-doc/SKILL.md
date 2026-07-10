@@ -21,13 +21,13 @@ Reads a local Markdown file and overwrites a ClickUp Doc page with its content. 
 
 ## Prerequisites
 
-Requires the ClickUp token set in the environment. Run:
+Requires the ClickUp token set in the environment. Load it from the macOS keychain:
 
 ```bash
-source ~/.secrets
+export CLICKUP_API_TOKEN=$(security find-generic-password -s CLICKUP_API_TOKEN -w)
 ```
 
-Check that `CLICKUP_API_TOKEN` is set. If it is missing, stop and tell the user to add it to `~/.secrets`.
+Check that `CLICKUP_API_TOKEN` is set. If it is missing, stop and tell the user to add it to the keychain (`security add-generic-password -U -s CLICKUP_API_TOKEN -a "$USER" -w '<token>'`).
 
 ## Markdown format support & limitations
 

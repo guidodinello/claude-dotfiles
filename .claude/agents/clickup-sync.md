@@ -11,7 +11,7 @@ You will be given four arguments: a local file path, a workspace ID, a doc ID, a
 
 ## Steps
 
-1. Run `source ~/.secrets` to load env vars. If `CLICKUP_API_TOKEN` is unset after this, stop and tell the user to add it to `~/.secrets`.
+1. Load the token from the macOS keychain: `export CLICKUP_API_TOKEN=$(security find-generic-password -s CLICKUP_API_TOKEN -w)`. If `CLICKUP_API_TOKEN` is unset after this, stop and tell the user to add it to the keychain (`security add-generic-password -U -s CLICKUP_API_TOKEN -a "$USER" -w '<token>'`).
 
 2. Read the title from the file's first `# Heading` line (if present); otherwise use the filename without extension.
 
