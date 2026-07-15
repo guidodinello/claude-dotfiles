@@ -8,7 +8,7 @@
     ],
     "deny": [
       "Read(.env*)",
-      "Write(**/.env)",
+      "Edit(**/.env)",
       "Bash(*>> *.env)",
       "Bash(*> *.env)",
       "Bash(echo * > *.env*)",
