@@ -156,7 +156,7 @@ In practice: if the system handles ePHI over the internet with no compensating c
 
 ## Reporting Format
 
-Follow the shared structure in `.claude/guidelines/audit-template.md` for document header, findings format, severity levels, dead code rule, effort labels, and remediation tiers. HIPAA-specific additions are below.
+Follow the shared structure in `.claude/guidelines/templates/audit-template.md` for document header, findings format, severity levels, dead code rule, effort labels, and remediation tiers. HIPAA-specific additions are below.
 
 ### Document header
 
