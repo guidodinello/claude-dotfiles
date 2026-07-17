@@ -130,7 +130,7 @@ A MEDIUM-severity IDOR combined with a MEDIUM-severity missing rate limit can fo
 
 ## Reporting Format
 
-Follow the shared structure in `.claude/guidelines/audit-template.md` for document header, findings format, severity levels, dead code rule, effort labels, and remediation tiers. Security-specific additions are below.
+Follow the shared structure in `.claude/guidelines/templates/audit-template.md` for document header, findings format, severity levels, dead code rule, effort labels, and remediation tiers. Security-specific additions are below.
 
 ### Document header
 

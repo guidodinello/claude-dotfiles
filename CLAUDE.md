@@ -22,7 +22,7 @@ If the skill does preprocessing (e.g. `markdown-to-slite` applies style rules be
 
 ## Audit Skills
 
-All audit skills share a common reporting structure. See `.claude/guidelines/audit-template.md` for the shared contract: document header, findings format (severity IDs, dead code rule), remediation tiers, and key files reference. Each audit skill adds its own discovery steps and domain-specific violation patterns on top.
+All audit skills share a common reporting structure. See `.claude/guidelines/templates/audit-template.md` for the shared contract: document header, findings format (severity IDs, dead code rule), remediation tiers, and key files reference. Each audit skill adds its own discovery steps and domain-specific violation patterns on top.
 
 ## Cross-Agent Skills (`.agents/skills/`)
 
