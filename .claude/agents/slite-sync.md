@@ -11,7 +11,7 @@ You will be given two arguments: a local file path and a Slite doc ID.
 
 ## Steps
 
-1. Load the token from the macOS keychain: `export SLITE_API_TOKEN=$(security find-generic-password -s SLITE_API_TOKEN -w)`. If `SLITE_API_TOKEN` is unset after this, stop and tell the user to add it to the keychain (`security add-generic-password -U -s SLITE_API_TOKEN -a "$USER" -w '<token>'`).
+1. Load the token from 1Password, falling back to the macOS keychain: `export SLITE_API_TOKEN=$(op read "op://Private/SLITE_API_TOKEN/password" 2>/dev/null || security find-generic-password -s SLITE_API_TOKEN -a "$USER" -w)`. If `SLITE_API_TOKEN` is unset after this, stop and tell the user to add it (`op item create --category=password --title=SLITE_API_TOKEN --vault=Private password='<token>'` or `security add-generic-password -U -s SLITE_API_TOKEN -a "$USER" -w '<token>'`).
 
 2. Read the local file at the given path.
 

@@ -27,7 +27,7 @@ You will be given one argument: a path to a JSON params file.
 
 ## Steps
 
-1. Load the token from the macOS keychain: `export CLICKUP_API_TOKEN=$(security find-generic-password -s CLICKUP_API_TOKEN -w)`. If `CLICKUP_API_TOKEN` is unset after this, stop and report the error.
+1. Load the token from 1Password, falling back to the macOS keychain: `export CLICKUP_API_TOKEN=$(op read "op://Private/CLICKUP_API_TOKEN/password" 2>/dev/null || security find-generic-password -s CLICKUP_API_TOKEN -a "$USER" -w)`. If `CLICKUP_API_TOKEN` is unset after this, stop and report the error.
 
 2. Read the params file. Build the POST payload:
 
