@@ -2,6 +2,7 @@
   "permissions": {
     "allow": [
       "Read(./**)",
+      "Bash(op read:*)",
       "Bash(security find-generic-password:*)",
       "Bash(rtk:*)",
       "mcp__plugin_engram_engram__mem_context"
