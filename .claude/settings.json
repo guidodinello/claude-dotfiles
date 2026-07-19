@@ -15,7 +15,7 @@
       "Bash(echo * >> *.env*)"
     ]
   },
-  "model": "opusplan",
+  "model": "fable",
   "hooks": {
     "PreToolUse": [
       {
