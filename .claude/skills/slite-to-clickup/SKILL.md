@@ -21,14 +21,14 @@ Fetches a Slite document's markdown content and overwrites a ClickUp Doc page wi
 
 ## Prerequisites
 
-Requires both tokens set in the environment. Load them from the macOS keychain:
+Requires both tokens set in the environment. Load them from 1Password, falling back to the macOS keychain:
 
 ```bash
-export SLITE_API_TOKEN=$(security find-generic-password -s SLITE_API_TOKEN -w)
-export CLICKUP_API_TOKEN=$(security find-generic-password -s CLICKUP_API_TOKEN -w)
+export SLITE_API_TOKEN=$(op read "op://Private/SLITE_API_TOKEN/password" 2>/dev/null || security find-generic-password -s SLITE_API_TOKEN -a "$USER" -w)
+export CLICKUP_API_TOKEN=$(op read "op://Private/CLICKUP_API_TOKEN/password" 2>/dev/null || security find-generic-password -s CLICKUP_API_TOKEN -a "$USER" -w)
 ```
 
-Check that `SLITE_API_TOKEN` and `CLICKUP_API_TOKEN` are both set. If either is missing, stop and tell the user to add it to the keychain (`security add-generic-password -U -s SLITE_API_TOKEN -a "$USER" -w '<token>'`).
+Check that `SLITE_API_TOKEN` and `CLICKUP_API_TOKEN` are both set. If either is missing, stop and tell the user to add it (`op item create --category=password --title=SLITE_API_TOKEN --vault=Private password='<token>'` or `security add-generic-password -U -s SLITE_API_TOKEN -a "$USER" -w '<token>'`).
 
 ## Step 1 — Parse arguments
 

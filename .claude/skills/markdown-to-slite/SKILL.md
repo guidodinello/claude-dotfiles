@@ -15,13 +15,13 @@ Syncs a local Markdown file to a Slite document by overwriting the doc's content
 
 ## Prerequisites
 
-Requires `SLITE_API_TOKEN` to be set in the environment. Before any curl call, load it from the macOS keychain:
+Requires `SLITE_API_TOKEN` to be set in the environment. Before any curl call, load it from 1Password, falling back to the macOS keychain:
 
 ```bash
-export SLITE_API_TOKEN=$(security find-generic-password -s SLITE_API_TOKEN -w)
+export SLITE_API_TOKEN=$(op read "op://Private/SLITE_API_TOKEN/password" 2>/dev/null || security find-generic-password -s SLITE_API_TOKEN -a "$USER" -w)
 ```
 
-If `SLITE_API_TOKEN` is still unset after this, stop and tell the user to add it to the keychain (`security add-generic-password -U -s SLITE_API_TOKEN -a "$USER" -w '<token>'`).
+If `SLITE_API_TOKEN` is still unset after this, stop and tell the user to add it (`op item create --category=password --title=SLITE_API_TOKEN --vault=Private password='<token>'` or `security add-generic-password -U -s SLITE_API_TOKEN -a "$USER" -w '<token>'`).
 
 ## Style rules
 
