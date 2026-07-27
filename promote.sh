@@ -77,7 +77,7 @@ mkdir -p "$(dirname "${repo_dst}")"
 mv "${src}" "${repo_dst}"
 log_info "Moved to repo: .claude/${rel}"
 
-# Create file-level global symlinks (consistent with setup.sh approach)
+# Create file-level global symlinks (consistent with sync.sh approach)
 _link_item() {
     local item="${1}"
     local item_rel="${item#"${DOTFILES_DIR}/.claude/"}"

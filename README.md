@@ -29,10 +29,10 @@ Personal Claude Code configuration — agents, skills, hooks, and guidelines syn
 ```bash
 git clone git@github.com:<you>/claude-dotfiles.git ~/claude-dotfiles
 cd ~/claude-dotfiles
-bash setup.sh
+bash sync.sh
 ```
 
-`setup.sh` symlinks every file under `.claude/` into `~/.claude/`, backing up any pre-existing files as `.bak`.
+`sync.sh` symlinks every file under `.claude/` into `~/.claude/`, backing up any pre-existing files as `.bak`. Safe to re-run any time — e.g. after `git pull` — to pick up new or updated skills/agents/hooks.
 
 **Install only what you need:**
 
