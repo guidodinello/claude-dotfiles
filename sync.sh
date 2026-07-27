@@ -1,6 +1,7 @@
 #!/bin/bash
-# Dotfiles setup
-# Symlinks config files from this repo into their home-directory locations
+# Dotfiles sync
+# Symlinks config files from this repo into their home-directory locations.
+# Safe to re-run any time to pick up new/updated files after a `git pull`.
 
 set -e
 

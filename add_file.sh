@@ -41,7 +41,7 @@ dst="${DOTFILES_DIR}/.claude/${rel}"
 mkdir -p "$(dirname "${dst}")"
 mv "${file_path}" "${dst}"
 
-# Create file-level symlinks (consistent with setup.sh approach)
+# Create file-level symlinks (consistent with sync.sh approach)
 if [ -d "${dst}" ]; then
     while IFS= read -r -d '' f; do
         f_rel="${f#"${DOTFILES_DIR}/.claude/"}"
