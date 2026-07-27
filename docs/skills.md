@@ -2,6 +2,42 @@
 
 Slash-command skills available in Claude Code via `/skill-name`.
 
+## Default enablement (`skillOverrides`)
+
+Claude Code's skill picker (`Esc Esc` → Skills, or shown at session start) lets you toggle
+each skill between `on` / `name-only` / `user-only` / `off` — but that toggle is **session-scoped
+only**. It resets every session unless persisted via the `skillOverrides` key in
+`~/.claude/settings.json` (this repo's committed, symlinked file — see
+[Plugins, LSP & MCP guide § Settings scope](plugins-lsp-mcp-guide.md#settings-scope-what-actually-persists-where)
+for why there's no per-machine-only variant of this).
+
+```json
+{
+  "skillOverrides": {
+    "clickup-create-ticket": "off",
+    "hipaa-audit": "user-invocable-only"
+  }
+}
+```
+
+Values (per the settings schema):
+
+| Value | Model sees name+description | `/skill-name` works | Use for |
+|---|---|---|---|
+| `on` (default, key absent) | Yes | Yes | Skills you want Claude to trigger autonomously |
+| `name-only` | Name only, no description | Yes | Rarely used — cuts listing cost while keeping loose autodiscovery |
+| `user-invocable-only` | No | Yes | Niche/client-specific skills (ClickUp, Slite, industry-specific audits) you invoke deliberately but don't want Claude guessing at |
+| `off` | No | No | Skills you never want, even manually (deprecated/vendored duplicates, meta-skills that self-improve other skills) |
+
+`off` and `user-invocable-only` cost the same **zero** standing tokens — neither goes into
+the per-turn skill listing. The only difference is whether `/skill-name` still works. Default
+to `user-invocable-only` unless you genuinely never want the manual escape hatch.
+
+Current baseline (see `~/.claude/settings.json`): ClickUp/Slite sync skills and the
+`meta-skill-*` self-improvers are `off`; audit skills (`hipaa-audit`, `security-audit`,
+`db-scalability-audit`, `permissions-audit`, `code-health`, etc.) and PR/permissions helpers
+are `user-invocable-only` since they're expensive/niche but still useful on demand.
+
 | Skill | Description |
 |---|---|
 | `/address-pr-comments` | Fetches unresolved PR review threads, fixes valid ones, commits and pushes, then replies |

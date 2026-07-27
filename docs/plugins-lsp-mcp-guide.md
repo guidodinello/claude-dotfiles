@@ -166,9 +166,38 @@ Key things to look for:
 
 ---
 
+## Settings scope: what actually persists where
+
+Claude Code resolves settings in this precedence order: Managed (enterprise) > CLI args >
+Project **Local** (`.claude/settings.local.json`) > Project (`.claude/settings.json`) > User
+(`~/.claude/settings.json`). **There is no user-scope local/gitignored tier** —
+`settings.local.json` is only ever resolved relative to a project's git repo root. A file at
+`~/.claude/settings.local.json` is not a recognized source and is silently ignored (verified
+against Anthropic's settings docs after we mistakenly relied on it — see git history on this
+file for the correction).
+
+Practical consequence: there's no clean way to have "shared baseline, but this machine gets
+its own untracked exceptions" for anything in `~/.claude/settings.json` (skills, plugins,
+env vars, etc.). Two real options if a machine needs to diverge from the committed baseline:
+
+1. **Edit the symlinked `~/.claude/settings.json` directly and leave the change uncommitted.**
+   Since `~/.claude/settings.json` is a symlink into this repo, editing it edits a
+   git-tracked file — `git status` in this repo will show it dirty until you commit or
+   discard. Fine for a rare, deliberate one-off (e.g. temporarily re-enabling a ClickUp skill
+   on a machine that needs it), but it's easy to forget and accidentally commit or lose the
+   override on `git stash`/`checkout`.
+2. **Don't persist it — use the session-scoped skill picker / `claude plugin enable --scope
+   local` for that one session.** Appropriate when the divergence is truly one-off rather than
+   a standing per-machine preference.
+
+There is no third option (no per-user gitignored file, no env-var-driven settings path for
+this). Per-**project** local settings (`.claude/settings.local.json` inside a project repo)
+work exactly as documented and are unaffected by this — see `project-init --local` above.
+
 ## Environment variables for MCP plugins
 
-`settings.local.json` only exists at **project scope**, not user scope.
+`settings.local.json` only exists at **project scope**, not user scope — same constraint
+as above.
 `~/.zshrc` exports are NOT picked up — Claude Code is launched by VS Code, not a terminal.
 
 **Correct place for user-scoped secrets: `~/.claude/settings.json` under `"env"`**
