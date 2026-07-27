@@ -15,7 +15,7 @@
       "Bash(echo * >> *.env*)"
     ]
   },
-  "model": "sonnet",
+  "model": "opusplan",
   "hooks": {
     "PreToolUse": [
       {
@@ -60,8 +60,7 @@
     "claude-code-setup@claude-plugins-official": true,
     "security-guidance@claude-plugins-official": true,
     "claude-md-management@claude-plugins-official": true,
-    "code-review@claude-plugins-official": false,
-    "pyright-lsp@claude-plugins-official": true
+    "code-review@claude-plugins-official": false
   },
   "extraKnownMarketplaces": {
     "engram": {
