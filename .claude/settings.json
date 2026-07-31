@@ -1,5 +1,6 @@
 {
   "permissions": {
+    "defaultMode": "auto",
     "allow": [
       "Read(./**)",
       "Bash(op read:*)",
@@ -17,6 +18,36 @@
     ]
   },
   "model": "opusplan",
+  "skillOverrides": {
+    "audit-consolidation-validator": "off",
+    "audit-fact-checker": "off",
+    "clickup-create-ticket": "off",
+    "db-migration-planner": "off",
+    "figma-to-tailwind": "off",
+    "markdown-to-clickup-doc": "off",
+    "markdown-to-slite": "off",
+    "meta-skill-db-scalability-audit-improver": "off",
+    "meta-skill-hipaa-audit-improver": "off",
+    "meta-skill-security-audit-improver": "off",
+    "slite-compare-docs": "off",
+    "slite-to-clickup": "off",
+    "ticket-refinement": "off",
+    "address-pr-comments": "user-invocable-only",
+    "clean-permissions": "user-invocable-only",
+    "code-health": "user-invocable-only",
+    "code-review-claude-no-autopost": "user-invocable-only",
+    "db-scalability-audit": "user-invocable-only",
+    "hipaa-audit": "user-invocable-only",
+    "improve-codebase-architecture": "user-invocable-only",
+    "opencode-code-review": "user-invocable-only",
+    "permissions-audit": "user-invocable-only",
+    "security-audit": "user-invocable-only",
+    "clickup-task-description": "off",
+    "conventional-commits": "off",
+    "git-brag": "off",
+    "qa-check": "off",
+    "writing-react-effects": "off"
+  },
   "hooks": {
     "PreToolUse": [
       {
@@ -55,12 +86,12 @@
     "refreshInterval": 30
   },
   "enabledPlugins": {
-    "skill-creator@claude-plugins-official": true,
-    "code-simplifier@claude-plugins-official": true,
+    "skill-creator@claude-plugins-official": false,
+    "code-simplifier@claude-plugins-official": false,
     "engram@engram": true,
-    "claude-code-setup@claude-plugins-official": true,
-    "security-guidance@claude-plugins-official": true,
-    "claude-md-management@claude-plugins-official": true,
+    "claude-code-setup@claude-plugins-official": false,
+    "security-guidance@claude-plugins-official": false,
+    "claude-md-management@claude-plugins-official": false,
     "code-review@claude-plugins-official": false
   },
   "extraKnownMarketplaces": {
@@ -70,31 +101,6 @@
         "repo": "Gentleman-Programming/engram"
       }
     }
-  },
-  "skillOverrides": {
-    "audit-consolidation-validator": "off",
-    "audit-fact-checker": "off",
-    "clickup-create-ticket": "off",
-    "db-migration-planner": "off",
-    "figma-to-tailwind": "off",
-    "markdown-to-clickup-doc": "off",
-    "markdown-to-slite": "off",
-    "meta-skill-db-scalability-audit-improver": "off",
-    "meta-skill-hipaa-audit-improver": "off",
-    "meta-skill-security-audit-improver": "off",
-    "slite-compare-docs": "off",
-    "slite-to-clickup": "off",
-    "ticket-refinement": "off",
-    "address-pr-comments": "user-invocable-only",
-    "clean-permissions": "user-invocable-only",
-    "code-health": "user-invocable-only",
-    "code-review-claude-no-autopost": "user-invocable-only",
-    "db-scalability-audit": "user-invocable-only",
-    "hipaa-audit": "user-invocable-only",
-    "improve-codebase-architecture": "user-invocable-only",
-    "opencode-code-review": "user-invocable-only",
-    "permissions-audit": "user-invocable-only",
-    "security-audit": "user-invocable-only"
   },
   "effortLevel": "medium",
   "advisorModel": "opus",
