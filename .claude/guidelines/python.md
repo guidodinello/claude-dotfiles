@@ -662,6 +662,24 @@ These patterns are warning signs that the design needs rethinking:
 - **Classes with no shared state** — if every method could be a free function, it
   probably should be. (See: Jack Diederich, *Stop Writing Classes*.)
 
+- **Redundant temp variables** — avoid assigning a variable only to pass it as a
+  named argument with the same name, or when the variable name adds nothing over the
+  expression itself:
+  ```python
+  # Bad — variable mirrors the parameter name, adds no information
+  tv = await profile.compute_from_answers(user, answers)
+  return OnboardingAnswersResponse(taste_vector=tv)
+
+  # Good — inline it
+  return OnboardingAnswersResponse(
+      taste_vector=await profile.compute_from_answers(user, answers)
+  )
+
+  # Fine — name adds meaning beyond what the expression communicates
+  active_users = [u for u in users if u.is_active and u.confirmed_email]
+  notify_all(active_users)
+  ```
+
 - **Mutable module-level state** — module globals that get mutated are hidden shared
   state. They break encapsulation, make testing hard, and cause subtle bugs across imports.
   Constants (`ALL_CAPS`) are fine; mutable dicts and lists at module scope are not.
