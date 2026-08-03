@@ -90,7 +90,7 @@
     "code-simplifier@claude-plugins-official": false,
     "engram@engram": true,
     "claude-code-setup@claude-plugins-official": false,
-    "security-guidance@claude-plugins-official": false,
+    "security-guidance@claude-plugins-official": true,
     "claude-md-management@claude-plugins-official": false,
     "code-review@claude-plugins-official": false
   },
