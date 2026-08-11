@@ -64,6 +64,56 @@ If yes, the test is redundant — the type-checker is exhaustive and can't be by
 write tests for things types can't express: behavior, sequencing, temporal ordering, runtime
 values, business rules.
 
+Types absorb more than shape. Before concluding a constraint needs a test, check whether it is:
+
+| Constraint | Type-expressible as |
+|------------|--------------------|
+| "status is one of four values" | a `Literal` / union — and an exhaustive `match` |
+| "these fields only exist together" | a discriminated union |
+| "the score is between 0 and 1" | a constrained type (`Annotated[float, Field(ge=0, le=1)]`, `z.number().min(0).max(1)`) |
+| "the vector has 512 elements" | a length-constrained type |
+| "this string is a validated email" | a branded/refined type produced by a parse function |
+
+A test asserting one of those is a test of the type checker, not of your code. If the project
+has a `/type-health` skill, its heuristics (H1–H11) are the fuller version of this table —
+consult it when the answer is "maybe".
+
+## Step 3b — Properties over examples
+
+Some contracts are true for *all* inputs, not for the three you thought of. When a
+postcondition or invariant from Step 2 is universally quantified — "for any input, X holds" —
+an example-based test samples it; a property-based test searches it.
+
+Reach for property-based testing (`hypothesis` in Python, `fast-check` in TS/JS) when the
+contract has this shape:
+
+- **Round-trips** — `decode(encode(x)) == x` for any `x`
+- **Invariants under operation** — the balance is never negative *after any sequence* of
+  deposits and withdrawals; the queue never exceeds `max_size`
+- **Algebraic laws** — sorting is idempotent; a merge is commutative; a normalizer applied
+  twice equals applied once
+- **Relations between two implementations** — the fast path always agrees with the slow one
+- **Rules over sequences of states or across records** — "never more than N per week",
+  "an item once shown is not shown again inside the cooldown window", "the operation is
+  idempotent on this key"
+
+That last row is the important one, and it's where types stop entirely. A type constrains a
+*value*; these constrain a *history* or a *relationship between records*. No type system in a
+mainstream language reaches them — this is the territory formal specification languages
+(TLA+, Alloy) were built for, and property-based tests are the affordable approximation.
+
+Practical rules:
+
+- Write the property as the test name: `test_cooldown_never_repeats_within_window`.
+- Constrain generators to the legal input domain rather than filtering inside the test —
+  a heavily-filtered generator is a slow generator.
+- Keep a couple of example-based tests alongside the property for the known-tricky cases;
+  properties prove the general rule, examples document the specific bug you once had.
+- When a property fails, the shrunk counterexample *is* the bug report — quote it verbatim.
+
+Don't force it. A function with one input and one obvious output does not need a property;
+reserve this for contracts where "for all" is genuinely the claim.
+
 ## Step 4 — Choose the right level
 
 | Level | Spec being tested | Rule |
@@ -91,9 +141,12 @@ this changed?" If no, don't assert on it.
 For data-heavy cases, prefer parametrize/table-driven patterns over repeated identical tests.
 
 **Framework defaults** (infer from imports/config first):
-- Python → `pytest` with fixtures
-- TypeScript/JavaScript → `vitest` or `jest`
+- Python → `pytest` with fixtures; `hypothesis` for Step 3b properties
+- TypeScript/JavaScript → `vitest` or `jest`; `fast-check` for Step 3b properties
 - Other → state your assumption before writing
+
+If a property test needs a dependency the project doesn't have yet, say so and write the
+example-based version — don't add a dependency as a side effect of writing tests.
 
 ## Step 6 — Surface design signals
 
