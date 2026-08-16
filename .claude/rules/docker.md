@@ -134,6 +134,7 @@ RUN uv sync --frozen --no-dev
 
 General ordering rule for a service (Python/uv shown; the shape is the same for
 `package.json`/lockfile/install or any other toolchain):
+
 1. Base image + package-manager binary
 2. ENV vars (rarely change)
 3. System packages (`apt-get install ...`)
@@ -230,7 +231,7 @@ Every build context directory must have a `.dockerignore`. Without it, Docker se
 `.git`, caches, `.env` files, and the entire virtual environment to the daemon on every
 build — bloating context size and risking leaking secrets.
 
-```
+```text
 # .dockerignore — at the root of the build context
 .git
 .venv
@@ -275,6 +276,7 @@ CMD ["uv", "run", "myapp", "dev"]
 ```
 
 Key differences from the production image:
+
 - No `UV_COMPILE_BYTECODE` (adds build time for no benefit in dev)
 - `uv.lock*` (asterisk) — tolerates a missing lockfile on first run
 - No `USER appuser` — volume mount permissions are simpler as root in dev
@@ -333,6 +335,7 @@ merged with `<<:`) silently follows that service into every file stacked on top 
 base, including prod, unless the override file explicitly blocks it.
 
 Two shapes this takes, both seen in practice:
+
 - `api`'s `ports: ["8000:8000"]` in the base file merges with prod's
   `["127.0.0.1:8000:8000"]`, binding both and failing with `bind: address already in
   use` — or worse, succeeding and leaving the service publicly reachable.
@@ -353,10 +356,12 @@ instead of requiring every override site to remember a guard:
 2. **Only if a value genuinely can't be split this way** (rare — most cases fit #1),
    force a full replace with the `!override` YAML tag and a comment stating what would
    leak without it:
+
    ```yaml
    ports: !override
      - "127.0.0.1:8000:8000"
    ```
+
    Treat this as a fallback, not the default tool — it depends on every future editor
    of the base file remembering the override exists, which is the same failure mode
    that caused the bug in the first place.
@@ -425,6 +430,7 @@ volumes:
 ```
 
 Rules:
+
 - Always declare named volumes at the top-level `volumes:` key.
 - Give them descriptive names: `postgres_data`, `redis_data`, not `data` or `vol1`.
 - `docker compose down` keeps them. `docker compose down -v` removes them — use `-v`

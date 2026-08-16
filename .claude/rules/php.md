@@ -386,7 +386,7 @@ public function __invoke(
 Match the return shape to the result:
 
 | Result | Return | Status |
-|--------|--------|--------|
+| -------- | -------- | -------- |
 | Single entity | `Resource::make($x)->response()` | 200 |
 | Collection / paginated | `Resource::collection($x)->response()` | 200 |
 | Mutation, no body | `response()->noContent()` | 204 |
@@ -963,10 +963,10 @@ These are warning signs that the design needs rethinking:
 
 ## Project-specific notes
 
-*(Replace this section when adapting for a new project.)*
+Replace this section when adapting these guidelines for a new project.
 
 | Item | Value |
-|------|-------|
+| ------ | ------- |
 | PHP version | 8.4 |
 | Package manager | Composer |
 | Framework | Laravel 12 |

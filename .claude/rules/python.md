@@ -625,6 +625,7 @@ def simulate(n: int) -> dict: ...
 These patterns are warning signs that the design needs rethinking:
 
 - **Mutable default arguments** — Python evaluates defaults once at import time:
+
   ```python
   def append(item, lst=[]):  # Bad — lst is shared across all calls
       lst.append(item)
@@ -638,6 +639,7 @@ These patterns are warning signs that the design needs rethinking:
   ```
 
 - **Boolean flags that select behaviour** — split into two functions instead:
+
   ```python
   def process(data, verbose=True):  # Bad — two functions in a trenchcoat
       ...
@@ -647,6 +649,7 @@ These patterns are warning signs that the design needs rethinking:
   ```
 
 - **Catching generic exceptions** — always catch the specific exception you expect:
+
   ```python
   try:                          # Bad
       result = load(path)
@@ -671,6 +674,7 @@ These patterns are warning signs that the design needs rethinking:
 - **Redundant temp variables** — avoid assigning a variable only to pass it as a
   named argument with the same name, or when the variable name adds nothing over the
   expression itself:
+
   ```python
   # Bad — variable mirrors the parameter name, adds no information
   tv = await profile.compute_from_answers(user, answers)
@@ -692,6 +696,7 @@ These patterns are warning signs that the design needs rethinking:
 
 - **`assert` for input validation** — `assert` is disabled with `python -O` and must
   never be used for validation. Use `ValueError` or `TypeError` at boundaries:
+
   ```python
   # Bad — silently skipped in optimised builds
   assert user_id > 0, "user_id must be positive"
@@ -857,7 +862,8 @@ uv run pytest tests/ -v
 ```
 
 Structure:
-```
+
+```text
 tests/
   test_core.py       # unit tests for core logic
   test_integration.py  # end-to-end or multi-module tests
@@ -903,10 +909,10 @@ comment explaining why.
 
 ## Project-specific notes
 
-*(Replace this section when adapting for a new project.)*
+Replace this section when adapting these guidelines for a new project.
 
 | Item | Value |
-|------|-------|
+| ------ | ------- |
 | Python version | 3.13 |
 | Package manager | uv |
 | Build backend | hatchling |

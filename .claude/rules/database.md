@@ -31,7 +31,7 @@ ORM or migration tool in use.
 ## Naming conventions
 
 | Object | Pattern | Example |
-|--------|---------|---------|
+| -------- | --------- | --------- |
 | Table | `snake_case`, plural | `users`, `onboarding_sessions` |
 | Column | `snake_case` | `email_verified_at`, `user_id` |
 | Primary key | `id` | — |
@@ -208,7 +208,7 @@ behavior and is easy to miss in code review.
 Choose the action based on the deletion policy of the parent table:
 
 | Parent deletion policy | Child action |
-|---|---|
+| --- | --- |
 | Hard-deleted; child rows are meaningless without parent | `ON DELETE CASCADE` |
 | Hard-deleted; child rows must be retained (audit log, historical record) | `ON DELETE SET NULL` with nullable FK |
 | Never deleted | `ON DELETE RESTRICT` (or omit — same effect) |
@@ -278,6 +278,7 @@ or status columns where one value dominates.
 ### Don't over-index
 
 Each index adds write overhead and storage cost. Add an index only when:
+
 - The column is a FK (always)
 - A query filter or sort on the column exists in the codebase
 - `EXPLAIN ANALYZE` confirms a sequential scan on a large table
@@ -405,6 +406,7 @@ with significant traffic:
 1. **Add the column as nullable first**, backfill in batches, then add the `NOT NULL`
    constraint once all rows are populated.
 2. **Build indexes `CONCURRENTLY`** to avoid the lock:
+
    ```sql
    CREATE INDEX CONCURRENTLY ix_interactions_user_id ON interactions(user_id);
    ```
