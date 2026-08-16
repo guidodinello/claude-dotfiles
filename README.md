@@ -7,11 +7,22 @@ Personal Claude Code configuration — agents, skills, hooks, and guidelines syn
 ```
 .claude/
   agents/          # Subagents invoked by Claude during tasks
-  guidelines/      # Reusable coding guidelines (@-imported into project CLAUDE.md files)
+  rules/           # Path-scoped guidelines (paths: frontmatter) — load on demand
+  guidelines/      # Always-on guidelines (@-imported into CLAUDE.md files)
   hooks/           # Lifecycle hooks (PostToolUse, etc.)
   scripts/         # Standalone utility scripts
   skills/          # Slash-command skills (/skill-name)
+
+sync.sh              # this repo → ~/.claude/ (symlinks)
+select.sh            # same, but pick individual items interactively
+add_file.sh          # absorb a file already in ~/.claude/ into this repo
+promote.sh           # a project → this repo (adopt a file globally)
+push-guidelines.sh   # this repo → projects that keep committed guideline copies
+project-init         # scaffold per-project LSP/plugin settings by stack
 ```
+
+Root-level scripts are run from the checkout (`./sync.sh`) — they are not
+symlinked into `~`.
 
 ## Quick Reference
 
@@ -20,7 +31,26 @@ Personal Claude Code configuration — agents, skills, hooks, and guidelines syn
 | [Skills](docs/skills.md) | 26 slash-command skills | `/address-pr-comments`, `/code-health`, `/security-audit`, `/db-migration-planner`, etc. |
 | [Agents](docs/agents.md) | 6 subagents | audit-finding-verifier, clickup-create-task, quality-checker, slite-sync, etc. |
 | [Hooks](docs/hooks.md) | Safety guards + auto-format + status line | Docker volume guard, Wrangler production guard, auto-format.sh, statusline.sh |
-| [Guidelines](docs/guidelines.md) | Reusable coding conventions | Python guidelines |
+| [Rules & guidelines](docs/guidelines.md) | Reusable coding conventions | **Rules** (path-scoped, auto-load): python, php, docker, ci, database. **Guidelines** (always-on): reasoning-discipline, debugging-patterns, client-issue-workflow, react-native, tools/* |
+
+Path-scoped rules in `~/.claude/rules/` apply to **every project on the machine with no
+per-project wiring** — a `.py` edit pulls in `python.md` wherever you are. Full rationale,
+the two consumption models, the per-folder convention and the promote-then-genericize
+checklist: [The guideline system](docs/guideline-system.md).
+
+### The three sync directions
+
+Guidelines and other `.claude/` content move in three directions. Getting these
+straight matters — the wrong one silently discards work:
+
+| Direction | Script | When |
+|---|---|---|
+| this repo → `~/.claude/` | `sync.sh` | after `git pull`, or a new machine |
+| a project → this repo | `promote.sh` | a project-local file is good enough to go global |
+| this repo → projects | `push-guidelines.sh` | refresh the committed copies repos carry |
+
+**Edited a guideline inside a project? `promote.sh` first, then `push-guidelines.sh`.**
+Pushing first overwrites your edit with the older global version.
 
 ## Setup on a new machine
 
@@ -75,6 +105,32 @@ git add .claude/<rel-path>
 git commit -m "feat: add my-skill"
 git push
 ```
+
+### Push guidelines into a project
+
+Most projects need no wiring at all: `~/.claude/rules/` is symlinked back here, so a
+path-scoped rule fires machine-wide and can never drift. But a repo that must be readable
+from a remote Claude web session or another machine has no `~/.claude/`, and symlinks
+don't survive `git clone` — those repos commit their own copy, and copies drift. This
+pushes the repo master back over them:
+
+```bash
+cd ~/claude-dotfiles
+./push-guidelines.sh                  # dry run over every opted-in project
+./push-guidelines.sh --apply          # actually write
+./push-guidelines.sh /path/to/project # one project only
+```
+
+A project opts in simply by having a `.claude/rules/` or `.claude/guidelines/`
+directory; both are synced independently. Two rules keep it safe:
+
+- **Only files the project already has are refreshed.** Adopting a new guideline
+  stays a deliberate `cp`, so a Node repo never wakes up owning `php.md`.
+- **Nothing is ever deleted**, so project-specific files living alongside the
+  shared ones survive untouched.
+
+Dry run is the default; `--apply` overwrites local edits without prompting. Then
+commit the updated copies in each project repo.
 
 ### Enable per-project LSP (`project-init`)
 

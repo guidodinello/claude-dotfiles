@@ -1,8 +1,20 @@
+---
+paths:
+  - "**/Dockerfile*"
+  - "**/*.dockerfile"
+  - "**/docker-compose*.yml"
+  - "**/docker-compose*.yaml"
+  - "**/.dockerignore"
+---
+
 # Docker — Agent Authoring Guidelines
 
-Guidelines for writing Dockerfiles and Compose configurations. Covers the patterns used
-in this project and the reasoning behind them so they can be applied consistently when
-new services are added.
+Guidelines for writing Dockerfiles and Compose configurations, and the reasoning behind
+them, so they can be applied consistently when new services are added.
+
+Examples use Python + `uv`, since that's what most services here run, but the rules —
+pinning, multi-stage layering, cache ordering, non-root, and every Compose pattern below
+— are language-agnostic. Substitute your own toolchain's lockfile and install command.
 
 ---
 
@@ -50,11 +62,13 @@ The `ghcr.io/astral-sh/uv` image follows the same rule. Use a specific version t
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Good
-COPY --from=ghcr.io/astral-sh/uv:0.6.14 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:<version> /uv /uvx /bin/
 ```
 
-When upgrading uv, update the pin in every Dockerfile that uses it and commit together
-with any `uv.lock` changes.
+Pin a real release rather than the `<version>` placeholder shown here — it is left
+abstract deliberately, so this guideline can't teach a stale number. When upgrading uv,
+update the pin in every Dockerfile that uses it and commit together with any `uv.lock`
+changes.
 
 ---
 
@@ -66,7 +80,7 @@ needed to compile and install dependencies; the final stage receives only the ar
 ```dockerfile
 # Stage 1 — builder: uv, build tools, compile bytecode
 FROM python:3.13-slim AS builder
-COPY --from=ghcr.io/astral-sh/uv:0.6.14 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:<version> /uv /uvx /bin/
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy
@@ -92,7 +106,7 @@ WORKDIR /app
 COPY --from=builder --chown=appuser:appuser /app /app
 USER appuser
 
-CMD ["fitted", "start"]
+CMD ["myapp", "start"]
 ```
 
 **Why two `uv sync` calls?** The first installs deps without the project source, creating
@@ -118,8 +132,9 @@ COPY src/ ./src/
 RUN uv sync --frozen --no-dev
 ```
 
-General ordering rule for a Python service:
-1. Base image + uv binary
+General ordering rule for a service (Python/uv shown; the shape is the same for
+`package.json`/lockfile/install or any other toolchain):
+1. Base image + package-manager binary
 2. ENV vars (rarely change)
 3. System packages (`apt-get install ...`)
 4. Dependency files (`pyproject.toml`, `uv.lock`)
@@ -149,6 +164,12 @@ In any `RUN uv sync` or `RUN uv pip install` inside a Dockerfile, pass `--frozen
 ensures the lockfile is the authoritative source of versions and the build fails loudly
 if the lock is out of date rather than silently upgrading.
 
+The principle generalizes — an image build is exactly where you want the lockfile treated
+as authoritative. The equivalent in the Node ecosystem is `npm ci` (not `npm install`) or
+`pnpm install --frozen-lockfile`. Check your own package manager's flag rather than
+assuming; the failure mode of getting it wrong is a silent version drift between the
+lockfile and the image.
+
 ```dockerfile
 # Bad — may upgrade packages silently
 RUN uv sync
@@ -177,10 +198,10 @@ CMD should invoke the entry point directly:
 
 ```dockerfile
 # Bad — brings uv into the final image
-CMD ["uv", "run", "fitted", "start"]
+CMD ["uv", "run", "myapp", "start"]
 
 # Good — uses the venv on PATH directly
-CMD ["fitted", "start"]
+CMD ["myapp", "start"]
 ```
 
 ---
@@ -210,7 +231,7 @@ Every build context directory must have a `.dockerignore`. Without it, Docker se
 build — bloating context size and risking leaking secrets.
 
 ```
-# .dockerignore — backend/
+# .dockerignore — at the root of the build context
 .git
 .venv
 .env
@@ -239,7 +260,7 @@ for rebuild speed: run the expensive dep install once, then live-reload from the
 
 ```dockerfile
 FROM python:3.13-slim
-COPY --from=ghcr.io/astral-sh/uv:0.6.14 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:<version> /uv /uvx /bin/
 
 ENV PYTHONUNBUFFERED=1 \
     UV_LINK_MODE=copy
@@ -250,14 +271,14 @@ COPY pyproject.toml uv.lock* ./
 RUN uv sync --no-install-project
 
 # Source is volume-mounted at runtime — no COPY src/ needed
-CMD ["uv", "run", "fitted", "dev"]
+CMD ["uv", "run", "myapp", "dev"]
 ```
 
 Key differences from the production image:
 - No `UV_COMPILE_BYTECODE` (adds build time for no benefit in dev)
 - `uv.lock*` (asterisk) — tolerates a missing lockfile on first run
 - No `USER appuser` — volume mount permissions are simpler as root in dev
-- `uv run fitted dev` instead of `fitted start` — enables hot reload
+- `uv run myapp dev` instead of `myapp start` — enables hot reload
 
 ---
 
@@ -265,15 +286,15 @@ Key differences from the production image:
 
 ### YAML anchors for shared config
 
-When multiple services share the same image, env vars, and volumes (e.g. API, worker,
-beat), use a YAML anchor to avoid repetition:
+When multiple services share the same image, env vars, and volumes (e.g. an API, a
+background worker, and a scheduler), use a YAML anchor to avoid repetition:
 
 ```yaml
-x-backend-base: &backend-base
+x-app-base: &app-base
   build:
-    context: ../backend
-    dockerfile: ../docker/backend/Dockerfile.dev
-  environment: &backend-env
+    context: .
+    dockerfile: docker/Dockerfile.dev
+  environment: &app-env
     DATABASE_HOST: postgres
     REDIS_URL: redis://redis:6379/0
   depends_on:
@@ -284,17 +305,17 @@ x-backend-base: &backend-base
 
 services:
   api:
-    <<: *backend-base
+    <<: *app-base
     ports:
       - "8000:8000"
 
   worker:
-    <<: *backend-base
-    command: ["uv", "run", "fitted", "worker"]
+    <<: *app-base
+    command: ["uv", "run", "myapp", "worker"]
 
-  beat:
-    <<: *backend-base
-    command: ["uv", "run", "fitted", "beat"]
+  scheduler:
+    <<: *app-base
+    command: ["uv", "run", "myapp", "scheduler"]
 ```
 
 Keep dev-only keys (bind mounts, exposed ports) out of a shared base anchor if any
@@ -311,12 +332,13 @@ means a dev-only bind mount or port defined in a shared base service (or a base 
 merged with `<<:`) silently follows that service into every file stacked on top of the
 base, including prod, unless the override file explicitly blocks it.
 
-This project has hit this twice:
-- `api`'s `ports: ["8000:8000"]` in the base file merged with prod's
-  `["127.0.0.1:8000:8000"]`, binding both and crashing with `EADDRINUSE`.
-- `x-backend-base`'s dev hot-reload bind mount (`../backend/src:/app/src`) merged into
-  every prod service that used the anchor, so production served code from the host
-  filesystem instead of the image built by the prod Dockerfile.
+Two shapes this takes, both seen in practice:
+- `api`'s `ports: ["8000:8000"]` in the base file merges with prod's
+  `["127.0.0.1:8000:8000"]`, binding both and failing with `bind: address already in
+  use` — or worse, succeeding and leaving the service publicly reachable.
+- A base anchor's dev hot-reload bind mount (`./src:/app/src`) merges into every prod
+  service that uses the anchor, so production serves code from the host filesystem
+  instead of the image built by the prod Dockerfile.
 
 Two ways to prevent this — prefer the first, since it removes the footgun structurally
 instead of requiring every override site to remember a guard:
@@ -357,8 +379,8 @@ syntax. This makes `docker compose up` work out of the box with zero configurati
 
 ```yaml
 environment:
-  DATABASE_USER: ${DATABASE_USER:-fitted}
-  DATABASE_PASSWORD: ${DATABASE_PASSWORD:-fitted}
+  DATABASE_USER: ${DATABASE_USER:-app}
+  DATABASE_PASSWORD: ${DATABASE_PASSWORD:-devpassword}
 ```
 
 Production secrets go in the deployment platform's secret manager, never in a committed
@@ -372,7 +394,7 @@ service_healthy` actually waits for readiness, not just container start:
 ```yaml
 postgres:
   healthcheck:
-    test: ["CMD-SHELL", "pg_isready -U fitted -d fitted"]
+    test: ["CMD-SHELL", "pg_isready -U app -d app"]
     interval: 5s
     timeout: 3s
     retries: 5
@@ -417,7 +439,7 @@ reload without rebuilding the image. Never use bind mounts in production images.
 services:
   api:
     volumes:
-      - ../backend/src:/app/src:cached  # bind: host path → container path
+      - ./src:/app/src:cached  # bind: host path → container path
 ```
 
 The `:cached` consistency hint (Docker Desktop on macOS) tells the daemon that the host
@@ -430,11 +452,11 @@ build artifacts that live inside the container but not on the host:
 ```yaml
 # Bad — shadows /app/.venv inside the container
 volumes:
-  - ../backend:/app
+  - .:/app
 
 # Good — mount only the source tree; deps stay inside the image
 volumes:
-  - ../backend/src:/app/src:cached
+  - ./src:/app/src:cached
 ```
 
 ### tmpfs — ephemeral scratch space

@@ -1,3 +1,9 @@
+---
+paths:
+  - "**/*.php"
+  - "**/composer.json"
+---
+
 # PHP Project — Agent Code Guidelines
 
 General-purpose guidelines for PHP projects (Laravel + Pest) where AI agents assist with

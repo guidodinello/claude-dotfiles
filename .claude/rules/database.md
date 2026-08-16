@@ -1,3 +1,11 @@
+---
+paths:
+  - "**/alembic/**"
+  - "**/migrations/**"
+  - "**/*.sql"
+  - "**/models/**"
+---
+
 # Database — Agent Design Guidelines
 
 Guidelines for PostgreSQL schema design, constraint discipline, indexing, and migration

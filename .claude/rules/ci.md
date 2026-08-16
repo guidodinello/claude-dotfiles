@@ -1,32 +1,43 @@
+---
+paths:
+  - ".github/workflows/**"
+  - "**/.github/workflows/**"
+---
+
 # CI — Agent Authoring Guidelines
 
-Guidelines for writing and modifying GitHub Actions workflows (`.github/workflows/`).
-Covers the patterns used in this project and the reasoning behind them so they can be
-applied consistently as the pipeline grows.
+Guidelines for writing and modifying GitHub Actions workflows (`.github/workflows/`),
+and the reasoning behind them, so they can be applied consistently as a pipeline grows.
+
+The self-hosted-runner section applies only if you actually use one — check your
+workflow's `runs-on:` before assuming it does. Everything else is runner-agnostic.
 
 ---
 
 ## Philosophy
 
-- **This runner is not ephemeral.** CI runs on a self-hosted runner (`runs-on: [self-hosted,
-  linux, x64]`), not GitHub-hosted throwaway VMs. Anything that binds a host port, writes to
-  a host path, or leaves a process running can collide with a developer's local `docker
-  compose up`, a previous stuck job, or another concurrent job on the same machine. Assume
-  shared, persistent state — GitHub-hosted-runner habits (hardcoded ports, "the VM is thrown
-  away after") don't hold here.
+- **If the runner is self-hosted, it is not ephemeral.** On a self-hosted runner
+  (`runs-on: [self-hosted, linux, x64]`) rather than a GitHub-hosted throwaway VM,
+  anything that binds a host port, writes to a host path, or leaves a process running can
+  collide with a developer's local `docker compose up`, a previous stuck job, or another
+  concurrent job on the same machine. Assume shared, persistent state —
+  GitHub-hosted-runner habits (hardcoded ports, "the VM is thrown away after") don't hold.
+  On GitHub-hosted runners these concerns don't apply; the rest of this file still does.
 - **Fail loudly, gate explicitly.** A job that silently skips or a summary gate that doesn't
   actually check its dependencies' results is worse than a red X.
-- **Only run what changed.** Backend and frontend pipelines are independent — don't pay for
-  or block on a job whose inputs didn't change.
+- **Only run what changed.** Independent pipelines (e.g. backend and frontend) shouldn't
+  pay for or block on a job whose inputs didn't change.
 
 ---
 
 ## Self-hosted runner port collisions
 
+*This whole section applies only to jobs whose `runs-on:` is a self-hosted runner.*
+
 ### Never hardcode a service container's host port
 
 A `services:` container's `ports: - 5432:5432` binds port 5432 on the runner host itself.
-Since the runner is a persistent machine (not a disposable GitHub-hosted VM), this clashes
+When the runner is a persistent machine (not a disposable GitHub-hosted VM), this clashes
 with anything else already listening there — most commonly a developer's local `docker
 compose up` (postgres/redis on the same box) or a concurrently running CI job.
 
@@ -34,14 +45,14 @@ compose up` (postgres/redis on the same box) or a concurrently running CI job.
 # Bad — binds host port 5432; collides with local dev compose or a parallel job
 services:
   postgres:
-    image: pgvector/pgvector:pg16
+    image: postgres:16
     ports:
       - 5432:5432
 
 # Good — ephemeral host port, assigned by Docker at container start
 services:
   postgres:
-    image: pgvector/pgvector:pg16
+    image: postgres:16
     ports:
       - 5432
 ```
@@ -71,10 +82,10 @@ steps:
 Put this step immediately after checkout, before any step that needs the resolved value.
 Every later step (and job-level `env:` entries that don't depend on the port) can stay as-is.
 
-This bit us in [PR #294](https://github.com/guidodinello/fitted/pull/294): the first attempt
-put the `job.services...` expression directly in job-level `env:`, which silently produced an
-empty `DATABASE_PORT`/`REDIS_URL` rather than erroring — caught in review, not by CI failing
-loudly.
+This failure mode is quiet: the expression resolves to an empty string rather than
+erroring, so the job runs and fails later with a confusing connection error — or passes
+against the wrong database. Nothing in the logs points at the `env:` block. Review for it
+explicitly; CI will not flag it.
 
 ---
 
@@ -95,10 +106,9 @@ changes:
         filters: |
           backend:
             - 'backend/**'
-            - 'scripts/**'
             - '.github/workflows/ci.yml'
           frontend:
-            - 'frontend/web/**'
+            - 'frontend/**'
             - '.github/workflows/ci.yml'
 ```
 
@@ -111,14 +121,14 @@ invisible to path filtering.
 
 ## Summary gates
 
-`backend-ci` / `frontend-ci` exist purely so branch protection can require one check instead
-of enumerating every job. They must use `if: always()` and explicitly scan
-`needs.*.result` — without `always()`, the gate job is skipped (not failed) the moment any
-dependency fails, which branch protection treats as "no status," not "blocked."
+A summary gate job exists purely so branch protection can require one check instead of
+enumerating every job. It must use `if: always()` and explicitly scan `needs.*.result` —
+without `always()`, the gate job is skipped (not failed) the moment any dependency fails,
+which branch protection treats as "no status," not "blocked."
 
 ```yaml
-backend-ci:
-  needs: [lint-python, typecheck-python, test-python-unit, test-python-integration, security-python]
+backend-gate:
+  needs: [lint, typecheck, test-unit, test-integration]
   if: always()
   steps:
     - name: Check results
@@ -131,8 +141,8 @@ backend-ci:
         done
 ```
 
-When adding a new job to a pipeline (backend or frontend), add it to the matching summary
-gate's `needs:` list too — a job left out of the gate can fail without blocking the merge.
+When adding a new job to a pipeline, add it to the matching summary gate's `needs:` list
+too — a job left out of the gate can fail without blocking the merge.
 
 ---
 
@@ -140,13 +150,12 @@ gate's `needs:` list too — a job left out of the gate can fail without blockin
 
 When authoring or reviewing a workflow file:
 
-- [ ] No service container uses a hardcoded `host:container` port mapping — use the
-      ephemeral form (`- 5432`, not `- 5432:5432`)
+- [ ] On self-hosted runners, no service container uses a hardcoded `host:container` port
+      mapping — use the ephemeral form (`- 5432`, not `- 5432:5432`)
 - [ ] Any value derived from `job.services.<id>.ports[...]` is resolved in a step via
       `$GITHUB_ENV`, never referenced directly in job-level `env:`
 - [ ] New job is gated behind the `changes` job with the right `if: needs.changes.outputs.*`
 - [ ] New job's path is listed in the relevant `paths-filter` filter, and the workflow file
       itself is included in that filter's path list
-- [ ] New job is added to the matching summary gate's `needs:` list (`backend-ci` /
-      `frontend-ci`)
+- [ ] New job is added to the matching summary gate's `needs:` list
 - [ ] Summary/gate jobs use `if: always()` and explicitly check `needs.*.result`

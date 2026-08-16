@@ -1,3 +1,9 @@
+---
+paths:
+  - "**/*.py"
+  - "**/pyproject.toml"
+---
+
 # Python Project — Agent Code Guidelines
 
 General-purpose guidelines for Python projects where AI agents assist with development.
