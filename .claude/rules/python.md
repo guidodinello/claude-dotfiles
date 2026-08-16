@@ -4,29 +4,38 @@ paths:
   - "**/pyproject.toml"
 ---
 
+<!-- Code examples and table rows can't be rewrapped without breaking them;
+     prose is held to 80 columns. This directive travels with the file so it
+     lints clean in any repo that vendors it. Claude Code strips block HTML
+     comments before injection, so this costs no context. -->
+<!-- markdownlint-configure-file {
+  "MD013": { "code_blocks": false, "tables": false }
+} -->
+
 # Python Project — Agent Code Guidelines
 
-General-purpose guidelines for Python projects where AI agents assist with development.
-Copy this file as `CLAUDE.md` at the root of any new project and adapt the
-project-specific sections at the bottom.
+General-purpose guidelines for Python projects where AI agents assist with
+development. Copy this file as `CLAUDE.md` at the root of any new project and
+adapt the project-specific sections at the bottom.
 
 ---
 
 ## Philosophy
 
-Python has an explicit design philosophy. When in doubt, run `import this`. The most
-load-bearing principles for daily work:
+Python has an explicit design philosophy. When in doubt, run `import this`. The
+most load-bearing principles for daily work:
 
-- **Explicit is better than implicit** — no magic, no hidden state, no surprising
-  side-effects. If a function does something non-obvious, a name or comment should say so.
-- **Simple is better than complex** — the right solution is usually the least code that
-  correctly solves the problem, not the most flexible abstraction.
-- **Readability counts** — code is read far more often than it is written. Optimise for
-  the reader.
-- **Errors should never pass silently** — fail loudly and early. Don't swallow exceptions
-  or return `None` where an error is the right answer.
-- **If the implementation is hard to explain, it's a bad idea** — complexity is a warning
-  sign, not a badge of honour.
+- **Explicit is better than implicit** — no magic, no hidden state, no
+  surprising side-effects. If a function does something non-obvious, a name or
+  comment should say so.
+- **Simple is better than complex** — the right solution is usually the least
+  code that correctly solves the problem, not the most flexible abstraction.
+- **Readability counts** — code is read far more often than it is written.
+  Optimise for the reader.
+- **Errors should never pass silently** — fail loudly and early. Don't swallow
+  exceptions or return `None` where an error is the right answer.
+- **If the implementation is hard to explain, it's a bad idea** — complexity is
+  a warning sign, not a badge of honour.
 
 ---
 
@@ -34,8 +43,9 @@ load-bearing principles for daily work:
 
 ### YAGNI — You Aren't Gonna Need It
 
-Don't add features, abstractions, or configurability for hypothetical future requirements.
-Build what the task actually needs. If the requirement arrives later, add it then.
+Don't add features, abstractions, or configurability for hypothetical future
+requirements. Build what the task actually needs. If the requirement arrives
+later, add it then.
 
 ```python
 # Bad — parameterised "for future flexibility"
@@ -49,18 +59,18 @@ def train(lr: float = 3e-4) -> None:
 
 ### DRY — Don't Repeat Yourself (but don't over-apply it)
 
-Duplicate code is a maintenance hazard. Extract shared logic — but only once you see the
-same thing repeated at least three times and are confident the repetition isn't
-coincidental. Premature abstraction is worse than duplication.
+Duplicate code is a maintenance hazard. Extract shared logic — but only once you
+see the same thing repeated at least three times and are confident the
+repetition isn't coincidental. Premature abstraction is worse than duplication.
 
 ### SSOT — Single Source of Truth
 
-Every piece of knowledge — a constant, a schema, a business rule — should have exactly
-one authoritative definition. Everything else derives from or references that definition;
-nothing duplicates it.
+Every piece of knowledge — a constant, a schema, a business rule — should have
+exactly one authoritative definition. Everything else derives from or references
+that definition; nothing duplicates it.
 
-Violations manifest as drift: two places that *should* agree but don't, because one was
-updated and the other wasn't.
+Violations manifest as drift: two places that *should* agree but don't, because
+one was updated and the other wasn't.
 
 ```python
 # Bad — the valid states are defined twice; the list and the Enum can drift
@@ -85,7 +95,8 @@ def is_valid(state: str) -> bool:
 ```
 
 Apply SSOT to schemas too — don't define the same shape in a dataclass *and* a
-serialisation dict and a validation function. Define the dataclass; let the others derive:
+serialisation dict and a validation function. Define the dataclass; let the
+others derive:
 
 ```python
 # Bad — field names duplicated in the dataclass and the serialiser
@@ -104,26 +115,27 @@ def to_dict(cfg: Config) -> dict:
     return dataclasses.asdict(cfg)
 ```
 
-The test: if renaming or removing one thing requires finding and updating a second place,
-you have two sources of truth.
+The test: if renaming or removing one thing requires finding and updating a
+second place, you have two sources of truth.
 
 ### KISS — Keep It Simple
 
-Prefer a flat structure over a deep hierarchy. Prefer a function over a class. Prefer a
-class over a framework. Each layer of indirection has a cost; make sure it earns it.
+Prefer a flat structure over a deep hierarchy. Prefer a function over a class.
+Prefer a class over a framework. Each layer of indirection has a cost; make sure
+it earns it.
 
-Jack Diederich's rule: *if you can't explain what the class does without using the word
-"manager", "handler", or "helper" — it probably shouldn't be a class.*
+Jack Diederich's rule: *if you can't explain what the class does without using
+the word "manager", "handler", or "helper" — it probably shouldn't be a class.*
 
 ### Single responsibility
 
-Functions and classes should do one thing. If a function's docstring needs the word "and",
-consider splitting it. If a class has methods that don't share any state, consider
-splitting it into free functions.
+Functions and classes should do one thing. If a function's docstring needs the
+word "and", consider splitting it. If a class has methods that don't share any
+state, consider splitting it into free functions.
 
-The naming test: if you can't find a single, precise name that covers everything a
-function does, it's doing too much. A function is a set of semantically related
-actions — finding the name is how you verify they belong together.
+The naming test: if you can't find a single, precise name that covers everything
+a function does, it's doing too much. A function is a set of semantically
+related actions — finding the name is how you verify they belong together.
 
 ```python
 # Bad — the name has to say "and", revealing two responsibilities
@@ -136,19 +148,20 @@ def save_user(user: User) -> None: ...
 
 ### Locality of Behavior
 
-Code that changes together should live together. A reader should be able to understand
-a behavior by reading one place, not by chasing references across files.
+Code that changes together should live together. A reader should be able to
+understand a behavior by reading one place, not by chasing references across
+files.
 
-- Define constants near the code that uses them — not in a shared `constants.py` that
-  becomes a catch-all.
+- Define constants near the code that uses them — not in a shared `constants.py`
+  that becomes a catch-all.
 - Keep validators next to the data structures they validate.
-- Keep a helper function adjacent to its only caller rather than hoisting it to a
-  utilities module it doesn't belong in.
-- Subsystem configuration belongs in the subsystem, not scattered across a top-level
-  config file.
+- Keep a helper function adjacent to its only caller rather than hoisting it to
+  a utilities module it doesn't belong in.
+- Subsystem configuration belongs in the subsystem, not scattered across a
+  top-level config file.
 
-The test: if understanding one behavior requires opening more than two files, the
-behavior has too much distance.
+The test: if understanding one behavior requires opening more than two files,
+the behavior has too much distance.
 
 ```python
 # Bad — MAX_RETRIES lives far from where it's used; reader has to go find it
@@ -169,9 +182,9 @@ def fetch(url: str) -> bytes: ...
 
 ### Fail fast
 
-Validate inputs at the boundary (user input, external APIs, file I/O). Inside the system,
-trust your own invariants and let unexpected states raise immediately rather than
-propagating silently.
+Validate inputs at the boundary (user input, external APIs, file I/O). Inside
+the system, trust your own invariants and let unexpected states raise
+immediately rather than propagating silently.
 
 ```python
 # Bad — silently returns wrong results
@@ -198,8 +211,9 @@ uv run pytest tests/ -v      # run test suite (must be green before committing)
 pre-commit install           # install git hooks (once per clone)
 ```
 
-**Never invoke `python3` directly.** Always use `uv run python` (or `uv run <script>`) so
-the uv-managed virtual environment and pinned dependencies are used.
+**Never invoke `python3` directly.** Always use `uv run python`, or
+`uv run <script>`, so the uv-managed virtual environment and pinned
+dependencies are used.
 
 ```bash
 # Good
@@ -214,9 +228,9 @@ python3 scripts/train.py
 
 ## Imports
 
-**Never use `sys.path.insert` or `sys.path.append`.**
-Install the project as an editable package (`uv pip install -e .`) and use a proper build
-backend (`hatchling`, `setuptools`, etc.) so all packages are importable without path
+**Never use `sys.path.insert` or `sys.path.append`.** Install the project as an
+editable package (`uv pip install -e .`) and use a proper build backend
+(`hatchling`, `setuptools`, etc.) so all packages are importable without path
 manipulation.
 
 ```python
@@ -232,15 +246,15 @@ from core import MyClass
 Import order (enforced by ruff/isort): stdlib → third-party → first-party. Use
 **relative imports** inside a package, **absolute imports** across packages.
 
-Don't use `from module import *`. It pollutes the namespace and makes it impossible to
-tell where a name came from without reading the source.
+Don't use `from module import *`. It pollutes the namespace and makes it
+impossible to tell where a name came from without reading the source.
 
 ---
 
 ## Logging
 
-**Never use `print()` for status, progress, or diagnostic output.**
-Use the stdlib `logging` module with a two-handler setup (stdout + rotating file).
+**Never use `print()` for status, progress, or diagnostic output.** Use the
+stdlib `logging` module with a two-handler setup (stdout + rotating file).
 
 ```python
 import logging
@@ -264,16 +278,16 @@ def get_logger(name: str, log_file: Path | None = None) -> logging.Logger:
     return logger
 ```
 
-Use `%`-style formatting in logger calls — it defers string construction until the
-message is actually emitted:
+Use `%`-style formatting in logger calls — it defers string construction until
+the message is actually emitted:
 
 ```python
 logger.info("processed %d items in %.2fs", count, elapsed)  # good
 logger.info(f"processed {count} items in {elapsed:.2f}s")   # bad — always evaluated
 ```
 
-`print()` is acceptable only for structured output that is the *primary product* of a
-script (e.g. a formatted report or table).
+`print()` is acceptable only for structured output that is the *primary product*
+of a script (e.g. a formatted report or table).
 
 ---
 
@@ -290,8 +304,8 @@ def load_checkpoint(path: Path, device: str = "cpu") -> nn.Module: ...
 def card_strength(palo, numero, muestra_palo): ...
 ```
 
-Use modern Python 3.10+ syntax — never `Optional`, `List`, `Dict`, `Union`, or `Tuple`
-from `typing`:
+Use modern Python 3.10+ syntax — never `Optional`, `List`, `Dict`, `Union`, or
+`Tuple` from `typing`:
 
 ```python
 # Good
@@ -307,10 +321,11 @@ def process(items: List[int], mapping: Dict[str, int]) -> Optional[str]: ...
 
 ## Dataclasses and immutability
 
-Use `@dataclass(slots=True)` for all new dataclasses — it catches attribute typos at
-class definition time and reduces memory footprint.
+Use `@dataclass(slots=True)` for all new dataclasses — it catches attribute
+typos at class definition time and reduces memory footprint.
 
-Use `@dataclass(frozen=True, slots=True)` for data that is set once and never mutated.
+Use `@dataclass(frozen=True, slots=True)` for data that is set once and never
+mutated.
 
 ```python
 from dataclasses import dataclass
@@ -344,7 +359,8 @@ rewards: dict
 ## Protocols instead of ABCs
 
 Use `typing.Protocol` with `@runtime_checkable` to define structural interfaces.
-Concrete classes satisfy the protocol structurally — they do **not** inherit from it.
+Concrete classes satisfy the protocol structurally — they do **not** inherit
+from it.
 
 ```python
 from typing import Protocol, runtime_checkable
@@ -365,14 +381,15 @@ class RandomAgent:          # no inheritance — satisfies Agent structurally
 assert isinstance(RandomAgent(), Agent)  # True at runtime
 ```
 
-Use ABCs only when concrete classes genuinely share implementation, not just an interface.
+Use ABCs only when concrete classes genuinely share implementation, not just an
+interface.
 
 ---
 
 ## Named constants
 
-Never embed raw magic numbers or strings in logic. Define named constants at module
-level, near the code that uses them.
+Never embed raw magic numbers or strings in logic. Define named constants at
+module level, near the code that uses them.
 
 ```python
 # Good
@@ -423,9 +440,10 @@ introspection. Convert to `str` only when a third-party API requires it.
 
 ## Prefer the standard library
 
-**Before writing a utility, check if the stdlib already has it.** Custom implementations
-are harder to read, harder to test, and don't benefit from CPython optimisation.
-The rule: **stdlib first, third-party second, in-house last.**
+**Before writing a utility, check if the stdlib already has it.** Custom
+implementations are harder to read, harder to test, and don't benefit from
+CPython optimisation. The rule: **stdlib first, third-party second, in-house
+last.**
 
 ### functools — caching and higher-order functions
 
@@ -447,8 +465,8 @@ def expensive(x: int) -> int:
     return _compute(x)
 ```
 
-Other tools worth knowing: `partial` (fix some arguments of a function),
-`wraps` (preserve metadata in decorators), `reduce` (fold a sequence).
+Other tools worth knowing: `partial` (fix some arguments of a function), `wraps`
+(preserve metadata in decorators), `reduce` (fold a sequence).
 
 ### itertools — iteration without manual loops
 
@@ -467,7 +485,8 @@ prefix = list(takewhile(lambda x: x > 0, values))
 
 ### contextlib — context managers without boilerplate
 
-Use `@contextmanager` instead of a class with `__enter__`/`__exit__` for simple cases:
+Use `@contextmanager` instead of a class with `__enter__`/`__exit__` for simple
+cases:
 
 ```python
 from contextlib import contextmanager, suppress
@@ -531,9 +550,9 @@ def main() -> None:
     train(cfg)
 ```
 
-Reach for `pydantic-settings` only when you need config from multiple sources (env vars +
-YAML + CLI) with merge priority and validation error messages. For research scripts, a
-plain dataclass is simpler and sufficient.
+Reach for `pydantic-settings` only when you need config from multiple sources
+(env vars + YAML + CLI) with merge priority and validation error messages. For
+research scripts, a plain dataclass is simpler and sufficient.
 
 ---
 
@@ -648,7 +667,8 @@ These patterns are warning signs that the design needs rethinking:
   def process_verbose(data): ... # Good
   ```
 
-- **Catching generic exceptions** — always catch the specific exception you expect:
+- **Catching generic exceptions** — always catch the specific exception you
+  expect:
 
   ```python
   try:                          # Bad
@@ -662,18 +682,18 @@ These patterns are warning signs that the design needs rethinking:
       result = None
   ```
 
-- **Heavy logic in properties** — properties should feel like attribute access; if
-  computation is expensive, use an explicit method instead.
+- **Heavy logic in properties** — properties should feel like attribute access;
+  if computation is expensive, use an explicit method instead.
 
-- **Deeply nested comprehensions** — if a list comprehension needs more than one `for`
-  clause or a non-trivial condition, a regular loop is clearer.
+- **Deeply nested comprehensions** — if a list comprehension needs more than one
+  `for` clause or a non-trivial condition, a regular loop is clearer.
 
-- **Classes with no shared state** — if every method could be a free function, it
-  probably should be. (See: Jack Diederich, *Stop Writing Classes*.)
+- **Classes with no shared state** — if every method could be a free function,
+  it probably should be. (See: Jack Diederich, *Stop Writing Classes*.)
 
 - **Redundant temp variables** — avoid assigning a variable only to pass it as a
-  named argument with the same name, or when the variable name adds nothing over the
-  expression itself:
+  named argument with the same name, or when the variable name adds nothing over
+  the expression itself:
 
   ```python
   # Bad — variable mirrors the parameter name, adds no information
@@ -690,12 +710,14 @@ These patterns are warning signs that the design needs rethinking:
   notify_all(active_users)
   ```
 
-- **Mutable module-level state** — module globals that get mutated are hidden shared
-  state. They break encapsulation, make testing hard, and cause subtle bugs across imports.
-  Constants (`ALL_CAPS`) are fine; mutable dicts and lists at module scope are not.
+- **Mutable module-level state** — module globals that get mutated are hidden
+  shared state. They break encapsulation, make testing hard, and cause subtle
+  bugs across imports. Constants (`ALL_CAPS`) are fine; mutable dicts and lists
+  at module scope are not.
 
-- **`assert` for input validation** — `assert` is disabled with `python -O` and must
-  never be used for validation. Use `ValueError` or `TypeError` at boundaries:
+- **`assert` for input validation** — `assert` is disabled with `python -O` and
+  must never be used for validation. Use `ValueError` or `TypeError` at
+  boundaries:
 
   ```python
   # Bad — silently skipped in optimised builds
@@ -713,8 +735,8 @@ These patterns are warning signs that the design needs rethinking:
 ### Raise low, catch high
 
 Lower-level functions should raise specific, descriptive exceptions and let them
-propagate. Only catch at system edges — CLI entry points, request handlers, event loop
-callbacks — where you have enough context to decide what to do.
+propagate. Only catch at system edges — CLI entry points, request handlers,
+event loop callbacks — where you have enough context to decide what to do.
 
 ```python
 # Bad — swallows the error mid-stack, caller can't recover
@@ -738,8 +760,8 @@ async def handle_request(user_id: int) -> Response:
 
 ### Custom domain exceptions
 
-Define a base exception per package so callers can catch your errors specifically
-without catching everything:
+Define a base exception per package so callers can catch your errors
+specifically without catching everything:
 
 ```python
 class AppError(Exception):
@@ -761,8 +783,8 @@ generic programming errors. Use custom exceptions for domain concepts.
 
 ### Never block the event loop
 
-`time.sleep()`, synchronous HTTP calls, and CPU-bound work stall every other coroutine.
-Use async-native alternatives or offload to a thread:
+`time.sleep()`, synchronous HTTP calls, and CPU-bound work stall every other
+coroutine. Use async-native alternatives or offload to a thread:
 
 ```python
 # Bad — blocks the entire event loop
@@ -782,8 +804,8 @@ result = await loop.run_in_executor(None, blocking_function, arg)
 
 ### Store `asyncio.create_task()` results
 
-Tasks not referenced by a variable can be garbage-collected and silently canceled
-before they finish. Always keep a reference:
+Tasks not referenced by a variable can be garbage-collected and silently
+canceled before they finish. Always keep a reference:
 
 ```python
 # Bad — task may be GC'd before completion
@@ -796,8 +818,8 @@ task = asyncio.create_task(background_job())
 
 ### Prefer `asyncio.Queue` for producer-consumer patterns
 
-`asyncio.Queue` decouples producers from consumers cleanly and handles backpressure
-without manual coordination:
+`asyncio.Queue` decouples producers from consumers cleanly and handles
+backpressure without manual coordination:
 
 ```python
 queue: asyncio.Queue[str] = asyncio.Queue(maxsize=100)
@@ -855,7 +877,8 @@ Every non-trivial module needs tests. Minimum coverage:
 
 - **Happy path** — does the function return the right thing for normal input?
 - **Edge cases** — empty collections, zero, `None`, boundary values.
-- **Invariants** — properties that must always hold (e.g. output shape, value bounds).
+- **Invariants** — properties that must always hold (e.g. output shape, value
+  bounds).
 
 ```bash
 uv run pytest tests/ -v
@@ -873,7 +896,8 @@ tests/
 
 ## Linting
 
-ruff is the single linter and formatter. Suggested configuration for `pyproject.toml`:
+ruff is the single linter and formatter. Suggested configuration for
+`pyproject.toml`:
 
 ```toml
 [tool.ruff]
@@ -901,9 +925,9 @@ repos:
       - id: ruff-format
 ```
 
-Run `uv run ruff check --fix .` before every commit.
-Inline `# noqa` is a last resort — prefer `per-file-ignores` in `pyproject.toml` with a
-comment explaining why.
+Run `uv run ruff check --fix .` before every commit. Inline `# noqa` is a last
+resort — prefer `per-file-ignores` in `pyproject.toml` with a comment explaining
+why.
 
 ---
 
