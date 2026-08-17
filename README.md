@@ -19,6 +19,8 @@ add_file.sh          # absorb a file already in ~/.claude/ into this repo
 promote.sh           # a project → this repo (adopt a file globally)
 push-guidelines.sh   # this repo → projects that keep committed guideline copies
 project-init         # scaffold per-project LSP/plugin settings by stack
+github-standard.py   # audit/apply the GitHub repo-config baseline (settings + rulesets)
+github-standard.json # declarative source of truth github-standard.py reads
 ```
 
 Root-level scripts are run from the checkout (`./sync.sh`) — they are not
@@ -32,6 +34,7 @@ symlinked into `~`.
 | [Agents](docs/agents.md) | 6 subagents | audit-finding-verifier, clickup-create-task, quality-checker, slite-sync, etc. |
 | [Hooks](docs/hooks.md) | Safety guards + auto-format + status line | Docker volume guard, Wrangler production guard, auto-format.sh, statusline.sh |
 | [Rules & guidelines](docs/guidelines.md) | Reusable coding conventions | **Rules** (path-scoped, auto-load): python, php, docker, ci, database. **Guidelines** (always-on): reasoning-discipline, debugging-patterns, client-issue-workflow, react-native, tools/* |
+| [GitHub repo config](docs/github-standard.md) | Repo settings + branch ruleset baseline | `delete_branch_on_merge`, squash-only + 0-approval PR ruleset, required signatures, Snyk kept informational — applied across all personal repos |
 
 Path-scoped rules in `~/.claude/rules/` apply to **every project on the machine with no
 per-project wiring** — a `.py` edit pulls in `python.md` wherever you are. Full rationale,
@@ -131,6 +134,21 @@ directory; both are synced independently. Two rules keep it safe:
 
 Dry run is the default; `--apply` overwrites local edits without prompting. Then
 commit the updated copies in each project repo.
+
+### Standardize GitHub repo config
+
+```bash
+cd ~/claude-dotfiles
+./github-standard.py                  # audit every repo in the config, report drift
+./github-standard.py --apply          # actually write
+./github-standard.py knowledger-bot   # one repo only
+```
+
+Applies a consistent baseline — repo settings, security features, and a branch
+ruleset on `main` — across all personal repos, reading `github-standard.json` as the
+source of truth. Dry run is the default, same as `push-guidelines.sh`. Full rationale,
+the baseline rule table, and the two pinned per-repo exceptions:
+[docs/github-standard.md](docs/github-standard.md).
 
 ### Enable per-project LSP (`project-init`)
 

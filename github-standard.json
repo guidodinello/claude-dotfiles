@@ -1,0 +1,235 @@
+{
+  "_comment": "Declarative GitHub repo-config baseline. Consumed by github-standard.py — see that file's header and docs/github-standard.md for the full rationale. Every override below carries a comment naming why; don't 'fix' a pinned exception back to the default without reading the linked doc first.",
+
+  "org": "guidodinello",
+
+  "defaults": {
+    "settings": {
+      "delete_branch_on_merge": true,
+      "allow_auto_merge": true,
+      "allow_squash_merge": true,
+      "allow_merge_commit": false,
+      "allow_rebase_merge": false
+    },
+    "security": {
+      "vulnerability_alerts": true,
+      "automated_security_fixes": true,
+      "secret_scanning": "public-only"
+    },
+    "ruleset": {
+      "target": "branch",
+      "enforcement": "active",
+      "bypass_actors": [],
+      "rules": [
+        { "type": "deletion" },
+        { "type": "non_fast_forward" },
+        {
+          "type": "copilot_code_review",
+          "parameters": { "review_on_push": false, "review_draft_pull_requests": false }
+        },
+        { "type": "required_signatures" },
+        {
+          "type": "pull_request",
+          "parameters": {
+            "required_approving_review_count": 0,
+            "dismiss_stale_reviews_on_push": false,
+            "required_reviewers": [],
+            "require_code_owner_review": false,
+            "require_last_push_approval": false,
+            "required_review_thread_resolution": true,
+            "allowed_merge_methods": ["squash"]
+          }
+        },
+        { "type": "code_quality", "parameters": { "severity": "errors" } }
+      ]
+    }
+  },
+
+  "repos": {
+    "rl-tournament-notification-bot": { "tier": "ruleset" },
+    "claude-dotfiles":                { "tier": "ruleset" },
+    "logger":                         { "tier": "ruleset" },
+    "claude-client":                  { "tier": "ruleset" },
+    "claude-web-backup":              { "tier": "ruleset" },
+    "weekly-highlights":              { "tier": "ruleset" },
+    "pencast":                        { "tier": "ruleset" },
+    "shell-utils":                    { "tier": "ruleset" },
+    "knowledger-token-updater":       { "tier": "ruleset" },
+
+    "dotfiles":            { "tier": "settings" },
+    "anki":                { "tier": "settings" },
+    "ig":                  { "tier": "settings" },
+    "metodos-montecarlo":  { "tier": "settings" },
+    "skipper":             { "tier": "settings" },
+    "deployer":            { "tier": "settings" },
+
+    "knowledger-bot": {
+      "tier": "ruleset",
+      "branches": {
+        "main": {
+          "extra_rules": [
+            {
+              "type": "required_status_checks",
+              "parameters": {
+                "strict_required_status_checks_policy": false,
+                "do_not_enforce_on_create": false,
+                "required_status_checks": [{ "context": "CI" }]
+              }
+            }
+          ]
+        }
+      }
+    },
+
+    "smart-clippy": {
+      "tier": "ruleset",
+      "branches": {
+        "main": {
+          "extra_rules": [
+            {
+              "type": "required_status_checks",
+              "parameters": {
+                "strict_required_status_checks_policy": false,
+                "do_not_enforce_on_create": false,
+                "required_status_checks": [
+                  { "context": "Lint & Format Check" },
+                  { "context": "Build Extension" }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+
+    "scripts": {
+      "tier": "ruleset",
+      "branches": {
+        "main": {
+          "extra_rules": [
+            {
+              "type": "required_status_checks",
+              "parameters": {
+                "strict_required_status_checks_policy": false,
+                "do_not_enforce_on_create": false,
+                "required_status_checks": [{ "context": "quality" }]
+              }
+            }
+          ]
+        }
+      }
+    },
+
+    "url-shortener": {
+      "tier": "ruleset",
+      "branches": {
+        "main": {
+          "extra_rules": [
+            {
+              "type": "required_status_checks",
+              "parameters": {
+                "strict_required_status_checks_policy": false,
+                "do_not_enforce_on_create": false,
+                "required_status_checks": [
+                  { "context": "lint" },
+                  { "context": "svelte" }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+
+    "fitted": {
+      "_comment": "Pinned exceptions per ADR-027 (docs/process/adr/027-development-branch-as-deploy-gate.md). development->main is a merge commit, never squash, because squash breaks ancestry between two long-lived branches (incident: releases #391/#394). Keep repo-wide allow_merge_commit enabled per ADR L80-81. required_signatures was a genuine gap (no ADR reason it was missing; last 10 commits on development are already GPG-verified) and is added, not overridden.",
+      "tier": "ruleset",
+      "settings_overrides": { "allow_merge_commit": true },
+      "branches": {
+        "development": {
+          "extra_rules": [
+            { "type": "required_deployments", "parameters": { "required_deployment_environments": [] } },
+            {
+              "type": "required_status_checks",
+              "parameters": {
+                "strict_required_status_checks_policy": false,
+                "do_not_enforce_on_create": false,
+                "required_status_checks": [
+                  { "context": "Typecheck Python" },
+                  { "context": "Unit Tests (Python)" },
+                  { "context": "Integration Tests (Python)" },
+                  { "context": "Security Scan (Python)" },
+                  { "context": "Lint Frontend" },
+                  { "context": "Typecheck Frontend" },
+                  { "context": "Tests (Frontend)" },
+                  { "context": "Lint Python" }
+                ]
+              }
+            }
+          ]
+        },
+        "main": {
+          "rule_overrides": {
+            "pull_request": { "allowed_merge_methods": ["merge"] }
+          },
+          "extra_rules": [
+            { "type": "required_deployments", "parameters": { "required_deployment_environments": [] } },
+            {
+              "type": "required_status_checks",
+              "parameters": {
+                "strict_required_status_checks_policy": false,
+                "do_not_enforce_on_create": false,
+                "required_status_checks": [
+                  { "context": "Typecheck Python" },
+                  { "context": "Unit Tests (Python)" },
+                  { "context": "Integration Tests (Python)" },
+                  { "context": "Security Scan (Python)" },
+                  { "context": "Lint Frontend" },
+                  { "context": "Typecheck Frontend" },
+                  { "context": "Tests (Frontend)" },
+                  { "context": "Lint Python" }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+
+    "pullscope": {
+      "_comment": "Public Firefox add-on (CODEOWNERS committed) — the OSS posture needs real review of external contributions, which the canonical 0-approval baseline doesn't provide. required_review_thread_resolution and the dropped creation/update rules were incidental drift, not policy, and are reconciled back to the baseline (see docs/github-standard.md). copilot_code_review.review_on_push:true and required_linear_history were left as-is — neither was identified as drift during the audit, so they're preserved as pre-existing choices rather than silently normalized away.",
+      "tier": "ruleset",
+      "branches": {
+        "main": {
+          "bypass_actors": [
+            { "actor_id": 2, "actor_type": "RepositoryRole", "bypass_mode": "always" },
+            { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" }
+          ],
+          "rule_overrides": {
+            "pull_request": {
+              "required_approving_review_count": 1,
+              "require_code_owner_review": true,
+              "dismiss_stale_reviews_on_push": true
+            },
+            "copilot_code_review": { "review_on_push": true }
+          },
+          "extra_rules": [
+            { "type": "required_linear_history" },
+            {
+              "type": "required_status_checks",
+              "parameters": {
+                "strict_required_status_checks_policy": false,
+                "do_not_enforce_on_create": true,
+                "required_status_checks": [
+                  { "context": "Lint & Format Check", "integration_id": 15368 },
+                  { "context": "Build Extension (chrome)", "integration_id": 15368 },
+                  { "context": "Build Extension (firefox)", "integration_id": 15368 }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
