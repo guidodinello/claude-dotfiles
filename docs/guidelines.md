@@ -13,10 +13,10 @@ apply to **every project on this machine with no per-project wiring**.
 | File | Loads when touching |
 |---|---|
 | `rules/docker.md` | `**/Dockerfile*`, `**/*.dockerfile`, `**/docker-compose*.{yml,yaml}`, `**/.dockerignore` |
-| `rules/ci.md` | `.github/workflows/**` |
+| `rules/ci.md` | `.github/workflows/**`, `**/.github/workflows/**` |
 | `rules/python.md` | `**/*.py`, `**/pyproject.toml` |
 | `rules/php.md` | `**/*.php`, `**/composer.json` |
-| `rules/database.md` | `**/alembic/**`, `**/migrations/**`, `**/*.sql`, `**/models/**` |
+| `rules/database.md` | `**/alembic/**`, `**/migrations/**`, `**/*.sql` |
 
 **This is the default home for a new guideline.** Something that only matters when editing
 a certain kind of file shouldn't consume context in every unrelated session.

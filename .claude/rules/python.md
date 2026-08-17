@@ -15,8 +15,9 @@ paths:
 # Python Project — Agent Code Guidelines
 
 General-purpose guidelines for Python projects where AI agents assist with
-development. Copy this file as `CLAUDE.md` at the root of any new project and
-adapt the project-specific sections at the bottom.
+development. As a path-scoped rule it self-loads on `.py` / `pyproject.toml`
+— never copy it into a project's `CLAUDE.md`. Adapt the project-specific
+sections at the bottom when adopting it in a new project.
 
 ---
 

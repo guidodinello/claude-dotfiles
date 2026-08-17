@@ -15,9 +15,9 @@ paths:
 # PHP Project — Agent Code Guidelines
 
 General-purpose guidelines for PHP projects (Laravel + Pest) where AI agents
-assist with development. Import into a project's `CLAUDE.md` with
-`@~/.claude/guidelines/php.md`, or copy it in and adapt the project-specific
-section at the bottom.
+assist with development. As a path-scoped rule it self-loads on `.php` /
+`composer.json` — no import needed. Adapt the project-specific section at the
+bottom when adopting it in a new project.
 
 ---
 

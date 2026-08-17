@@ -322,13 +322,17 @@ Two behaviors worth knowing, both measured rather than documented:
 
 ## Adding a new guideline
 
-1. Write it in `.claude/guidelines/<topic>.md`. Generic from the start is easier than
-   genericizing later — see below.
-2. `./sync.sh` to symlink it into `~/.claude/guidelines/`.
-3. For each project that should follow it, either add `@~/.claude/guidelines/<topic>.md`
-   (Model A) or `cp` it into the repo's `.claude/guidelines/` and import it relatively
-   (Model B).
-4. Document it in [`guidelines.md`](guidelines.md).
+1. **Default to a rule.** Write it in `.claude/rules/<topic>.md` with `paths:`
+   frontmatter scoping it to the files it's about. Generic from the start is
+   easier than genericizing later — see below. Only use
+   `.claude/guidelines/<topic>.md` (no `paths:`, always-on) for content that
+   genuinely applies regardless of what file is being touched.
+2. `./sync.sh` to symlink it into `~/.claude/rules/` (or `~/.claude/guidelines/`).
+   Rules apply to every project on this machine immediately — no per-project
+   wiring. A guideline still needs an explicit `@~/.claude/guidelines/<topic>.md`
+   import (Model A) or a committed copy imported relatively (Model B) in each
+   project that should follow it.
+3. Document it in [`guidelines.md`](guidelines.md).
 
 ## Promoting one out of a project
 

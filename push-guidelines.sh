@@ -20,10 +20,18 @@
 #   ./push-guidelines.sh --apply         # actually write
 #   ./push-guidelines.sh ~/projects/foo  # one project only
 #
-# A project opts in simply by having a .claude/guidelines/ directory. Only files
-# the project ALREADY has are refreshed — adopting a new guideline stays a
-# deliberate `cp`, so a Node repo never wakes up owning php.md. Nothing is ever
-# deleted, so project-specific files (e.g. ci-fitted.md) are safe.
+# A project opts in simply by having a .claude/rules/ or .claude/guidelines/
+# directory. Only files the project ALREADY has are refreshed — adopting a new
+# guideline stays a deliberate `cp`, so a Node repo never wakes up owning
+# php.md. Nothing is ever deleted, so project-specific files (e.g.
+# ci-fitted.md) are safe.
+#
+# Migrating an existing opt-in: if a project committed a file under the old
+# .claude/guidelines/<name>.md location before it moved to .claude/rules/
+# here, this script won't move it for you — --existing only refreshes files
+# already at the same path. `git mv` it to .claude/rules/<name>.md in the
+# project (and drop any now-redundant @import), then future pushes pick it
+# up at the new path.
 
 set -euo pipefail
 shopt -s nullglob
@@ -140,11 +148,18 @@ else
 fi
 
 changed=0
+failed=0
 for target in "${targets[@]}"; do
   root="${target%|*}"
   sub="${target##*|}"
   label="$(basename "$root")/.claude/$sub"
-  out="$(rsync "${RSYNC_OPTS[@]}" "${DOTFILES_DIR}/.claude/${sub}/" "${root}/.claude/${sub}/")"
+  rc=0
+  out="$(rsync "${RSYNC_OPTS[@]}" "${DOTFILES_DIR}/.claude/${sub}/" "${root}/.claude/${sub}/")" || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    failed=1
+    log_warn "$label — rsync failed (exit $rc), skipping"
+    continue
+  fi
   if [ -n "$out" ]; then
     changed=1
     log_warn "$label"
@@ -161,4 +176,9 @@ elif [ "$APPLY" -eq 1 ]; then
 else
   log_info "Re-run with --apply to write these changes."
   log_warn "Local edits shown above will be overwritten — promote.sh them first if any are worth keeping."
+fi
+
+if [ "$failed" -eq 1 ]; then
+  log_warn "One or more targets failed — see rsync errors above."
+  exit 1
 fi
