@@ -24,7 +24,7 @@ breaks the house-bash pattern deliberately.
 
 ## The baseline
 
-Applied to every repo at tier `settings` or above:
+Applied to every repo, regardless of profile:
 
 - `delete_branch_on_merge: true`, `allow_auto_merge: true`
 - `allow_squash_merge: true`, `allow_merge_commit: false`, `allow_rebase_merge: false`
@@ -36,7 +36,7 @@ Applied to every repo at tier `settings` or above:
   Advanced Security on private repos and the API call errors without it, so the
   script checks `private` and skips the PATCH entirely rather than failing.
 
-Repos at tier `ruleset` additionally get a branch ruleset on `main` (rulesets, not
+Repos on any profile but `hobby` additionally get a branch ruleset (rulesets, not
 classic branch protection — GitHub's newer, evaluatable mechanism):
 
 | Rule | Setting | Why |
@@ -53,23 +53,52 @@ classic branch protection — GitHub's newer, evaluatable mechanism):
 ruleset UI defaults this to `1`, which on a solo repo makes every PR permanently
 unmergeable (no one else exists to approve it). The template hardcodes `0`.
 
-Repos with real CI additionally get `required_status_checks` — see below.
+Repos with real CI additionally get `required_status_checks`, added at the branch
+level (not the profile level — see § Profiles).
 
 **Snyk is deliberately never a required check.** It's informational-only: on the free
 plan, quota exhaustion marks the check failed/canceled, and a required Snyk check
 would then block every merge for a reason that has nothing to do with the PR's
 content. If a repo's CI includes a Snyk step, leave its context out of the config.
 
-## Tiers
+## Profiles
 
-- **`settings`** — repo settings + security only, no ruleset. For scratch repos pushed
-  to directly (`dotfiles`, `anki`, `ig`, `metodos-montecarlo`, `skipper`, `deployer`) —
-  a `pull_request` rule there would be friction with no payoff.
-- **`ruleset`** — adds the baseline ruleset on `main`, no required checks. For repos
-  with no CI worth gating on, or where the only workflow is a Claude review bot
-  (`claude-dotfiles`) or a cron job (`pencast`) rather than a pass/fail gate.
-- **`ruleset` + checks** — the above, plus `required_status_checks` with real,
-  hand-curated contexts.
+A profile names a branch's review posture. Every branch resolves to one — set
+`"profile"` on the branch, or on the repo (applies to all its branches), or omit it
+entirely and get `baseline`. Four exist:
+
+| Profile | Tier | Shape | Reference |
+|---|---|---|---|
+| `hobby` | `settings` | No ruleset at all — settings + security baseline only | `dotfiles`, `anki`, `ig`, `metodos-montecarlo`, `skipper`, `deployer` |
+| `baseline` | `ruleset` | The canonical shape described above, as-is | most repos |
+| `oss` | `ruleset` | + 1 required approval, code-owner review, admin bypass — for published repos taking external contributions | `pullscope` |
+| `flagship` | `ruleset` | + merge-commit-only (never squash), + `required_deployments` — for a release branch on a repo with a real deploy pipeline | `fitted/main` |
+
+`hobby` exists for the repos pushed to directly — a `pull_request` rule there is
+friction with no payoff. Repos on `baseline` with no CI worth gating on (a Claude
+review bot, a cron job) simply have no `branches.<b>.extra_rules`, so they get the
+ruleset without a `required_status_checks` rule.
+
+**Profiles cover review posture, not settings.** `flagship`'s merge-commit policy also
+needs the repo-wide `allow_merge_commit` setting enabled — but that's a repo setting,
+not branch-scoped, so it can't live in the profile. It's `fitted`'s
+`settings_overrides` instead, with a comment pointing at the same ADR.
+
+**Layering, applied in order:** `defaults.ruleset` → profile (`rule_overrides` deep-merged
+per rule type, `extra_rules` appended, `bypass_actors` replaced if set) → the branch's
+own `rule_overrides`/`extra_rules`/`bypass_actors`, same merge rules. `pullscope/main`
+uses this last layer: it takes the `oss` profile, then adds two fields
+(`copilot_code_review.review_on_push`, `required_linear_history`) that predate this
+baseline and were never flagged as drift during the audit — they're repo-specific
+history, not implied by every OSS repo, so they don't belong in the profile itself.
+
+**When to add a fifth profile vs. a one-off override:** once, an override is cheaper
+than a profile. The threshold that already justified `oss`/`flagship` as named profiles
+rather than inline `fitted`/`pullscope` overrides: a *third* repo needing the same
+shape. Below that, a `_comment`-annotated override on the one repo that needs it is
+clearer than an abstraction serving a single consumer.
+
+## Required checks — never derived from CI
 
 **Required-check contexts are never derived from workflow YAML.** A context is a job's
 *display name*, not its file or step name, and picking the wrong ones silently makes
@@ -151,7 +180,8 @@ escape hatch is the manual UI toggle this project exists to replace.
 
 ## Adding a new repo
 
-Add an entry under `"repos"` in `github-standard.json` — `{"tier": "settings"}` for a
-scratch repo, `{"tier": "ruleset"}` once it's meant to take PRs, plus a `branches`
-block with `extra_rules` for `required_status_checks` once it has real CI. Then
+Add an entry under `"repos"` in `github-standard.json` — `{"profile": "hobby"}` for a
+scratch repo, `{"profile": "baseline"}` once it's meant to take PRs (or `"oss"` /
+`"flagship"` if it matches one of those shapes), plus a `branches` block with
+`extra_rules` for `required_status_checks` once it has real CI. Then
 `./github-standard.py <repo> --apply`.

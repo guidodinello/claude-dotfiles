@@ -127,6 +127,36 @@ def deep_merge(base: dict, overrides: dict) -> dict:
     return out
 
 
+def get_repo_tier(profiles: dict, repo_cfg: dict) -> str:
+    """A repo with an explicit 'branches' map always wants a ruleset (branches
+    only exist to configure one). Otherwise tier comes from the repo's profile."""
+    if "branches" in repo_cfg:
+        return "ruleset"
+    profile_name = repo_cfg.get("profile")
+    if profile_name is None:
+        raise ValueError(f"repo config needs 'profile' or 'branches': {repo_cfg}")
+    return profiles[profile_name]["tier"]
+
+
+def resolve_branch_cfg(profiles: dict, repo_cfg: dict, branch_cfg: dict) -> dict:
+    """A branch resolves its profile (branch-level 'profile' wins, else the
+    repo-level one, else 'baseline'), then layers the branch's own
+    rule_overrides/extra_rules/bypass_actors on top of the profile's — same
+    layering build_ruleset then applies on top of defaults.ruleset."""
+    profile_name = branch_cfg.get("profile") or repo_cfg.get("profile") or "baseline"
+    profile = profiles[profile_name]
+    merged = {
+        "rule_overrides": deep_merge(
+            profile.get("rule_overrides", {}), branch_cfg.get("rule_overrides", {})
+        ),
+        "extra_rules": profile.get("extra_rules", []) + branch_cfg.get("extra_rules", []),
+    }
+    bypass = branch_cfg.get("bypass_actors", profile.get("bypass_actors"))
+    if bypass is not None:
+        merged["bypass_actors"] = bypass
+    return merged
+
+
 def build_ruleset(defaults_ruleset: dict, branch: str, branch_cfg: dict) -> dict:
     rules = copy.deepcopy(defaults_ruleset["rules"])
     overrides = branch_cfg.get("rule_overrides", {})
@@ -259,13 +289,14 @@ def sync_security(org: str, repo: str, defaults: dict, apply: bool) -> bool:
     return changed
 
 
-def sync_ruleset(org: str, repo: str, defaults: dict, repo_cfg: dict, apply: bool) -> bool:
+def sync_ruleset(org: str, repo: str, defaults: dict, profiles: dict, repo_cfg: dict, apply: bool) -> bool:
     changed = False
     branches = repo_cfg.get("branches") or {"main": {}}
     existing = gh_api_list(f"repos/{org}/{repo}/rulesets")
     existing_by_name = {r["name"]: r for r in existing}
 
-    for branch, branch_cfg in branches.items():
+    for branch, raw_branch_cfg in branches.items():
+        branch_cfg = resolve_branch_cfg(profiles, repo_cfg, raw_branch_cfg)
         intended = build_ruleset(defaults["ruleset"], branch, branch_cfg)
         intended_norm = normalize(intended)
 
@@ -319,6 +350,7 @@ def main() -> int:
     config = json.loads(config_path.read_text())
     org = config["org"]
     defaults = config["defaults"]
+    profiles = config["profiles"]
     repos = config["repos"]
 
     if args.repo:
@@ -341,8 +373,8 @@ def main() -> int:
             c1 = sync_settings(org, repo, defaults, repo_cfg, args.apply)
             c2 = sync_security(org, repo, defaults, args.apply)
             c3 = False
-            if repo_cfg.get("tier") == "ruleset":
-                c3 = sync_ruleset(org, repo, defaults, repo_cfg, args.apply)
+            if get_repo_tier(profiles, repo_cfg) == "ruleset":
+                c3 = sync_ruleset(org, repo, defaults, profiles, repo_cfg, args.apply)
             if c1 or c2 or c3:
                 any_changed = True
         except GhApiError as e:
