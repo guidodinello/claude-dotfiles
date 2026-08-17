@@ -3,7 +3,6 @@ paths:
   - "**/alembic/**"
   - "**/migrations/**"
   - "**/*.sql"
-  - "**/models/**"
 ---
 
 <!-- Code examples and table rows can't be rewrapped without breaking them;
