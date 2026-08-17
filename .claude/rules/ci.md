@@ -38,6 +38,66 @@ runner-agnostic.
   that doesn't actually check its dependencies' results is worse than a red X.
 - **Only run what changed.** Independent pipelines (e.g. backend and frontend)
   shouldn't pay for or block on a job whose inputs didn't change.
+- **Least privilege by default.** A workflow file should state what its
+  `GITHUB_TOKEN` can do, not silently inherit whatever the repo/org default
+  scope happens to be.
+
+---
+
+## Least-privilege permissions
+
+Add an explicit `permissions:` block to every workflow. Without one, every job
+runs with the repo/org default `GITHUB_TOKEN` scope — often broader read/write
+access than anything in the file actually uses, and that default can change
+out from under you if the org setting changes later.
+
+Set the workflow-level default to the narrowest shape most jobs need
+(`contents: read` covers checkout + run-tools-and-exit, which is most CI),
+then override per-job only where something genuinely needs more:
+
+```yaml
+# Bad — no permissions block; every job gets the repo's default GITHUB_TOKEN
+# scope, whatever that happens to be
+name: CI
+on: [push, pull_request]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps: [...]
+
+# Good — explicit, narrowest-common-denominator default; override per job
+name: CI
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps: [...]
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write   # only this job pushes an image
+    steps: [...]
+```
+
+**A job-level `permissions:` replaces the workflow-level default entirely for
+that job — it does not add to it.** Copy the base entries (`contents: read`)
+into any job override that also needs something extra; don't rely on them
+being inherited alongside it.
+
+| Job does | Needs |
+|---|---|
+| Checkout + run linters/tests, nothing else | `contents: read` |
+| Push a Docker image or package | `packages: write` |
+| Merge, comment on, or push to a PR | `pull-requests: write` (+ `contents: write` to merge) |
+| Auth via OIDC to a third-party action (e.g. `anthropics/claude-code-action`) | `id-token: write` |
+| Pure SSH/external deploy — no GitHub API calls at all | nothing; `permissions: {}` makes that explicit |
+
+A custom PAT passed via `secrets.SOME_PAT` (not `secrets.GITHUB_TOKEN`) is
+unaffected by this block entirely — its scope is whatever was granted when
+the token was created, configured outside the workflow file.
 
 ---
 
@@ -167,6 +227,10 @@ merge.
 
 When authoring or reviewing a workflow file:
 
+- [ ] Workflow has an explicit `permissions:` block (no reliance on the repo/
+  org default)
+- [ ] Any job overriding `permissions:` repeats the base entries it still
+  needs — a job-level block replaces the default, it doesn't add to it
 - [ ] On self-hosted runners, no service container uses a hardcoded
   `host:container` port
       mapping — use the ephemeral form (`- 5432`, not `- 5432:5432`)
