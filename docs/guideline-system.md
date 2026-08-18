@@ -103,7 +103,10 @@ easiest thing to get wrong.
 
 - **`--existing`** — only refreshes files the project already has. A project's *file set*
   is its own choice (adopting a new guideline is a deliberate `cp`); the *content* is
-  owned by this repo. Without this, `php.md` would land in a Node repo.
+  owned by this repo. Without this, `php.md` would land in a Node repo. Corollary: a
+  brand-new rule never reaches a Model B repo on its own — seed it with a manual `cp`
+  once (as done for `javascript.md` → `fitted`), and this script keeps it current from
+  then on.
 - **no `--delete`** — project-specific files sitting in the same directory survive.
 - **`-c`, and deliberately no `-t`** — these are a matched pair. `-t` would make
   byte-identical files report attribute-only drift, so every dry run cries wolf; dropping
