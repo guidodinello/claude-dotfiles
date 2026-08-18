@@ -320,6 +320,63 @@ Two behaviors worth knowing, both measured rather than documented:
 
 ---
 
+## Reaching other agents (opencode)
+
+Everything above is Claude Code machinery. Path-scoped rules with `paths:`
+frontmatter are a Claude Code feature; opencode does **not** read
+`.claude/rules/` at all. opencode does load `~/.claude/CLAUDE.md` as global
+instructions by default, but it does **not** resolve `@` imports inside it —
+so inline guidance reaches opencode, while `@`-imported guideline bodies
+don't.
+
+opencode has its own conventions, and the bridge between the two is a
+*loading index* rather than a format conversion:
+
+| Concern | Claude Code | opencode |
+|---|---|---|
+| Always-on global guidance | `~/.claude/CLAUDE.md` + `@` imports | `AGENTS.md` / `CLAUDE.md` fallback, or the `instructions` key in `opencode.json` |
+| Path-scoped rules | `.claude/rules/<topic>.md` with `paths:` frontmatter | none (per-directory `AGENTS.md` is the closest) |
+
+### How the bridge works
+
+`.config/opencode/rules-index.md` is a small always-loaded file (wired via
+`"instructions": ["~/.config/opencode/rules-index.md"]` in
+`.config/opencode/opencode.jsonc`) that:
+
+1. tells opencode the rules exist and must be lazy-loaded — read a rule file
+   only when the task touches a matching path, and treat it as mandatory;
+2. lists every rule as a table row: rule name, file path, the globs it
+   scopes to, and when to load it.
+
+The bodies stay out of context until needed — same economics as path
+scoping, but enforced by instruction instead of mechanism. The index must
+stay small and current; add a row when you add a rule.
+
+### Deployment and gotchas
+
+- `sync.sh` symlinks the whole `.config/opencode/` tree, so the index and
+  the `instructions` key deploy to every machine like the rest of this repo.
+- `instructions` paths resolve from the **project directory**, not the
+  config directory (verified empirically). A relative path in the global
+  config only resolves if the file happens to exist in the project — use the
+  `~` absolute form, which always resolves.
+- Instruction files are injected at session start without permission gating;
+  what the permission system gates is the model's later lazy `Read` of the
+  rule files. Keep the index inside `~` (`.config/opencode/`) so both work
+  from any project dir.
+- `opencode.json` and `opencode.jsonc` in the same config dir are **merged**,
+  not mutually exclusive — but the merge replaces array keys (including
+  `instructions`) rather than combining them. Keep machine-specific config in
+  the untracked `.json` and shared config in the tracked `.jsonc`, and define
+  each array-valued key in exactly one of them.
+
+Verify a change the same way the rules themselves are verified: run
+`opencode run "list the rules in your instructions"` from a project dir and
+confirm the model sees the index — and that a follow-up read of a rule file
+succeeds.
+
+---
+
 ## Adding a new guideline
 
 1. **Default to a rule.** Write it in `.claude/rules/<topic>.md` with `paths:`
@@ -333,6 +390,10 @@ Two behaviors worth knowing, both measured rather than documented:
    import (Model A) or a committed copy imported relatively (Model B) in each
    project that should follow it.
 3. Document it in [`guidelines.md`](guidelines.md).
+4. If it's a rule, add a row to the opencode index
+   (`.config/opencode/rules-index.md`) with the same globs — the index is
+   the only way opencode loads rules, so a rule without a row never reaches
+   it.
 
 ## Promoting one out of a project
 

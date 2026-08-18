@@ -5,5 +5,6 @@
     "plan": {
       "model": "opencode/nemotron-3-ultra-free"
     }
-  }
+  },
+  "instructions": ["~/.config/opencode/rules-index.md"]
 }
