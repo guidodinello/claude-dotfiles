@@ -17,6 +17,8 @@ apply to **every project on this machine with no per-project wiring**.
 | `rules/python.md` | `**/*.py`, `**/pyproject.toml` |
 | `rules/php.md` | `**/*.php`, `**/composer.json` |
 | `rules/database.md` | `**/alembic/**`, `**/migrations/**`, `**/*.sql` |
+| `rules/javascript.md` | `**/*.{js,mjs,cjs,jsx,ts,tsx}`, `**/package.json`, `**/tsconfig*.json` |
+| `rules/shell.md` | `**/*.sh`, `**/*.bash` |
 
 **This is the default home for a new guideline.** Something that only matters when editing
 a certain kind of file shouldn't consume context in every unrelated session.
