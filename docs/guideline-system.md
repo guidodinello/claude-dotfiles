@@ -320,6 +320,57 @@ Two behaviors worth knowing, both measured rather than documented:
 
 ---
 
+## Reaching other agents (opencode)
+
+Everything above is Claude Code machinery. Path-scoped rules with `paths:`
+frontmatter are a Claude Code feature; opencode does **not** read
+`.claude/rules/` at all — and it doesn't resolve `@` imports inside
+`CLAUDE.md` either, so a guideline that reaches Claude Code never reaches
+opencode by accident.
+
+opencode has its own conventions, and the bridge between the two is a
+*loading index* rather than a format conversion:
+
+| Concern | Claude Code | opencode |
+|---|---|---|
+| Always-on global guidance | `~/.claude/CLAUDE.md` + `@` imports | `AGENTS.md` / `CLAUDE.md` fallback, or the `instructions` key in `opencode.json` |
+| Path-scoped rules | `.claude/rules/<topic>.md` with `paths:` frontmatter | none (per-directory `AGENTS.md` is the closest) |
+
+### How the bridge works
+
+`.config/opencode/rules-index.md` is a small always-loaded file (wired via
+`"instructions": ["~/.config/opencode/rules-index.md"]` in
+`.config/opencode/opencode.jsonc`) that:
+
+1. tells opencode the rules exist and must be lazy-loaded — read a rule file
+   only when the task touches a matching path, and treat it as mandatory;
+2. lists every rule as a table row: rule name, file path, the globs it
+   scopes to, and when to load it.
+
+The bodies stay out of context until needed — same economics as path
+scoping, but enforced by instruction instead of mechanism. The index must
+stay small and current; add a row when you add a rule.
+
+### Deployment and gotchas
+
+- `sync.sh` symlinks the whole `.config/opencode/` tree, so the index and
+  the `instructions` key deploy to every machine like the rest of this repo.
+- `instructions` paths must be absolute (`~` is fine). A relative path
+  silently fails to load — verified empirically.
+- Instruction files are subject to opencode's Read permission system. The
+  index lives inside `~` (`.config/opencode/`), so it loads from any
+  project dir; don't point it somewhere the permission layer would block.
+- `opencode.json` and `opencode.jsonc` in the same config dir are **merged**,
+  not mutually exclusive — keep machine-specific config in the untracked
+  `.json` and shared config in the tracked `.jsonc`.
+
+Verify a change the same way the rules themselves are verified: run
+`opencode run "list the rules in your instructions"` from a project dir and
+confirm the model sees the index — and that a follow-up read of a rule file
+succeeds.
+
+---
+
 ## Adding a new guideline
 
 1. **Default to a rule.** Write it in `.claude/rules/<topic>.md` with `paths:`
