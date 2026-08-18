@@ -324,9 +324,10 @@ Two behaviors worth knowing, both measured rather than documented:
 
 Everything above is Claude Code machinery. Path-scoped rules with `paths:`
 frontmatter are a Claude Code feature; opencode does **not** read
-`.claude/rules/` at all — and it doesn't resolve `@` imports inside
-`CLAUDE.md` either, so a guideline that reaches Claude Code never reaches
-opencode by accident.
+`.claude/rules/` at all. opencode does load `~/.claude/CLAUDE.md` as global
+instructions by default, but it does **not** resolve `@` imports inside it —
+so inline guidance reaches opencode, while `@`-imported guideline bodies
+don't.
 
 opencode has its own conventions, and the bridge between the two is a
 *loading index* rather than a format conversion:
@@ -355,14 +356,19 @@ stay small and current; add a row when you add a rule.
 
 - `sync.sh` symlinks the whole `.config/opencode/` tree, so the index and
   the `instructions` key deploy to every machine like the rest of this repo.
-- `instructions` paths must be absolute (`~` is fine). A relative path
-  silently fails to load — verified empirically.
-- Instruction files are subject to opencode's Read permission system. The
-  index lives inside `~` (`.config/opencode/`), so it loads from any
-  project dir; don't point it somewhere the permission layer would block.
+- `instructions` paths resolve from the **project directory**, not the
+  config directory (verified empirically). A relative path in the global
+  config only resolves if the file happens to exist in the project — use the
+  `~` absolute form, which always resolves.
+- Instruction files are injected at session start without permission gating;
+  what the permission system gates is the model's later lazy `Read` of the
+  rule files. Keep the index inside `~` (`.config/opencode/`) so both work
+  from any project dir.
 - `opencode.json` and `opencode.jsonc` in the same config dir are **merged**,
-  not mutually exclusive — keep machine-specific config in the untracked
-  `.json` and shared config in the tracked `.jsonc`.
+  not mutually exclusive — but the merge replaces array keys (including
+  `instructions`) rather than combining them. Keep machine-specific config in
+  the untracked `.json` and shared config in the tracked `.jsonc`, and define
+  each array-valued key in exactly one of them.
 
 Verify a change the same way the rules themselves are verified: run
 `opencode run "list the rules in your instructions"` from a project dir and
@@ -384,6 +390,10 @@ succeeds.
    import (Model A) or a committed copy imported relatively (Model B) in each
    project that should follow it.
 3. Document it in [`guidelines.md`](guidelines.md).
+4. If it's a rule, add a row to the opencode index
+   (`.config/opencode/rules-index.md`) with the same globs — the index is
+   the only way opencode loads rules, so a rule without a row never reaches
+   it.
 
 ## Promoting one out of a project
 
