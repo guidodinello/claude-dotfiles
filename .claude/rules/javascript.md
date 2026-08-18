@@ -183,15 +183,15 @@ Default to ESM (`"type": "module"` in `package.json`, `import`/`export`).
 Reach for CommonJS only when a dependency or runtime forces it.
 
 **Use the `node:` prefix for Node builtins** in server-side code —
-`import { readFile } from "node:fs/promises"`, not `"fs"`. The prefix
-bypasses the `require` cache and, for newer builtins, avoids a naming
-collision with a userland package of the same name.
+`import { readFile } from "node:fs/promises"`, not `"fs"`. It makes the
+builtin explicit and unambiguous to a reader, and is required for a few
+newer builtins that have no unprefixed form at all.
 
 ```ts
 // Good
 import { readFile } from "node:fs/promises";
 
-// Bad — ambiguous, and breaks if a package named "fs" ever shadows the builtin
+// Bad — reads as if it might resolve to a userland package
 import { readFile } from "fs";
 ```
 
@@ -208,8 +208,12 @@ import { debounce } from "lodash-es";
 ```
 
 No wildcard re-export barrels (`export * from "./thing"`) in a package
-that's meant to be tree-shaken — they force bundlers to include everything
-a barrel touches, defeating dead-code elimination.
+that's meant to be tree-shaken. A bundler *can* shake through a barrel
+when the package sets `"sideEffects": false` and every re-export is clean
+— but that's a fragile precondition most packages don't meet, and even
+when they do, mixed inline-export/re-export barrels have open tree-shaking
+gaps in current bundlers. Treat "barrels are tree-shaken" as something to
+verify for a specific package, not something to assume.
 
 ---
 
@@ -259,8 +263,10 @@ originate from TypeScript itself (an API response, `JSON.parse`, form input).
 
 > **Boundary**: this section covers the cheap universal wins. Type-system
 > *design* — making illegal states unrepresentable, parse-don't-validate,
-> branded types — is the `/type-health` skill's territory. Don't re-derive
-> it here.
+> branded types — goes deeper than a general-purpose rule should. If the
+> project has a `/type-health` skill, its heuristics are the fuller version
+> of this section; consult it before re-deriving type-design judgment calls
+> here.
 
 ---
 
