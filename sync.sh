@@ -7,9 +7,17 @@ set -e
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_SRC="${DOTFILES_DIR}/.claude"
-CLAUDE_DST="${HOME}/.claude"
 OPENCODE_SRC="${DOTFILES_DIR}/.config/opencode"
 OPENCODE_DST="${HOME}/.config/opencode"
+
+# Every CLAUDE_CONFIG_DIR profile on this machine gets the same guidelines/rules/skills —
+# the default ~/.claude, plus any alternate profile dirs already set up (e.g. the
+# `claude-work` alias's CLAUDE_CONFIG_DIR=~/.claude-work). Only synced if the directory
+# already exists, so this never creates a profile the user hasn't set up on this machine.
+CLAUDE_DSTS=("${HOME}/.claude")
+for alt in "${HOME}"/.claude-*; do
+    [ -d "${alt}" ] && CLAUDE_DSTS+=("${alt}")
+done
 
 GREEN='\033[1;32m'
 YELLOW='\033[1;33m'
@@ -48,10 +56,11 @@ symlink_tree() {
     done < <(find "${src}" -type f -print0)
 }
 
-symlink_tree "${CLAUDE_SRC}" "${CLAUDE_DST}" ".claude"
+for CLAUDE_DST in "${CLAUDE_DSTS[@]}"; do
+    symlink_tree "${CLAUDE_SRC}" "${CLAUDE_DST}" "$(basename "${CLAUDE_DST}")"
+    # Ensure hooks are executable
+    find "${CLAUDE_DST}/hooks" -type f -name "*.sh" -exec chmod +x {} \; 2>/dev/null || true
+done
 symlink_tree "${OPENCODE_SRC}" "${OPENCODE_DST}" ".config/opencode"
-
-# Ensure hooks are executable
-find "${CLAUDE_DST}/hooks" -type f -name "*.sh" -exec chmod +x {} \; 2>/dev/null || true
 
 log_info "Done! Claude Code tools are ready."

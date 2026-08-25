@@ -1,6 +1,10 @@
 #!/bin/bash
 input=$(cat)
 
+# Feed the same rate-limit JSON to herdr-agent-usage's cache (async, no display output of its own)
+echo "$input" | bash /home/guido/.config/herdr/plugins/github/usagebar-33803b79d616/bin/run-statusline.sh >/dev/null 2>&1 &
+disown 2>/dev/null || true
+
 # Gentleman theme (ANSI 256)
 PRIMARY='\033[38;5;110m'   # azul claro
 ACCENT='\033[38;5;179m'    # dorado
