@@ -121,13 +121,18 @@ cd ~/claude-dotfiles
 ./push-guidelines.sh /path/to/project # one project only
 ```
 
-A project opts in simply by having a `.claude/rules/` or `.claude/guidelines/`
-directory; both are synced independently. Two rules keep it safe:
+A project opts in simply by having a `.claude/rules/`, `.claude/guidelines/`,
+or `.claude/skills/` directory; all three are synced independently. Two rules
+keep it safe:
 
 - **Only files the project already has are refreshed.** Adopting a new guideline
-  stays a deliberate `cp`, so a Node repo never wakes up owning `php.md`.
+  stays a deliberate `cp`, so a Node repo never wakes up owning `php.md`, and a
+  project's own skills (e.g. fitted's `feature-workflow`) are never pushed at.
 - **Nothing is ever deleted**, so project-specific files living alongside the
-  shared ones survive untouched.
+  shared ones survive untouched. This is how a promoted skill can stay in both
+  places: the repo copy is the source of truth, fitted's committed copy gets
+  refreshed on every push, and fitted's own project-specific skills are left
+  alone.
 
 Dry run is the default; `--apply` overwrites local edits without prompting. Then
 commit the updated copies in each project repo.
