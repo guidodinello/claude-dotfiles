@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# push-guidelines — push this repo's guidelines out into project repos that
-# carry committed copies.
+# push-guidelines — push this repo's guidelines and shared skills out into
+# project repos that carry committed copies.
 #
 # Why: most projects import guidelines from the home deploy
 # (`@~/.claude/guidelines/<file>.md`), which is symlinked back here and so can
@@ -20,10 +20,11 @@
 #   ./push-guidelines.sh --apply         # actually write
 #   ./push-guidelines.sh ~/projects/foo  # one project only
 #
-# A project opts in simply by having a .claude/rules/ or .claude/guidelines/
-# directory. Only files the project ALREADY has are refreshed — adopting a new
-# guideline stays a deliberate `cp`, so a Node repo never wakes up owning
-# php.md. Nothing is ever deleted, so project-specific files (e.g.
+# A project opts in simply by having a .claude/rules/, .claude/guidelines/, or
+# .claude/skills/ directory. Only files the project ALREADY has are refreshed —
+# adopting a new guideline stays a deliberate `cp`, so a Node repo never wakes
+# up owning php.md, and a project's own skills (e.g. fitted's feature-workflow)
+# are never pushed at. Nothing is ever deleted, so project-specific files (e.g.
 # ci-fitted.md) are safe.
 #
 # Migrating an existing opt-in: if a project committed a file under the old
@@ -39,11 +40,12 @@ shopt -s nullglob
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECTS_DIR="${PROJECTS_DIR:-$HOME/projects}"
 
-# Both shared-content directories, each synced independently:
+# The shared-content directories, each synced independently:
+#   skills/      slash-command skills
 #   rules/       path-scoped (`paths:` frontmatter) — load only when Claude touches a
 #                matching file. Where guidelines live unless they can't be glob-scoped.
 #   guidelines/  always-on, imported explicitly by a CLAUDE.md.
-SUBDIRS=(rules guidelines)
+SUBDIRS=(rules guidelines skills)
 
 GREEN='\033[1;32m'
 YELLOW='\033[1;33m'
@@ -56,9 +58,10 @@ usage() {
   cat <<EOF
 Usage: ./push-guidelines.sh [project-dir] [--apply]
 
-Pushes this repo's .claude/rules/ and .claude/guidelines/ into every project that
-already keeps a committed copy of either. Refreshes only files the project already
-has; never creates new ones, never deletes.
+Pushes this repo's .claude/rules/, .claude/guidelines/, and .claude/skills/
+into every project that already keeps a committed copy of any of them.
+Refreshes only files the project already has; never creates new ones, never
+deletes.
 
 Arguments:
   project-dir  Push to just this project. Defaults to every opted-in project
