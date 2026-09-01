@@ -461,11 +461,13 @@ Before adding a dependency, weigh it against writing the ten lines yourself —
 every dependency is a supply-chain surface, a bundle-size cost, and an
 upgrade obligation that outlives the feature it was added for.
 
-When overriding a dependency's version to force a security patch, pin an
-explicit upper bound per override — pnpm's `pnpm.overrides` key accepts a
-per-major `"pkg@range"` selector, but a bare top-level `overrides` key in
-`package.json` silently ignores that selector syntax, and an unbounded
-override floats clean past the major version you actually meant to pin.
+When overriding a dependency's version to force a security patch, put it
+under `overrides:` in `pnpm-workspace.yaml` — as of pnpm v11, the `pnpm`
+field in `package.json` (including `pnpm.overrides`) is no longer read at
+all, silently, with no warning. Use a selector scoped to the dependent
+(`"pkg@1>dep@fixed-version"`) rather than an unbounded range, so the
+override doesn't float past the major version you meant to pin. On pnpm
+<11, the equivalent lives under `pnpm.overrides` in `package.json` instead.
 
 ---
 
