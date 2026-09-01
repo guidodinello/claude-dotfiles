@@ -46,11 +46,13 @@ gh api repos/{owner}/{repo}/pulls/{pr_number}/reviews --paginate \
 ```
 
 Group inline comments into threads:
+
 - Build a map of `id → comment`
 - A comment with no `in_reply_to_id` is a **thread root**
 - Comments with `in_reply_to_id` are replies to the root
 
 Process **thread roots only**. For inline threads, skip a thread if:
+
 - `author_association` is `"BOT"` or the login contains `[bot]`
 - `position` is `null` (outdated diff line — the code changed since the comment was posted)
 - The current git user (`git config user.name`) has already replied in that thread
@@ -62,6 +64,7 @@ bot-authored. Note whether you have already replied to a given summary by
 checking for a later `COMMENTED`/submitted review from the current user.
 
 Get the current user's login for filtering:
+
 ```bash
 gh api user --jq '.login'
 ```
