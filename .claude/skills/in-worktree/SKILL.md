@@ -4,7 +4,7 @@ description: >
   Run another skill inside an isolated git worktree instead of the current
   checkout, so multiple agentic tools (or multiple tasks) can work on this
   repo at the same time without touching each other's files. Supports a
-  fresh branch off origin/main, or checking out an existing PR's branch,
+  fresh branch off the repo's default branch, or checking out an existing PR's branch,
   and can seed the fresh worktree with an uncommitted local file (e.g. a
   just-approved PDR) before running the target skill. Use when the user
   wants to run a skill "in a worktree", "isolated", "on the side", or
@@ -29,11 +29,11 @@ worktree of its own to keep working in.
 /in-worktree [--pr <n> | --branch <name>] [--name <branch>] [--seed <path>] /<skill> [skill args…]
 ```
 
-- No flags → **fresh mode**: new branch off `origin/main`.
+- No flags → **fresh mode**: new branch off `origin/<default-branch>` (resolved by `EnterWorktree` itself — see Step 2).
 - `--pr <n>` → **PR mode**: worktree checks out PR `<n>`'s existing head branch.
 - `--branch <name>` → **branch mode**: worktree checks out branch `<name>` (must already exist on the remote or locally).
 - `--name <branch>` → only used in fresh mode, to name the new branch. Ignored (and ignorable) in PR/branch mode, since the branch name there comes from the PR/`--branch`.
-- `--seed <path>` → after the worktree is created, copy this one file (path relative to `ORIGIN_CWD`) into the worktree at the same relative path, before running the inner skill. For uncommitted local state a fresh worktree cut from `origin/main` wouldn't otherwise have — e.g. a PDR approved locally but not yet pushed. Only meaningful in fresh mode; ignored in PR/branch mode (those checkouts already have everything committed to the branch).
+- `--seed <path>` → after the worktree is created, copy this one file (path relative to `ORIGIN_CWD`) into the worktree at the same relative path, before running the inner skill. For uncommitted local state a fresh worktree cut from the default branch wouldn't otherwise have — e.g. a PDR approved locally but not yet pushed. Only meaningful in fresh mode; ignored in PR/branch mode (those checkouts already have everything committed to the branch).
 - Everything from the first `/<skill>` token onward is passed through untouched — this skill does not parse or understand the inner skill's own arguments.
 
 `--pr` and `--branch` are mutually exclusive. If both are given, stop and ask the user which they meant.
@@ -76,7 +76,7 @@ All worktrees land under `.claude/worktrees/`, consistent with the rest of the r
 EnterWorktree name=<--name value, or a short descriptive name if omitted>
 ```
 
-This is the native tool: it creates the worktree on a **new branch off `origin/main`** and switches the session into it. Confirm the branch it created:
+This is the native tool: with the default `worktree.baseRef: fresh` setting, it creates the worktree on a **new branch off `origin/<default-branch>`**, resolving the default branch dynamically rather than hardcoding it, and switches the session into it. Confirm the branch it created:
 
 ```bash
 git branch --show-current
