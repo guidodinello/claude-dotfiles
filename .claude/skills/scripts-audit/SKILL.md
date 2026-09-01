@@ -55,4 +55,4 @@ done
 | `backfill_llm_enrichment.py` | ❌ | ✅ | Add to CLAUDE.md |
 | `compute_clusters.py` | ✅ | ❌ | Remove from CLAUDE.md |
 
-If any gaps exist, update `scripts/CLAUDE.md` (add missing entries, remove deleted references). Suggest this as a pre-PR check for anyone adding a new script.
+If any gaps exist, report them and recommend the specific `scripts/CLAUDE.md` edit needed (add missing entries, remove deleted references) — this skill reports only, it does not apply the edit itself. Suggest this as a pre-PR check for anyone adding a new script.

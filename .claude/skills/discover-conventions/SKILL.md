@@ -17,6 +17,11 @@ A healthy, well-documented codebase should produce **few new findings** — most
 conventions are already documented. The expected output of a run is a short list of
 genuine gaps, not an exhaustive catalogue of what already exists.
 
+> **Adapt for your project**: a few example grep commands below hard-code
+> `fitted_backend` as the backend package name (seeded from the project this
+> skill originated in). Replace it with your project's actual backend source
+> path before relying on those specific examples elsewhere.
+
 ---
 
 ## Phase 1 — Know what's already documented

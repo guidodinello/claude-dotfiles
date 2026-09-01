@@ -4,7 +4,8 @@ allowed-tools: Bash Read Write Grep Glob
 description: >
   Detect backend API endpoints that have no frontend integration, and vice-versa.
   Greps all route definitions in the backend and all API call sites in the frontend,
-  diffs them, and classifies each gap. Does NOT modify code — reports only.
+  diffs them, and classifies each gap. Does NOT modify existing code — may write new
+  issue stub files under docs/process/issues/ to track confirmed gaps.
 ---
 
 ## Goal
@@ -12,6 +13,11 @@ description: >
 Find backend endpoints missing from the frontend (real integration gaps) and
 frontend callers hitting paths the backend doesn't serve. Run after adding new
 routes, before a release, or periodically to catch drift between the two layers.
+
+> **Adapt for your project**: the commands below hard-code `fitted_backend` as
+> the backend package name (seeded from the project this skill originated in).
+> Replace `backend/src/fitted_backend` with your project's actual backend
+> source root before running this skill elsewhere.
 
 ---
 

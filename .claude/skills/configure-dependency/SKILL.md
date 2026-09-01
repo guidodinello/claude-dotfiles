@@ -8,6 +8,11 @@ allowed-tools: WebFetch WebSearch Read Bash
 
 Before writing any integration code, fetch the official documentation for the dependency so configuration is done correctly from the start. Misconfigurations are the hardest bugs to debug — this skill prevents them.
 
+> **Adapt for your project**: Step 4 below hard-codes paths and conventions
+> (`backend/src/fitted_backend/...`, the `FITTED__<GROUP>__<KEY>` env var
+> prefix) from the project this skill originated in. Replace them with your
+> project's actual config module path and env var convention.
+
 ## Instructions
 
 The user provides a dependency name as an argument (e.g. `/configure-dependency celery`). If no name is given, ask before continuing.
