@@ -2,14 +2,15 @@
 name: address-pr-comments
 description: >
   Address incoming PR review comments end-to-end: fetch all unresolved inline
-  review threads, assess their validity, fix valid ones, commit and push, then
-  reply to every thread with the outcome. Use when a PR has received review
-  feedback that needs to be triaged and responded to.
+  review threads AND PR review summaries, assess their validity, fix valid ones,
+  commit and push, then reply to every thread (and each review summary) with the
+  outcome. Use when a PR has received review feedback that needs to be triaged
+  and responded to.
 ---
 
 # Address PR Comments
 
-Automates the full loop for responding to inline PR review comments: fetch → assess → fix → commit → reply.
+Automates the full loop for responding to PR review comments: fetch → assess → fix → commit → reply.
 
 ## Invocation
 
@@ -29,28 +30,43 @@ gh repo view --json owner,name
 - If no open PR is found, stop and tell the user.
 - If the PR is already closed or merged, stop.
 
-## Step 1 — Fetch inline review comment threads
+## Step 1 — Fetch inline review comment threads AND review summaries
+
+Fetch both kinds of review feedback. Inline threads live under `pulls/{n}/comments`;
+general review summaries (the free-form body attached to a review) live under
+`pulls/{n}/reviews`.
 
 ```bash
+# Inline comments (threads)
 gh api repos/{owner}/{repo}/pulls/{pr_number}/comments --paginate
+
+# PR review summaries (non-inline bodies)
+gh api repos/{owner}/{repo}/pulls/{pr_number}/reviews --paginate \
+  --jq '.[] | select(.state != "PENDING") | {id, body, user: .user.login, state}'
 ```
 
-Group comments into threads:
+Group inline comments into threads:
 - Build a map of `id → comment`
 - A comment with no `in_reply_to_id` is a **thread root**
 - Comments with `in_reply_to_id` are replies to the root
 
-Process **thread roots only**. Skip a thread if:
+Process **thread roots only**. For inline threads, skip a thread if:
 - `author_association` is `"BOT"` or the login contains `[bot]`
 - `position` is `null` (outdated diff line — the code changed since the comment was posted)
 - The current git user (`git config user.name`) has already replied in that thread
+
+For review summaries, treat each non-empty non-`PENDING` review body as a
+separate item to triage (it is not a thread — the reviewer left a comment on the
+PR as a whole, e.g. "CHANGELOG not updated"). Skip summaries that are empty or
+bot-authored. Note whether you have already replied to a given summary by
+checking for a later `COMMENTED`/submitted review from the current user.
 
 Get the current user's login for filtering:
 ```bash
 gh api user --jq '.login'
 ```
 
-If no threads remain after filtering, tell the user there's nothing to address and stop.
+If nothing remains after filtering, tell the user there's nothing to address and stop.
 
 ## Step 2 — Assess each thread
 
@@ -82,7 +98,9 @@ Print this table before touching any code:
 | 2 | bob    | lib/utils.ts:7 | "Add error handling here" | DECLINE | Already handled by caller; double-handling would swallow errors |
 ```
 
-Truncate long comments to ~60 chars.
+Truncate long comments to ~60 chars. For review summaries there is no file/line
+anchor — use `PR` (or the review id) as the reference and include the summary's
+full text so the user can judge it.
 
 **Stop here and wait for user confirmation** before making any code changes or posting any replies. If the user wants to override a decision, update your plan accordingly.
 
@@ -114,7 +132,22 @@ Post a reply to **every** thread root (FIX, DECLINE, and CLARIFY):
 
 ```bash
 gh api repos/{owner}/{repo}/pulls/{pr_number}/comments/{comment_id}/replies \
-  -f body="<reply text>"
+  -F body="<reply text>" \
+  --jq '.html_url'
+```
+
+Note: use `-F` (raw string), not `-f`, and include `{pr_number}` in the path —
+omitting the PR number or using `-f` returns 404.
+
+For PR **review summaries** (which are not threads), there is no inline replies
+endpoint. Reply by posting a new COMMENT review on the PR referencing the
+summary and the outcome:
+
+```bash
+gh api --method POST repos/{owner}/{repo}/pulls/{pr_number}/reviews \
+  -f body="<reply text>" \
+  -f event="COMMENT" \
+  --jq '.html_url'
 ```
 
 **Reply rules** — terse, technical, no performative language:
