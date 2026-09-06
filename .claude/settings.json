@@ -17,7 +17,9 @@
       "Bash(echo * >> *.env*)"
     ],
     "defaultMode": "auto",
-    "additionalDirectories": ["/home/guido/.local/state/herdr-routines/reports"]
+    "additionalDirectories": [
+      "/home/guido/.local/state/herdr-routines/reports"
+    ]
   },
   "model": "opusplan",
   "skillOverrides": {
@@ -121,5 +123,6 @@
   "advisorModel": "opus",
   "tui": "fullscreen",
   "skipDangerousModePermissionPrompt": true,
-  "skipAutoPermissionPrompt": true
+  "skipAutoPermissionPrompt": true,
+  "agentPushNotifEnabled": true
 }
