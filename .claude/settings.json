@@ -1,12 +1,12 @@
 {
   "permissions": {
-    "defaultMode": "auto",
     "allow": [
       "Read(./**)",
       "Bash(op read:*)",
       "Bash(security find-generic-password:*)",
       "Bash(rtk:*)",
-      "mcp__plugin_engram_engram__mem_context"
+      "mcp__plugin_engram_engram__mem_context",
+      "Edit(//home/guido/.local/state/herdr-routines/reports/**)"
     ],
     "deny": [
       "Read(.env*)",
@@ -15,6 +15,10 @@
       "Bash(*> *.env)",
       "Bash(echo * > *.env*)",
       "Bash(echo * >> *.env*)"
+    ],
+    "defaultMode": "auto",
+    "additionalDirectories": [
+      "/home/guido/.local/state/herdr-routines/reports"
     ]
   },
   "model": "opusplan",
@@ -32,7 +36,6 @@
     "slite-compare-docs": "off",
     "slite-to-clickup": "off",
     "ticket-refinement": "off",
-    "address-pr-comments": "user-invocable-only",
     "clean-permissions": "user-invocable-only",
     "code-health": "user-invocable-only",
     "code-review-claude-no-autopost": "user-invocable-only",
@@ -78,6 +81,18 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '/home/guido/.claude/hooks/herdr-agent-state.sh' session",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   },
   "statusLine": {
@@ -92,7 +107,9 @@
     "claude-code-setup@claude-plugins-official": false,
     "security-guidance@claude-plugins-official": true,
     "claude-md-management@claude-plugins-official": false,
-    "code-review@claude-plugins-official": false
+    "code-review@claude-plugins-official": false,
+    "pyright-lsp@claude-plugins-official": true,
+    "rust-analyzer-lsp@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "engram": {
@@ -105,5 +122,7 @@
   "effortLevel": "medium",
   "advisorModel": "opus",
   "tui": "fullscreen",
-  "skipAutoPermissionPrompt": true
+  "skipDangerousModePermissionPrompt": true,
+  "skipAutoPermissionPrompt": true,
+  "agentPushNotifEnabled": true
 }
