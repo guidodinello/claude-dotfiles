@@ -1,6 +1,6 @@
 ---
 name: configure-dependency
-description: Fetch official docs and configure a new dependency correctly from the start. Use when adding a new package, service, or external integration to the project. Trigger phrases: "add X", "integrate X", "configure X", "set up X".
+description: 'Fetch official docs and configure a new dependency correctly from the start. Use when adding a new package, service, or external integration to the project. Trigger phrases: "add X", "integrate X", "configure X", "set up X".'
 allowed-tools: WebFetch WebSearch Read Bash
 ---
 
