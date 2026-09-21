@@ -1,0 +1,76 @@
+# Gates every .claude/skills/**/SKILL.md in this repo.
+#
+# Why here and not only downstream: push-guidelines.sh propagates skills with
+# `rsync -rlpc --existing`, so this repo's copy overwrites whatever a project
+# already has. A skill that is broken here becomes broken in every project that
+# carries it, on the next push. This is the authoritative side, so this is where
+# the gate belongs.
+#
+# Two failure modes, one job:
+#   1. Invalid YAML frontmatter -- an unquoted description containing `: `
+#      terminates the scalar and the whole block fails to parse, so Claude Code
+#      silently drops the skill. See #28.
+#   2. markdownlint drift -- .markdownlint.json here mirrors fitted's, because
+#      fitted lints markdown (diff-scoped, pre-push and CI) and this repo feeds
+#      it. Default markdownlint rules are the wrong baseline, not a stricter
+#      one: they flag MD013 on files fitted considers clean.
+name: Lint Skills
+
+on:
+  pull_request:
+    paths:
+      - '.claude/skills/**'
+      - '.markdownlint.json'
+      - '.github/workflows/lint-skills.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.claude/skills/**'
+      - '.markdownlint.json'
+      - '.github/workflows/lint-skills.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  lint-skills:
+    name: Lint Skills
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate SKILL.md frontmatter
+        run: |
+          pip install --quiet pyyaml
+          python3 - <<'PY'
+          import glob, sys, yaml
+
+          failed = []
+          files = sorted(glob.glob('.claude/skills/*/SKILL.md'))
+          if not files:
+              sys.exit('No SKILL.md files found -- has the layout changed?')
+
+          for path in files:
+              text = open(path, encoding='utf-8').read()
+              if not text.startswith('---'):
+                  failed.append((path, 'no frontmatter block'))
+                  continue
+              block = text.split('---')[1]
+              try:
+                  data = yaml.safe_load(block)
+              except yaml.YAMLError as exc:
+                  failed.append((path, str(exc).splitlines()[0]))
+                  continue
+              for key in ('name', 'description'):
+                  if not (isinstance(data, dict) and data.get(key)):
+                      failed.append((path, f'missing or empty `{key}`'))
+
+          for path, why in failed:
+              print(f'{path}: {why}')
+          print(f'\nchecked {len(files)} skills, {len(failed)} problem(s)')
+          sys.exit(1 if failed else 0)
+          PY
+
+      - name: markdownlint
+        run: |
+          npx --yes markdownlint-cli@0.49.0 '.claude/skills/**/SKILL.md'
