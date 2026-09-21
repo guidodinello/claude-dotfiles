@@ -106,6 +106,7 @@ After fetching, compare sources against the current reference files. Build a gap
 - Detection grep commands that are outdated or could be improved
 
 In particular, check for:
+
 - **SSRF** — currently absent from all three reference files (OWASP A10:2021)
 - **Open redirect** — may be missing from `injection-patterns.md`
 - **Rate limiting on auth endpoints** — likely thin in `auth-access-patterns.md`
@@ -116,26 +117,31 @@ In particular, check for:
 ## Step 4 — Update reference files
 
 ### Always update: `injection-patterns.md`
+
 - Add SSRF section if missing — include: what URLs to block (localhost, 169.254.169.254), how to detect user-controlled URL fetch calls, safe allowlist approach
 - Add Open Redirect section if missing
 - Add CWE IDs to each pattern header (e.g., "SQL Injection (CWE-89)")
 - Verify detection grep commands compile and reflect current patterns
 
 ### Always update: `auth-access-patterns.md`
+
 - Update NIST 800-63B password requirements if the fetched version differs
 - Add Rate Limiting section for auth endpoints if missing — include: thresholds from OWASP auth cheat sheet, how to detect missing rate limiting in code
 - Update JWT section with current algorithm recommendations
 - Add CWE IDs to each pattern header
 
 ### Always update: `exposure-patterns.md`
+
 - Update security headers table with any new recommended values from the HTTP Headers cheat sheet
 - Update bcrypt cost factor recommendation if OWASP crypto cheat sheet specifies a new minimum
 - Add Trusted Types / DOM XSS sink section to XSS entry if missing
 - Add CWE IDs to each pattern header
 
 ### Create if missing: `ssrf-rce-patterns.md`
+
 If SSRF and deserialization patterns are too large to fit cleanly into `injection-patterns.md`,
 create a dedicated file covering:
+
 - SSRF (CWE-918): detection, network-layer defenses, metadata endpoint risks
 - Insecure Deserialization (CWE-502): detection in JSON/YAML/pickle/Java serialization, safe alternatives
 - Code Injection via `eval`/`Function()`/`vm.runInContext()` (CWE-94)

@@ -24,22 +24,28 @@ Performs a complete authorization audit of a project and produces both structure
 Analyze the ENTIRE project (both backend and frontend) focusing on roles, permissions, and authorization logic. Be extremely thorough — do not only look for explicit permission checks. Also detect implicit checks, role conditionals, middleware protections, and missing protections.
 
 #### 1.1 — Identify ALL roles
+
 - Roles in enums, database seeders, config files, constants
 - Role hierarchies or inheritance patterns
 - Default roles assigned on user creation
 
 #### 1.2 — Identify ALL permissions
+
 - Permissions defined in enums, constants, configs, or databases
 - Permissions referenced in authorization checks (guards, middlewares, policies, gates, decorators)
 - Permissions implied by conditionals (`if (user.isAdmin)`, `role === 'admin'`, etc.)
 
 #### 1.3 — Map permission usage across layers
+
 For EACH permission found, document:
+
 - **Backend**: endpoints, services, guards/middlewares, policies/gates that check it (with file paths)
 - **Frontend**: pages, components, route guards, conditional rendering, hooks that reference it (with file paths)
 
 #### 1.4 — Identify authorization issues
+
 Look for ALL of these issue types:
+
 - **A) Unprotected backend endpoints** — routes with no permission/role check
 - **B) Frontend-only protection** — UI hides features but backend doesn't enforce
 - **C) Backend ↔ Frontend mismatches** — different permissions checked for same action
@@ -65,6 +71,7 @@ Save these to `/mnt/user-data/outputs/`.
 Read the HTML template at `assets/permissions-dashboard-template.html` (relative to this skill's directory).
 
 The template is a single-file HTML application with:
+
 - A sidebar navigation with sections for Overview, Permissions (by category), Roles, and Analysis
 - A dashboard overview with stats, role breakdowns, category counts, and issue summary
 - Expandable permission cards showing backend/frontend usage and role assignments
@@ -77,17 +84,18 @@ The template is a single-file HTML application with:
 The template contains a `PERMS` JavaScript array and static HTML content that you must replace with the actual audit findings. Specifically:
 
 1. **`PERMS` array** — Replace with the actual permissions found. Each entry has this structure:
-```javascript
-{
-  slug: 'permission.slug.name',        // The permission identifier
-  name: 'Human Readable Name',          // Display name
-  cat: 'category-key',                  // Category key (e.g., 'statements', 'users', 'billing')
-  warn: true/false,                      // Whether this permission has issues
-  roles: { role1: true, role2: false },  // Which roles have this permission
-  backend: 'Description of backend usage or ⚠️ warning',
-  frontend: 'Description of frontend usage or ⚠️ warning',
-}
-```
+
+   ```javascript
+   {
+     slug: 'permission.slug.name',        // The permission identifier
+     name: 'Human Readable Name',          // Display name
+     cat: 'category-key',                  // Category key (e.g., 'statements', 'users', 'billing')
+     warn: true/false,                      // Whether this permission has issues
+     roles: { role1: true, role2: false },  // Which roles have this permission
+     backend: 'Description of backend usage or ⚠️ warning',
+     frontend: 'Description of frontend usage or ⚠️ warning',
+   }
+   ```
 
 2. **Sidebar navigation** — Update nav items to match the actual categories and counts found
 3. **Dashboard stats** — Update total permissions, roles count, backend gaps count, inconsistencies count
@@ -103,6 +111,7 @@ The template contains a `PERMS` JavaScript array and static HTML content that yo
 #### Adapting to different role sets
 
 The template example uses 3 roles (Admin, Internal, External). Your project may have different roles. Adapt:
+
 - The `roles` object in each PERMS entry to use actual role keys
 - The matrix table headers
 - The role detail cards
@@ -112,6 +121,7 @@ The template example uses 3 roles (Admin, Internal, External). Your project may 
 #### Category system
 
 Categories are flexible — use whatever grouping makes sense for the project. Common examples:
+
 - By domain: `users`, `billing`, `reports`, `settings`, `content`
 - By CRUD: `create`, `read`, `update`, `delete`
 - By module: module names from the project

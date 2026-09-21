@@ -99,6 +99,7 @@ After fetching, compare sources against the current reference files. Build a gap
 ## Step 4 — Update reference files
 
 ### Always update: `violation-patterns.md`
+
 - Add CFR section citations to any header missing them
 - Add or expand sections based on gap analysis
 - Add an "OCR Enforcement Cases" section at the bottom — for each case: what was violated,
@@ -107,11 +108,14 @@ After fetching, compare sources against the current reference files. Build a gap
   `references/ocr-enforcement-cases.md` and link to it
 
 ### Always update: `vendor-baa.md`
+
 - Add any vendor categories or specific vendors missing from the current file
 - Add notes on which vendors have formal BAA programs with links to their BAA pages where found
 
 ### Create if missing: `authentication-controls.md`
+
 Dedicated reference for authentication requirements. Cover:
+
 - § 164.312(d) Person or Entity Authentication requirements
 - NIST 800-63B password and session requirements mapped to code-level checks
 - OWASP session management patterns
@@ -121,7 +125,9 @@ Dedicated reference for authentication requirements. Cover:
 - For each control: "how to check in code" instructions
 
 ### Create if missing: `administrative-safeguards.md`
+
 Extract from § 164.308 the requirements with direct code or system-design implications:
+
 - § 164.308(a)(4) — Information Access Management: access provisioning/deprovisioning flows
 - § 164.308(a)(6) — Security Incident Procedures: what incident logging should look like in code
 - § 164.308(a)(7) — Contingency Plan: backup/restore procedures, what to verify in code

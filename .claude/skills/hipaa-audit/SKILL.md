@@ -65,6 +65,7 @@ name, dob, date_of_birth, email, phone, address, ssn, zip_code (5-digit), accoun
 diagnosis, condition, medication, weight, height, bmi, lab_result, prescription, treatment, appointment_date, discharge_date, admission_date
 
 **Grep targets to find PHI handling:**
+
 ```
 patient_id, patientId, userId (in patient context), email, phone, dob, ssn,
 firstName, lastName, first_name, last_name, address, zipCode, diagnosis,
@@ -78,6 +79,7 @@ medication, prescription, weight, insurance
 ### Follow the data, not the file structure
 
 Pick a PHI field and trace it forward and backward:
+
 - Where is it written to the DB?
 - Where is it read back?
 - Where is it logged (directly or via object spread)?
@@ -94,6 +96,7 @@ This surfaces issues that file-by-file review misses — PHI leaking into a log 
 ### Find the gap between stated intent and actual implementation
 
 When you find a security control (PHI redactor, auth middleware, audit log function):
+
 - Grep for every place it's used
 - Grep for every place it *should* be used but isn't
 - Never conclude "PHI redaction is implemented" from seeing a redaction utility — verify coverage on every log call that could emit PHI
@@ -104,6 +107,7 @@ When you find a security control (PHI redactor, auth middleware, audit log funct
 ## Violation Patterns
 
 See [`references/violation-patterns.md`](references/violation-patterns.md) for the full catalog of anti-patterns by category:
+
 - Logging violations
 - Storage violations
 - Transmission violations
@@ -130,6 +134,7 @@ Key patterns to check inline:
 See [`references/vendor-baa.md`](references/vendor-baa.md) for a checklist of common healthcare vendors and what to verify.
 
 When auditing any vendor integration, always answer:
+
 1. Does this vendor receive PHI (even partial — email addresses, order IDs)?
 2. Is there a BAA? (You cannot verify this from code — flag as INFO for human review)
 3. Is the integration authenticated? For inbound calls: is auth verified before trusting the payload?
@@ -178,6 +183,7 @@ Follow the header with a 2–4 sentence executive summary: what the system does 
 ### PHI Surface Map
 
 Before any findings, include:
+
 1. A **PHI-Bearing Tables** table: table name, PHI fields, encrypted (YES/NO + algorithm)
 2. An **External Services Receiving PHI** table: service, PHI received, BAA status (✅ Signed / ⚠️ Verify / ❌ None)
 
@@ -211,6 +217,7 @@ Group findings under severity headings. Use sequential IDs within each severity 
 ```
 
 **Severity levels:**
+
 - **CRITICAL** — PHI exposed without authentication, active data breach risk, IDOR between patients
 - **HIGH** — PHI in logs, missing audit trail on PHI access, session tokens in localStorage, webhook auth bypassable
 - **MEDIUM** — Session TTL too long, missing CSRF on PHI mutations, PHI in URL params, password policy gaps

@@ -21,6 +21,7 @@ rather than littered with hardcoded paths and one-off invocations.
 
 Before auditing, use the `claude-code-guide` agent to fetch the latest Claude Code
 permissions documentation. Ask it specifically about:
+
 - The syntax for `Bash(...)`, `Read(...)`, and `WebFetch(...)` rules
 - Wildcard semantics (`*` vs `**`, `:*` suffix)
 - Any new rule types or patterns added since your knowledge cutoff
@@ -31,6 +32,7 @@ not a stale snapshot.
 ## Step 1 — Find the settings file
 
 Check in order:
+
 - `.claude/settings.local.json` (preferred — local overrides)
 - `.claude/settings.json` (shared project settings)
 
@@ -39,6 +41,7 @@ Read and parse the JSON.
 ## Step 2 — Audit each allow rule
 
 ### Read rules
+
 If `Read(./**)` is missing, add it. It covers all file reads in the project and
 eliminates the need for most `Bash(cat/grep/find ...)` read-only pipelines.
 
@@ -46,7 +49,9 @@ Keep other `Read(...)` and `WebFetch(...)` rules as-is — domain allowlists and
 scoped paths are intentionally specific.
 
 ### Bash rules
+
 A rule is **overly specific** if it contains any of:
+
 - An absolute path: `/home/...`, `/Users/...`, `~/...`
 - A long specific argument list with filenames or patterns baked in
 - A one-time invocation that could be expressed as `Bash(command:*)`
@@ -54,6 +59,7 @@ A rule is **overly specific** if it contains any of:
 To generalize: extract the first word (the command) and replace with `Bash(command:*)`.
 
 **Examples:**
+
 ```
 Bash(grep -n "sys.path" /home/guido/project/**/*.py)  →  Bash(grep:*)
 Bash(find /home/guido/project -type f -exec wc -l {} +)  →  remove (Read covers it)
