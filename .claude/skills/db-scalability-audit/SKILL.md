@@ -54,6 +54,7 @@ Grep for queries with no `LIMIT` clause that return collections. A query that re
 
 **7a. Verify production call sites before assigning CRITICAL or HIGH severity**
 For every dangerous query pattern you find (unbounded scan, missing index on a hot path, N+1, etc.), before assigning severity, verify the method or function that contains it is actually called in production code. Use grep to search for the method name across the entire codebase, explicitly excluding test files:
+
 - Exclude: `**/__tests__/**`, `**/*.test.ts`, `**/*.spec.ts`, `**/*.test.tsx`
 - If callers exist only in test files: the pattern is **dead code**. Downgrade to MEDIUM, note "no production callers — latent risk only", and recommend deletion rather than refactoring.
 - If no callers exist at all: same treatment.
@@ -72,6 +73,7 @@ Identify the tenant boundary — is it `org_id`, `organization_id`, `clinic_id`,
 ## Schema Anti-Pattern Reference
 
 See [`references/anti-patterns.md`](references/anti-patterns.md) for the full catalog of schema and query anti-patterns by category:
+
 - Missing indexes
 - Unbounded growth tables
 - N+1 query patterns
@@ -100,6 +102,7 @@ Key patterns to check inline:
 ## Provider Limits Reference
 
 See [`references/provider-limits.md`](references/provider-limits.md) for a side-by-side table of storage caps, connection limits, row limits, and performance characteristics for:
+
 - Cloudflare D1
 - Supabase (free, pro, team, enterprise)
 - Neon (free, launch, scale)
@@ -108,6 +111,7 @@ See [`references/provider-limits.md`](references/provider-limits.md) for a side-
 - Turso
 
 When auditing the current provider, always answer:
+
 1. What is the current storage usage vs. the provider limit?
 2. What is the projected growth rate — when will the limit be hit?
 3. What happens at the limit — hard error, degraded performance, overage billing?
@@ -120,6 +124,7 @@ When auditing the current provider, always answer:
 If the audit findings indicate a migration is warranted, include a brief recommendation in the findings — but do not plan the migration here. Migration planning is a separate activity handled by the `db-migration-planner` skill.
 
 A migration recommendation finding should answer:
+
 1. Is the current provider hitting a hard limit or a structural ceiling?
 2. What is the recommended target provider and why?
 3. What is the urgency — when does action need to happen?
@@ -152,6 +157,7 @@ Follow the header with a 2-4 sentence executive summary: current state, primary 
 ### Database Surface Map
 
 Before any findings, include:
+
 1. A **Databases in Use** table: name/binding, provider, current size (if known), primary purpose
 2. A **Tables at Risk** table: table name, growth pattern (bounded/unbounded), indexed (YES/NO), notes
 
@@ -185,6 +191,7 @@ Group findings under severity headings. Use sequential IDs so the remediation ta
 ```
 
 **Severity levels:**
+
 - **CRITICAL** — Will cause an outage, data loss, or cross-tenant data exposure at current/near-term scale. No mitigation in place. **Cross-tenant data exposure is always CRITICAL regardless of performance impact** — if a query returns data across org/tenant boundaries, it is CRITICAL even if the query itself is fast. **Dead code cannot be CRITICAL** — if the dangerous pattern exists in a method with no production callers (verified via grep excluding test files), cap severity at MEDIUM.
 - **HIGH** — Significant performance degradation or data integrity risk under moderate load. Needs fixing before next growth phase.
 - **MEDIUM** — Won't cause immediate failure but will compound over time or require emergency work later.

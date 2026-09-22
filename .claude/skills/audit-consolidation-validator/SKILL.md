@@ -27,6 +27,7 @@ problem when delivered to a client.
 ## Step 0: Locate files
 
 If the user did not specify paths, look for audit files under `**/docs/audits/`. Common patterns:
+
 - Internal audit files: date-stamped or iteration-named `.md` files (e.g. `*_AUDIT_2026-*.md`, `*-v2.md`)
 - Consolidated doc: files with names like `*consolidated*`, `*Compliance*`, `*-final*`
 
@@ -117,14 +118,16 @@ list under category 2 (False positives included) with the sub-agent's evidence.
 
 After building the complete issue list, apply fixes in this order:
 
-### Auto-fix (do these silently, then report what was done):
+### Auto-fix (do these silently, then report what was done)
+
 - **Stale ID references in Remediation tables**: update each table row to use the current correct
   finding ID (e.g. replace "L-1" with "M-11" if that is the renumbered finding)
 - **Overall Assessment severity counts**: recount the actual findings by severity and rewrite
   only the count phrases in the Overall Assessment paragraph (e.g. "six medium-severity gaps"
   becomes "eleven medium-severity gaps"). Do not rewrite the substance of the paragraph.
 
-### Flag for human review (report but do not change):
+### Flag for human review (report but do not change)
+
 - Missing findings
 - False positive inclusions (including any caught by sub-agents in Phase 4)
 - Severity escalations: findings that appear at a different severity in the consolidated vs. the

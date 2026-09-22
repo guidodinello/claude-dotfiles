@@ -59,6 +59,7 @@ Grep for hardcoded patterns: `sk_`, `pk_`, `AKIA`, `ghp_`, `-----BEGIN`, `postgr
 
 **2a. Verify production call sites before assigning CRITICAL or HIGH**
 For every vulnerable pattern found, before assigning severity, verify the function or handler is actually called in production code. Grep for its name, explicitly excluding test files (`**/__tests__/**`, `**/*.test.ts`, `**/*.spec.ts`, `**/*.test.tsx`):
+
 - Callers only in tests: downgrade to MEDIUM, note "no production callers — latent risk only", recommend deletion rather than patching.
 - No callers at all: same treatment.
 - Production callers confirmed: proceed with original severity.
@@ -75,6 +76,7 @@ The attack surface has three dimensions to keep in mind:
 `req.params`, `req.query`, `req.body`, `req.headers`, `req.cookies`, URL path segments, file uploads, WebSocket messages, webhook bodies (before signature verification), OAuth callback parameters
 
 **Dangerous sinks** (where bad input causes harm):
+
 - DB query construction → SQL/NoSQL injection
 - Shell command construction → command injection
 - File path construction → path traversal / arbitrary file read
@@ -104,6 +106,7 @@ See the following reference files for the full catalog of vulnerability patterns
 ### Follow the input, not the file structure
 
 Pick a user-controlled value (e.g., `req.params.id`, `req.body.email`) and trace it forward:
+
 - Does it flow into a SQL query? Is it parameterized or interpolated?
 - Does it flow into a file path? Is it validated against a base directory?
 - Does it flow into HTML output? Is it encoded?
@@ -117,6 +120,7 @@ Pick a public endpoint (no auth) and ask: what is the worst thing an anonymous a
 ### Find the gap between stated controls and actual coverage
 
 When you find a security control (auth middleware, input validator, parameterized query helper):
+
 - Grep for every place it is applied
 - Grep for every place it *should* be applied but isn't
 - Never conclude "injection is mitigated" from seeing parameterized queries in some paths — verify every path that touches user input
@@ -152,6 +156,7 @@ Follow the header with a 2–4 sentence executive summary: what the system handl
 ### Attack Surface Map
 
 Before any findings, include:
+
 1. An **Entry Points** table: route, method, auth required (YES/NO), notes
 2. A **User Input → Dangerous Sinks** table: input source, sink type, location, sanitized (YES / NO / PARTIAL)
 
@@ -185,6 +190,7 @@ Group findings under severity headings. Use sequential IDs so the remediation ta
 ```
 
 **Severity levels:**
+
 - **CRITICAL** — Directly exploitable by an unauthenticated or low-privilege attacker; could result in data breach, RCE, full auth bypass, or cross-user data exposure. Reachable in production today. **Dead code cannot be CRITICAL** — if the vulnerable path has no production callers (verified via grep excluding tests), cap severity at MEDIUM.
 - **HIGH** — Exploitable but requires specific conditions (authenticated attacker, chaining with another issue, specific browser/environment); significant risk of data exposure or privilege escalation.
 - **MEDIUM** — Vulnerability exists but has meaningful mitigating factors; will compound over time or escalate to HIGH under changed conditions. Latent risk in dead code belongs here.

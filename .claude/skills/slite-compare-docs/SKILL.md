@@ -12,6 +12,7 @@ description: >
 ## What this skill does
 
 Fetch two Slite documents, diff their content, and tell the user:
+
 - Whether the newer doc is a strict superset (nothing lost)
 - What was added, changed, or removed
 - Whether it is safe to archive or delete the older doc
@@ -67,6 +68,7 @@ print(result.stdout or "(no differences)")
 If the documents are large (>20KB), write the content to disk first and diff the files rather than diffing in-memory strings — `diff` handles large files much more efficiently.
 
 The diff output uses this convention:
+
 - Lines starting with `<` are only in doc A (the first/older one)
 - Lines starting with `>` are only in doc B (the second/newer one)
 - Lines starting with `---` are context markers
@@ -79,20 +81,23 @@ Read the diff output and produce a clear verdict. Structure your report like thi
 
 ---
 
-**Doc A:** `<title>` ([link](<url>))
-**Doc B:** `<title>` ([link](<url>))
+**Doc A:** `<title>` ([open in Slite](<url>))
+**Doc B:** `<title>` ([open in Slite](<url>))
 
 ### Verdict: [Safe to archive Doc A / Content was lost — do not archive / Identical]
 
 **Summary:** One sentence explaining the overall relationship.
 
 ### What Doc B adds (not in Doc A)
+
 List the meaningful additions — new sections, new findings, updated dates, extra items. Skip trivial differences like title-only changes ("Copy of …" → original name).
 
 ### What Doc A has that Doc B doesn't
+
 List anything present in Doc A but absent in Doc B. If there is nothing, say "Nothing — Doc B is a complete superset."
 
 ### Recommendation
+
 One clear action: archive Doc A / keep both / investigate further.
 
 ---

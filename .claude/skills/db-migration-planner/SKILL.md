@@ -28,6 +28,7 @@ If a prior plan exists, read it — note what was decided, what was deferred, an
 ## Step 1: Identify the migration pair
 
 Confirm from the user or from context:
+
 - **Source provider** (e.g., Cloudflare D1, Supabase, Neon)
 - **Target provider** (e.g., Supabase Postgres, Neon, RDS)
 - **Migration trigger** (limit hit, compliance requirement, cost, HIPAA BAA, etc.)
@@ -40,6 +41,7 @@ Then read the relevant playbook from [`references/migration-playbooks.md`](refer
 
 Glob for schema files: `**/migrations/**`, `schema.sql`, `schema.prisma`, `drizzle.config.ts`.
 For each table, note:
+
 - Column types (especially DATE, BOOLEAN, JSON — these have cross-provider incompatibilities)
 - FK constraints and cascade rules
 - Indexes
@@ -51,6 +53,7 @@ For each table, note:
 
 Grep for the ORM in use (`drizzle`, `prisma`, `kysely`, `knex`, raw SQL strings).
 Determine:
+
 - Is the ORM dialect-specific or provider-agnostic?
 - Are there raw SQL strings that use provider-specific functions?
 - What driver/adapter changes are needed?

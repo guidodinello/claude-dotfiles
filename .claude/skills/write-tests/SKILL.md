@@ -141,6 +141,7 @@ this changed?" If no, don't assert on it.
 For data-heavy cases, prefer parametrize/table-driven patterns over repeated identical tests.
 
 **Framework defaults** (infer from imports/config first):
+
 - Python → `pytest` with fixtures; `hypothesis` for Step 3b properties
 - TypeScript/JavaScript → `vitest` or `jest`; `fast-check` for Step 3b properties
 - Other → state your assumption before writing

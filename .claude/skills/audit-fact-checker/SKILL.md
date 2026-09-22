@@ -45,6 +45,7 @@ Collect from the user or infer from context:
 Read the audit document. Extract every finding that falls within the declared scope.
 
 For each finding, capture:
+
 - **ID**: e.g. `H-1`, `M-4`, `C-2`
 - **Severity**: CRITICAL / HIGH / MEDIUM / LOW / INFO
 - **Title**: the short descriptor on the finding heading
@@ -82,6 +83,7 @@ Dispatch all agents simultaneously. Do not wait for one before starting the next
 ## Step 3: Collect results and build the report
 
 Wait for all sub-agents to return. For each finding, record:
+
 - Finding ID and title
 - Verdict
 - Evidence sentence(s)

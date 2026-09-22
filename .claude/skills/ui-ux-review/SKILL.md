@@ -24,6 +24,7 @@ mobile-specific and should be skipped when reviewing `frontend/web/`.
 ## Invocation
 
 Accepts one of:
+
 - **A screenshot or screen recording path** — read it directly (Read supports
   images; for a recording, ask the user for representative frame(s) or extract
   them with `ffmpeg -i <recording> -vf fps=1 frame_%03d.png` into the scratchpad
@@ -40,6 +41,7 @@ Accepts one of:
 ## Step 1 — Scope the review
 
 Identify:
+
 - Which screen(s)/component(s) are in scope, and whether this is web or mobile
   (skip mobile-only heuristics for web).
 - Whether this is a **quick check** (single component, e.g. during feature
@@ -126,6 +128,7 @@ Keep users informed about what is going on through appropriate feedback within r
 **Why it matters:** Without feedback, users perceive the app as broken or unresponsive. The 100ms threshold is the limit for perceived instantaneous response — beyond that, users enter a wait state. Unacknowledged waits increase perceived effort and abandonment.
 
 **What to replace with:**
+
 ```tsx
 // Before: button goes dead, user taps repeatedly
 <Pressable onPress={handleSubmit}>
@@ -154,6 +157,7 @@ Speak the user's language, not system-oriented terms. Follow real-world conventi
 **Why it matters:** Users build mental models from prior experience. Every mismatch forces conscious decoding, which increases cognitive load and slows task completion. System-oriented language makes errors inscrutable — "Error 403" means nothing to an end user.
 
 **What to replace with:**
+
 ```tsx
 // Before
 <Text>Error 403: Forbidden</Text>
@@ -185,6 +189,7 @@ Users often perform actions by mistake. Provide a clearly marked "emergency exit
 **Why it matters:** Error recovery is a core usability need — mistakes are inevitable. When users can't undo, anxiety increases and exploration decreases.
 
 **What to replace with:**
+
 ```tsx
 // Before: swipe-to-delete, item disappears forever
 <Swipeable onSwipeRight={() => deleteItem(item.id)}>
@@ -213,6 +218,7 @@ Users should not have to wonder whether different words, situations, or actions 
 **Why it matters:** Consistency reduces learning cost. Every inconsistency forces the user to re-evaluate what an element does. Jakob's Law: users spend most of their time on *other* apps, so deviation from platform norms costs trust.
 
 **What to replace with:**
+
 ```tsx
 // Before: three different patterns for the same action
 <Button title="Save" />
@@ -239,6 +245,7 @@ Even better than good error messages is a careful design that prevents problems 
 **Why it matters:** Prevention is cheaper than recovery — both in engineering time and user frustration. Constraint-based design eliminates entire categories of errors before they happen.
 
 **What to replace with:**
+
 ```tsx
 // Before: free-text price field, validates on submit
 <TextInput value={price} onChangeText={setPrice} />
@@ -266,6 +273,7 @@ Minimize memory load by making objects, actions, and options visible.
 **Why it matters:** Short-term memory holds ~4 chunks. Every piece of information users must hold across screens consumes working memory that should be spent on their actual task.
 
 **What to replace with:**
+
 ```tsx
 // After: carry context forward
 // Screen 2 shows: "Nike Air Max — Select size"

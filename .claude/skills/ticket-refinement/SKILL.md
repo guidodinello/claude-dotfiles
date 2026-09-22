@@ -48,6 +48,7 @@ Use `##` headings for each section (e.g. `### Context`, `### What Needs to Be Bu
 Always wrap the entire output in a markdown code block (` ```markdown ... ``` `) so the user can copy raw markdown directly.
 
 Use backticks for:
+
 - File paths and directory names (e.g. `src/components/Banner.tsx`)
 - Route paths (e.g. `/quiz/step-1`)
 - Field names, parameter names, and HTTP methods (e.g. `GET`, `user_id`)
@@ -76,6 +77,7 @@ A clear list of the concrete deliverables. For each item:
 
 Keep this section high-level — it should read like a feature spec, not a code
 review. Do NOT include:
+
 - Prop names, function signatures, or component internals
 - CSS classes, styling tokens, or layout implementation details
 - State management wiring, hook usage, or data-fetching patterns

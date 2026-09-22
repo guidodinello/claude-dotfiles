@@ -28,10 +28,12 @@ All sections run as parallel subagents to keep the main context clean. The main 
 ## Step 0: Setup
 
 **Resolve output directory:**
+
 - Prefer `docs/audit/` if it exists
 - Otherwise create `.audit-output/` at repo root
 
 **Capture scan metadata** (pass to all subagents):
+
 ```bash
 git rev-parse --short HEAD   # commit hash
 date +%Y-%m-%d               # scan date
@@ -291,6 +293,7 @@ Pull the 6-10 most important items from all sections. Tag each "Before launch" o
 ## Notes for healthcare/HIPAA codebases
 
 If the codebase handles patient data, weight these findings highest regardless of which section they come from:
+
 - PHI logger redaction with no test coverage
 - Silent error swallowing in email/notification paths (audit trail gaps)
 - Magic link token reuse or expiration not enforced

@@ -116,6 +116,7 @@ Work through the classify agent's findings:
 ### 3a. FIXABLE suppressions
 
 For each FIXABLE suppression:
+
 1. Read the relevant file section.
 2. Apply the fix with Edit — change the code to remove the need for the suppression,
    then delete the suppression comment.
@@ -131,6 +132,7 @@ INVESTIGATE list with a note explaining the scope.
 ### 3b. TIGHTEN suppressions
 
 For each TIGHTEN suppression:
+
 1. Read the file. Determine the specific error code (run the linter/typechecker
    without the suppression to see the exact code if uncertain).
 2. Edit the suppression comment to include the code.
@@ -177,15 +179,19 @@ Print a summary table:
 Then print three sections:
 
 ### Fixed (N)
+
 List each suppression that was removed, with the code change made.
 
 ### Tightened (N)
+
 List each bare suppression that now has a specific error code.
 
 ### Remaining — Legitimate (N)
+
 List suppressions that are correct as-is and why.
 
 ### Remaining — Investigate (N)
+
 List suppressions that need manual judgment, with the reason.
 
 Close with: "No commits were made. Run `qa` before pushing."
