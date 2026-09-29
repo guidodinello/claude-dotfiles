@@ -129,13 +129,24 @@ A PR needs review if it has no `reviewed` or `ready-to-merge` label (or has
    herdr agent start <name> --kind opencode --pane <pane-id>
    ```
 
-   Model choice is a judgment call each run — check `opencode models | grep
-   -- '-free$'` for what's currently available; the free tier churns
+   Model choice is a judgment call each run. The free tier churns
    constantly (models get added, withdrawn, or lose their free badge without
-   warning). Don't hardcode a model list in this skill; if you want a
-   specific one, pass it via `-- -m <model>` on `agent start`. If you have no
-   prior signal for what's currently reliable, just take the default model
-   opencode starts with.
+   warning), so don't hardcode a model list in this skill — look up what's
+   free *now*, across every provider opencode is logged into
+   (`opencode auth list`), not just Zen:
+
+   ```bash
+   opencode models | grep -E -- '-free$|:free$|^opencode/big-pickle$'  # Zen, OpenRouter, Kilo
+   opencode models nvidia                                         # NVIDIA NIM: free dev tier, all models
+   opencode models google | grep -E 'gemini-.*flash'              # Gemini API free tier (no billing linked)
+   ```
+
+   Prefer a reviewer from a different provider/family than the model that
+   authored the PR, and when reviewing several PRs in parallel, spread them
+   across providers so one provider's free-tier rate limit doesn't stall
+   every pane. Pass the choice via `-- -m <model>` on `agent start`. If you
+   have no prior signal for what's currently reliable, just take the default
+   model opencode starts with.
 
 3. Prompt it:
 
