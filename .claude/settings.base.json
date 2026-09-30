@@ -21,7 +21,7 @@
       "/home/guido/.local/state/herdr-routines/reports"
     ]
   },
-  "model": "opusplan",
+  "model": "opus",
   "skillOverrides": {
     "audit-consolidation-validator": "off",
     "audit-fact-checker": "off",
@@ -97,19 +97,8 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "~/.claude/statusline.sh",
+    "command": "{{CONFIG_DIR}}/statusline.sh",
     "refreshInterval": 30
-  },
-  "enabledPlugins": {
-    "skill-creator@claude-plugins-official": false,
-    "code-simplifier@claude-plugins-official": false,
-    "engram@engram": true,
-    "claude-code-setup@claude-plugins-official": false,
-    "security-guidance@claude-plugins-official": true,
-    "claude-md-management@claude-plugins-official": false,
-    "code-review@claude-plugins-official": false,
-    "pyright-lsp@claude-plugins-official": true,
-    "rust-analyzer-lsp@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "engram": {
@@ -123,6 +112,7 @@
   "advisorModel": "opus",
   "tui": "fullscreen",
   "skipDangerousModePermissionPrompt": true,
-  "skipAutoPermissionPrompt": true,
-  "agentPushNotifEnabled": true
+  "skipWorkflowUsageWarning": true,
+  "agentPushNotifEnabled": true,
+  "skipAutoPermissionPrompt": true
 }

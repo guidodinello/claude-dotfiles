@@ -215,7 +215,56 @@ If `enablePullRequestAutoMerge` fails with `"Pull request is in unstable
 status"`, that's transient (checks still settling) — just retry once CI
 progresses, don't treat it as a real error.
 
+### Resolve review threads — a reply is not enough
+
+The `development` ruleset sets `required_review_thread_resolution: true`.
+A PR with green CI and auto-merge enabled will sit `BLOCKED` indefinitely
+if **any** review thread is unresolved, and replying to a thread does not
+resolve it. Whenever a finding is addressed or dismissed (including a
+false positive you rebut), resolve the thread explicitly:
+
+```bash
+# list unresolved threads
+gh api graphql -f query='query($n:Int!){repository(owner:"guidodinello",name:"fitted"){pullRequest(number:$n){reviewThreads(first:50){nodes{id isResolved comments(first:1){nodes{path body}}}}}}}' \
+  -F n=<n> --jq '.data.repository.pullRequest.reviewThreads.nodes[]|select(.isResolved==false)'
+# resolve one
+gh api graphql -f query='mutation{resolveReviewThread(input:{threadId:"<PRRT_id>"}){thread{isResolved}}}'
+```
+
+If a PR is `BLOCKED` while every required check is green, check for
+unresolved threads before anything else.
+
 ## Loop until clear
+
+**Watch outcomes, not just merge state.** While waiting on a PR, poll for
+*both* merges and failed check conclusions across every open PR, and wake
+on whichever comes first. A watcher that only waits for "PR X merged"
+will silently sit through other PRs' CI failures (e.g. a new pip-audit
+CVE) and through a thread-resolution block on X itself. Example:
+
+```bash
+prev=$(gh pr list --state open --json number --jq '[.[].number]|sort|join(",")')
+while sleep 30; do
+  cur=$(gh pr list --state open --json number --jq '[.[].number]|sort|join(",")')
+  # iterate via command substitution, not ${cur//,/ } — the user's shell is
+  # zsh, which doesn't word-split unquoted vars, so that form silently
+  # checks one bogus "PR number" and never reports a failure
+  fails=$(for n in $(gh pr list --state open --json number --jq '.[].number'); do gh pr view $n --json statusCheckRollup \
+    --jq ".statusCheckRollup[]|select(.conclusion==\"FAILURE\")|\"$n \(.name)\""; done)
+  [ "$cur" != "$prev" ] || [ -n "$fails" ] && { echo "$prev -> $cur"; echo "$fails"; break; }
+done
+```
+
+Run it in the background, and cap it with a timeout. If it times out
+with nothing merged, go through the `BLOCKED` diagnosis above rather than
+just waiting again.
+
+**Keep runner capacity on PRs.** The self-hosted runner only has a couple
+of job slots. While PRs are still queued, cancel every in-flight `CI` run
+on `development` (each intermediate merge triggers one), and cancel any
+PR run whose `headSha` is no longer the PR's head. Let only the
+`development` run triggered by the *last* merge complete, and confirm it
+passes before wrapping up.
 
 After every merge, re-run `gh pr list --state open` — a merge can conflict
 or re-trigger CI on the remaining PRs (Step 2's re-check applies here too).
