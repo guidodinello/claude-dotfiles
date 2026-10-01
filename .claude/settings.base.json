@@ -57,7 +57,12 @@
     "react-composition-audit": "user-invocable-only",
     "scripts-audit": "user-invocable-only",
     "type-health": "user-invocable-only",
-    "ui-ux-review": "user-invocable-only"
+    "ui-ux-review": "user-invocable-only",
+    "anthropic-skills:google-workspace": "off",
+    "anthropic-skills:import-memory": "off",
+    "anthropic-skills:internal-comms": "off",
+    "anthropic-skills:morning": "off",
+    "anthropic-skills:project-knowledge-update": "off"
   },
   "hooks": {
     "PreToolUse": [
