@@ -60,6 +60,7 @@ are `user-invocable-only` since they're expensive/niche but still useful on dema
 | `/meta-skill-security-audit-improver` | Refreshes OWASP, CWE Top 25, and NIST guidelines in the security-audit skill |
 | `/permissions-audit` | Comprehensive authorization audit across roles, permissions, and auth logic |
 | `/qa-check` | Runs type-check, linting, and tests via the quality-checker subagent (stack-agnostic) |
+| `/recap` | Rebuilds your GitHub, git, ClickUp, Slack and engram activity for a day or range, grouped by ticket, for standups |
 | `/security-audit` | Application security audit covering OWASP Top 10 vulnerability patterns |
 | `/slite-compare-docs` | Compares two Slite documents to check whether one fully supersedes the other |
 | `/slite-to-clickup` | Syncs a Slite document to a ClickUp Doc page (Slite is source of truth) |
