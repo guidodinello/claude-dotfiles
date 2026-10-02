@@ -26,10 +26,18 @@ OPENCODE_DST="${HOME}/.config/opencode"
 #                         .claude/, not from a user config dir
 SKIP_FILES=("settings.json" "settings.base.json" "settings.local.json")
 
-# Keys owned by the config dir, not the repo. Claude Code writes these at
-# runtime (learned auto-mode environment, plugin toggles); a sync must not
-# clobber them, and they must not leak between the personal and work dirs.
-LOCAL_KEYS=("autoMode" "enabledPlugins")
+# Keys owned by the config dir, not the repo. Claude Code and installers write
+# these at runtime (learned auto-mode environment, plugin toggles, the output
+# style gentle-ai sets); a sync must not clobber them, and they must not leak
+# between the personal and work dirs.
+LOCAL_KEYS=("autoMode" "enabledPlugins" "outputStyle")
+
+# Lists that both the repo and installers write to: Orca and herdr register
+# hooks, gentle-ai adds engram permissions and secret-file deny rules. Hooks
+# (per event) and these permission lists are unioned with the live file instead
+# of replaced, so a sync never drops an installer's entry. The cost: removing an
+# entry from the base does not remove it from an existing config dir.
+UNION_PERMISSIONS='["allow","deny","ask","additionalDirectories"]'
 
 GREEN='\033[1;32m'; YELLOW='\033[1;33m'; RED='\033[1;31m'; NC='\033[0m'
 log_info() { echo -e "${GREEN}[INFO]${NC}  $*"; }
@@ -88,18 +96,16 @@ merge_settings() {
     # Read the local keys FIRST: in the old layout this path is a symlink into
     # the repo, and Claude Code wrote runtime keys back through it. Reading
     # follows the link; removing it before reading would discard that state.
-    local local_json="{}"
+    local live_json="{}"
     if [ -f "${current}" ]; then
         if ! jq empty "${current}" 2>/dev/null; then
             log_err "${current} is not valid JSON - refusing to overwrite it."
             return 1
         fi
-        local filter=""
-        for k in "${LOCAL_KEYS[@]}"; do
-            filter="${filter}${filter:+,}\"${k}\""
-        done
-        local_json="$(jq "{${filter}} | with_entries(select(.value != null))" "${current}")"
+        live_json="$(jq . "${current}")"
     fi
+    local local_keys_json
+    local_keys_json="$(printf '%s\n' "${LOCAL_KEYS[@]}" | jq -R . | jq -s .)"
 
     # Now drop the legacy symlink so the generated file is real and per-dir.
     if [ -L "${current}" ]; then
@@ -111,8 +117,20 @@ merge_settings() {
     local merged
     merged="$(jq -n \
         --argjson base "$(sed "s|{{CONFIG_DIR}}|${dst}|g" "${base}")" \
-        --argjson local "${local_json}" \
-        '$base * $local')"
+        --argjson live "${live_json}" \
+        --argjson localKeys "${local_keys_json}" \
+        --argjson unionPerms "${UNION_PERMISSIONS}" '
+        def union($a; $b): reduce ($b // [])[] as $x (($a // []);
+            if any(.[]; . == $x) then . else . + [$x] end);
+        ($live | with_entries(select(.key as $k | $localKeys | index($k)))
+               | with_entries(select(.value != null))) as $own
+        | ($base * $own)
+        | .hooks = (reduce ((($base.hooks // {}) + ($live.hooks // {})) | keys[]) as $ev
+            ({}; .[$ev] = union($base.hooks[$ev]; $live.hooks[$ev])))
+        | reduce $unionPerms[] as $p (.;
+            (union($base.permissions[$p]; $live.permissions[$p])) as $u
+            | if ($u | length) > 0 then .permissions[$p] = $u else . end)
+        | if .hooks == {} then del(.hooks) else . end')"
 
     if [ -f "${current}" ] && [ "$(jq -S . <<<"${merged}")" = "$(jq -S . "${current}")" ]; then
         log_info "settings.json already up to date"
