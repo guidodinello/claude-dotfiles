@@ -5,8 +5,7 @@
       "Bash(op read:*)",
       "Bash(security find-generic-password:*)",
       "Bash(rtk:*)",
-      "mcp__plugin_engram_engram__mem_context",
-      "Edit(//home/guido/.local/state/herdr-routines/reports/**)"
+      "mcp__plugin_engram_engram__mem_context"
     ],
     "deny": [
       "Read(.env*)",
@@ -16,10 +15,7 @@
       "Bash(echo * > *.env*)",
       "Bash(echo * >> *.env*)"
     ],
-    "defaultMode": "auto",
-    "additionalDirectories": [
-      "/home/guido/.local/state/herdr-routines/reports"
-    ]
+    "defaultMode": "auto"
   },
   "model": "opus",
   "skillOverrides": {
@@ -91,18 +87,6 @@
           {
             "type": "command",
             "command": "if [[ $CLAUDE_FILE_PATH == *.json ]]; then jq . \"$CLAUDE_FILE_PATH\" > /dev/null || echo \"Warning: $CLAUDE_FILE_PATH is not valid JSON\"; fi"
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash '/home/guido/.claude/hooks/herdr-agent-state.sh' session",
-            "timeout": 10
           }
         ]
       }
