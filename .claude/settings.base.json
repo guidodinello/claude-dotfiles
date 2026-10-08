@@ -9,6 +9,9 @@
     ],
     "deny": [
       "Read(.env*)",
+      "Read(!.env.example)",
+      "Read(!.env.sample)",
+      "Read(!.env.template)",
       "Edit(**/.env)",
       "Bash(*>> *.env)",
       "Bash(*> *.env)",

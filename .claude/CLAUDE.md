@@ -6,3 +6,4 @@
 
 @guidelines/reasoning-discipline.md
 @guidelines/debugging-patterns.md
+@guidelines/long-running-jobs.md
