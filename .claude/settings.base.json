@@ -8,7 +8,15 @@
       "mcp__plugin_engram_engram__mem_context"
     ],
     "deny": [
-      "Read(.env*)",
+      "Read(**/.env)",
+      "Read(**/.env.local)",
+      "Read(**/.env.*.local)",
+      "Read(**/.env.development)",
+      "Read(**/.env.dev)",
+      "Read(**/.env.test)",
+      "Read(**/.env.staging)",
+      "Read(**/.env.production)",
+      "Read(**/.env.prod)",
       "Edit(**/.env)",
       "Bash(*>> *.env)",
       "Bash(*> *.env)",
