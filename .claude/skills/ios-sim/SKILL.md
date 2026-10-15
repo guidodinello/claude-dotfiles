@@ -80,7 +80,7 @@ The profile in `README.md` holds everything project-specific: dev server URLs an
 
 1. Read the docs folder. Resolve base and PR refs to SHAs (`git rev-parse`).
 2. Run the preflight gates. Pick the default device from the profile; note whether it was already booted.
-3. Boot it only if needed (`xcrun simctl boot <udid>`, then `bootstatus -b`). Record that this run booted it. Start `wir.py hold <udid>` in the background and record its PID: the inspector daemon exits when its last client disconnects and launchd throttles its respawn, so without a held connection chained commands fail with `Broken pipe`. Then run `wir.py selftest <udid>`.
+3. Boot it only if needed (`xcrun simctl boot <udid>`, then `xcrun simctl bootstatus <udid> -b`). Record that this run booted it. Start `wir.py hold <udid>` in the background and record its PID: the inspector daemon exits when its last client disconnects and launchd throttles its respawn, so without a held connection chained commands fail with `Broken pipe`. Then run `wir.py selftest <udid>`.
 4. Create a temporary base worktree: `git worktree add "$(mktemp -d)" <base-sha>`. Install dependencies there and start the base and PR fronts exactly as the profile says. Record the PIDs started.
 5. For each screen, per ref: `xcrun simctl openurl <udid> <url>`, then `wir.py wait <udid> <url>`.
 6. Log in per the gate above using `wir.py fill` and `wir.py click`. Confirm the landing URL with `wir.py eval`.
