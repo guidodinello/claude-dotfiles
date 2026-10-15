@@ -24,7 +24,7 @@ Code on prod that is missing from the next release changes what the simulation m
 Also diff the migrations path: no migration or backfill between prod and next means the simulation has nothing to catch.
 
 ```bash
-git -C <repo> diff --name-only $PROD_SHA $NEXT_SHA -- <migrations-path>
+git -C <repo> diff --name-only $PROD_SHA..$NEXT_SHA -- <migrations-path>
 ```
 
 ## 2. Isolated worktree and stack
@@ -34,7 +34,9 @@ git -C <repo> worktree add --detach <worktree-path> $PROD_SHA
 cd <worktree-path>
 export COMPOSE_PROJECT_NAME=relsim-<change-slug>
 # Override every forwarded host port with free ones (names from the profile):
-export <APP_PORT_VAR>=<free-port> <DB_PORT_VAR>=<free-port> <REDIS_PORT_VAR>=<free-port>
+export <APP_PORT_VAR>=<free-port>
+export <DB_PORT_VAR>=<free-port>
+export <REDIS_PORT_VAR>=<free-port>
 ```
 
 - Check the chosen ports are free before starting (`lsof -iTCP:<port> -sTCP:LISTEN`).
