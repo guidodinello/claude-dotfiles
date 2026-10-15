@@ -54,6 +54,7 @@ are `user-invocable-only` since they're expensive/niche but still useful on dema
 | `/git-brag` | Finds your commits on a path, formatted for perf-review docs |
 | `/hipaa-audit` | HIPAA Security Rule compliance audit for healthcare codebases |
 | `/improve-codebase-architecture` | Surfaces architectural friction and proposes deepening opportunities — refactors that turn shallow modules into deep, testable, AI-navigable ones † |
+| `/ios-sim` | Verifies web UI in real iOS Safari in the Xcode Simulator (viewport units, safe areas, Safari toolbar), measured base vs PR, with a per-project docs folder |
 | `/markdown-to-slite` | Syncs a local Markdown file to a Slite document (local file is source of truth) |
 | `/meta-skill-db-scalability-audit-improver` | Refreshes provider limits and anti-patterns in the db-scalability-audit skill |
 | `/meta-skill-hipaa-audit-improver` | Refreshes regulatory guidance and enforcement cases in the hipaa-audit skill |
