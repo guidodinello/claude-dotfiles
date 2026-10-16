@@ -19,7 +19,7 @@ git -C "$REPO_DIR" worktree add --detach "$WT" origin/HEAD >/dev/null 2>&1 \
 cleanup() { git -C "$REPO_DIR" worktree remove --force "$WT" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
-PROMPT_FILE="$(MAX_DIFF_LINES="${MAX_DIFF_LINES:-20000}" PROMPT_ONLY=1 PR_CHECKOUT_DETACH=1 "$SCRIPT_DIR/dual-review.sh" "$WT" "$PR_NUMBER" $DIFF_BASE | tail -1)"
+PROMPT_FILE="$(MAX_DIFF_LINES="${MAX_DIFF_LINES:-20000}" PROMPT_ONLY=1 PR_CHECKOUT_DETACH=1 "$SCRIPT_DIR/dual-review.sh" "$WT" "$PR_NUMBER" ${DIFF_BASE:+"$DIFF_BASE"} | tail -1)"
 OUT_FILE="$(dirname "$PROMPT_FILE")/review_sonnet.txt"
 echo "Prompt: $PROMPT_FILE" >&2
 

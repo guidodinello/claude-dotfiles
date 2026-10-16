@@ -13,7 +13,9 @@ DIFF_BASE="${3:-}"
 SONNET_DIRECT_LINES="${SONNET_DIRECT_LINES:-1500}"
 
 if [[ -n "$DIFF_BASE" ]]; then
-  lines=$(git -C "$REPO_DIR" diff "$DIFF_BASE"...HEAD | wc -l)
+  # Measure the PR's head, not whatever the caller has checked out.
+  git -C "$REPO_DIR" fetch --quiet origin "pull/$PR_NUMBER/head"
+  lines=$(git -C "$REPO_DIR" diff "$DIFF_BASE"...FETCH_HEAD | wc -l)
 else
   lines=$(cd "$REPO_DIR" && gh pr diff "$PR_NUMBER" | wc -l)
 fi
@@ -21,16 +23,25 @@ echo "PR #$PR_NUMBER diff: $lines lines" >&2
 
 if (( lines > SONNET_DIRECT_LINES )); then
   echo "over $SONNET_DIRECT_LINES lines: straight to Sonnet" >&2
-  exec "$SCRIPT_DIR/sonnet-review.sh" "$REPO_DIR" "$PR_NUMBER" $DIFF_BASE
+  exec "$SCRIPT_DIR/sonnet-review.sh" "$REPO_DIR" "$PR_NUMBER" ${DIFF_BASE:+"$DIFF_BASE"}
 fi
 
 WT="$(mktemp -d)/review-pr-$PR_NUMBER"
 git -C "$REPO_DIR" worktree add --detach "$WT" >/dev/null
-out="$(PR_CHECKOUT_DETACH=1 "$SCRIPT_DIR/dual-review.sh" "$WT" "$PR_NUMBER" $DIFF_BASE 2>&1 || true)"
+status=0
+out="$(PR_CHECKOUT_DETACH=1 "$SCRIPT_DIR/dual-review.sh" "$WT" "$PR_NUMBER" ${DIFF_BASE:+"$DIFF_BASE"} 2>&1)" || status=$?
 git -C "$REPO_DIR" worktree remove --force "$WT" >/dev/null 2>&1 || true
+
+# No RESULTS section: dual-review.sh stopped before reviewing (unknown diff base,
+# failed checkout, ...). Show why and fail instead of exiting 0 with nothing posted.
+if ! grep -q "=== RESULTS ===" <<<"$out"; then
+  echo "$out" >&2
+  echo "dual-review.sh stopped before reviewing (status $status); nothing posted" >&2
+  exit "$(( status == 0 ? 1 : status ))"
+fi
 echo "$out" | grep -E "Output dir|succeeded|exhausted|budget|posted" >&2 || true
 
 if echo "$out" | grep -q "Slot A -> model: none" && echo "$out" | grep -q "Slot B -> model: none"; then
   echo "both opencode slots empty: falling back to Sonnet" >&2
-  exec "$SCRIPT_DIR/sonnet-review.sh" "$REPO_DIR" "$PR_NUMBER" $DIFF_BASE
+  exec "$SCRIPT_DIR/sonnet-review.sh" "$REPO_DIR" "$PR_NUMBER" ${DIFF_BASE:+"$DIFF_BASE"}
 fi

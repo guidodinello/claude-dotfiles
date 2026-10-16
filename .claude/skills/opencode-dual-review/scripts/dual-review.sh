@@ -387,11 +387,12 @@ run_with_model() {
   local status=0
   wait "$run_pid" || status=$?
 
+  pkill -P "$watchdog_pid" 2>/dev/null || true
   kill "$watchdog_pid" 2>/dev/null || true
   wait "$watchdog_pid" 2>/dev/null || true
 
   if [[ "$status" -ne 0 ]]; then
-    echo "Error: opencode call timed out after ${MODEL_TIMEOUT_SECS}s or exited non-zero (status $status)" >> "$out_file"
+    echo "Error: opencode call timed out after ${3:-$MODEL_TIMEOUT_SECS}s or exited non-zero (status $status)" >> "$out_file"
     return 1
   fi
   return 0
@@ -427,7 +428,9 @@ review_slot() {
       local attempt_timeout=$(( remaining < MODEL_TIMEOUT_SECS ? remaining : MODEL_TIMEOUT_SECS ))
       echo "[$slot_name] attempt $attempt with $model" >&2
       if run_with_model "$model" "$out_file" "$attempt_timeout"; then
-        if grep -qi "^Error" "$out_file"; then
+        # Only an output without a verdict counts as an error body: a finding may
+        # legitimately start a line with "Error".
+        if grep -qi "^Error" "$out_file" && ! grep -q -e 'NO_FINDINGS' -e '---FINDING-START---' "$out_file"; then
           echo "[$slot_name] $model returned an error body, retrying/falling back" >&2
           continue
         fi
