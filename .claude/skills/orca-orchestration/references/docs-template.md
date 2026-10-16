@@ -92,7 +92,7 @@ Profile and index for orchestrated implementer runs on <project>. Method: the `o
 - **Files workers must never commit**: <besides .task-brief.md and .orchestrator-answers.md>
 - **Protected files the orchestrator writes for workers**: <e.g. env files under a deny rule>
 - **Consent gates to check in pre-flight**: <tools that prompt before commits>
-- **Permission rules in the orchestrator settings**: <the exact `Bash(...)` rules, with the expanded scripts path>
+- **Permission rules in the orchestrator settings**: <the exact rules, expanded paths, e.g. `Bash(orca terminal send:*)`, `Bash(python3 -I <home>/.claude/skills/orca-orchestration/scripts/*)`, `Bash(<home>/.claude/skills/orca-orchestration/scripts/fb.sh:*)`, `Bash(<home>/.claude/skills/orca-orchestration/scripts/tread.sh:*)`, `Bash(python3 -I <run-dir>/make-brief.py:*)`>
 
 ### Design sign-off
 

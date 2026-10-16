@@ -188,4 +188,5 @@ orca terminal send --terminal <h> --text "" --enter --json             # separat
 | Scratchpad files vanish | New session, new scratchpad | Keep durable things in the docs folder |
 | Shipped UI drifts from the signed-off mockup | Worker got the design as a written description | Point the brief at the saved mockup files |
 | Worker cannot edit a protected file even after the user approves | Its classifier cannot see approvals given to the orchestrator | The orchestrator writes it; the worker commits it |
+| `wstat.py` shows another session's state | The scripts read the newest transcript in the worktree's project dir; a second session there (a tool's reviewer, the user's own) shares it | Check the `file:` line of `wstat.py`; read the right `.jsonl` by hand while the other session is active |
 | Task status flips after an integration merge, and again after a reset | Tracker automation fires on any merge, with a delay | Reset, then sweep all tasks once more before reporting |

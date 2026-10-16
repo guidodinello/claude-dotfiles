@@ -74,6 +74,10 @@ def main():
             f"Your PR base stays `{pr_base}`.\n"
         )
 
+    notes = "\n\n".join(n for n in (read(run / "notes-common.md"), read(run / f"notes-{key}.md")) if n)
+    if notes:
+        notes = "## Coordination notes\n\n" + notes
+
     sections = [
         f"# Task brief: {t['id']} ({t['repo']})",
         "You are an implementer session coordinated by an orchestrator session. Work only in this worktree.",
@@ -89,8 +93,7 @@ def main():
         f"siblings: {merged}. Treat paths and names in the task as leads to confirm against the code; "
         "tasks drafted before sibling work landed can carry stale names.",
         step0.strip(),
-        read(run / "notes-common.md"),
-        read(run / f"notes-{key}.md"),
+        notes,
         "## Git and PR rules (hard)\n\n"
         f"- Branch is set: `{branch}`. Do not rename it.\n"
         f"- PR base: `{pr_base}`.\n"
