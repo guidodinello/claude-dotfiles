@@ -59,6 +59,7 @@ are `user-invocable-only` since they're expensive/niche but still useful on dema
 | `/meta-skill-db-scalability-audit-improver` | Refreshes provider limits and anti-patterns in the db-scalability-audit skill |
 | `/meta-skill-hipaa-audit-improver` | Refreshes regulatory guidance and enforcement cases in the hipaa-audit skill |
 | `/meta-skill-security-audit-improver` | Refreshes OWASP, CWE Top 25, and NIST guidelines in the security-audit skill |
+| `/opencode-dual-review` | Free second-opinion PR review: two opencode models post untriaged inline-comment reviews, with a Sonnet low-effort fallback |
 | `/permissions-audit` | Comprehensive authorization audit across roles, permissions, and auth logic |
 | `/qa-check` | Runs type-check, linting, and tests via the quality-checker subagent (stack-agnostic) |
 | `/recap` | Rebuilds your GitHub, git, ClickUp, Slack and engram activity for a day or range, grouped by ticket, for standups |
