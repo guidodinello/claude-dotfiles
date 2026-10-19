@@ -1,6 +1,6 @@
 ---
 name: dev-docs-index
-description: "Conventions for organizing and navigating a repo's my-dev-things/ folder (a personal non-code knowledge base — docs/, data/, scripts/, etc. — kept alongside a project's code across several client engagements). Use when creating a new subfolder or file under any my-dev-things/, deciding where a new investigation/bug/idea/query doc should live, writing or updating a README.md index there, or when asked to find prior context on a topic inside a my-dev-things/ tree. The core rule: every folder and subfolder needs a README.md index, so the tree stays discoverable without needing to be preloaded into context."
+description: "Conventions for organizing and navigating a repo's my-dev-things/ folder (a personal non-code knowledge base — docs/, data/, scripts/, etc. — kept alongside a project's code across several client engagements). Use when creating a new subfolder or file under any my-dev-things/, deciding where a new investigation/bug/idea/query doc should live, writing or updating a README.md index there, or when asked to find prior context on a topic inside a my-dev-things/ tree. Also owns the my-dev-things/work-guide/ layout and the post-meeting routine (run it when the user pastes a meeting transcript). The core rule: every folder and subfolder needs a README.md index, so the tree stays discoverable without needing to be preloaded into context."
 ---
 
 # my-dev-things/ documentation conventions
@@ -11,7 +11,8 @@ Several projects (e.g. `project-a/my-dev-things/`, `project-b/my-dev-things/`,
 `project-c/my-dev-things/`) keep an accumulated knowledge base alongside their code:
 investigations, bug write-ups, incident reports, feature docs, ready-to-run queries,
 ideas, tool output. It is **not code** — nothing here is loaded automatically, and
-nothing here should be. The failure mode this skill prevents is a doc that exists but is
+nothing here should be. It is also **local**: `my-dev-things/` is gitignored in every repo
+and never committed or shared, so never stage or commit anything under it. The failure mode this skill prevents is a doc that exists but is
 *unreachable*: written once, never linked from anywhere, and effectively lost the next
 time someone (human or Claude) needs the context it holds.
 
@@ -121,6 +122,63 @@ If you're editing an older doc in this tree and touch a claim that has no source
 you still know it. Don't let the gap widen, but don't block unrelated edits on backfilling
 every old citation either.
 
+## The work-guide/ folder and the post-meeting routine
+
+Some repos keep a `my-dev-things/work-guide/` folder: how the user works on that project
+(visibility, pre-presentation checklist, working agreements, weekly cycle) plus a record of
+every meeting. This section owns the parts that are the same in every repo. Each repo's
+`guide.md` owns only its project specifics and links here for the rest.
+
+### Layout
+
+```
+work-guide/
+  README.md      index; links to the raw transcripts folder and meetings/README.md
+  guide.md       project-specific working rules
+  meetings/      one summary per meeting: YYYY-MM-DD-<meeting>.md
+    README.md
+raw/             as-downloaded transcripts, never edited (either my-dev-things/raw/
+  README.md      or work-guide/raw/; the work-guide README says which)
+```
+
+### Post-meeting routine
+
+Run it when the user pastes a meeting transcript or summary.
+
+1. Save the transcript as-is, date first in the file name, into the raw folder the
+   work-guide README links to. Never clean it up: corrections go in the summary.
+2. Write `meetings/YYYY-MM-DD-<meeting>.md`: decisions, the user's pending items (owner
+   and next step), what others owe the user. Cite the raw transcript at the top. Mark
+   every point the transcription garbled as **(unclear)**.
+3. Recall check: ask the user about each **(unclear)** point, one at a time, without
+   showing the transcript snippet first. The user answers from memory, then update the
+   summary with the answer. Show the snippet only if asked. The point is twofold: more
+   accurate notes, and making the user recall the meeting. The notes are personal, so
+   never suggest asking the other participants.
+4. Move actionable items to the repo's tracker as `guide.md` names it. The meeting file
+   is the record, not a tracker.
+
+Before a meeting with someone, read the last file in `meetings/` with them.
+
+### Routing from CLAUDE.local.md
+
+A repo with a work-guide tells Claude when to read it, in its gitignored `CLAUDE.local.md`:
+
+```markdown
+## Work guide (read at these moments)
+
+`my-dev-things/work-guide/guide.md` holds how the user works on this project. Read it,
+without waiting to be asked, when:
+
+- Building an artifact or analysis that will be presented to the team: apply its
+  pre-presentation checklist.
+- The user pastes a meeting transcript or summary: run the post-meeting routine (the
+  `dev-docs-index` skill owns it; `guide.md` adds the project specifics).
+- Planning the week or a demo: apply its visibility and weekly-cycle sections.
+
+Before a meeting with someone, check `work-guide/meetings/` for their last one.
+```
+
 ## Navigating as Claude — read only what the task needs
 
 When looking for prior context on a topic inside a repo's `my-dev-things/`:
@@ -155,8 +213,8 @@ entry point, not the first move.
 
 Some workspaces keep a personal, untracked, cross-repo pending-items index (active
 incident follow-ups, open sweeps, in-flight threads) — e.g. a `PENDING.md` excluded via
-`.git/info/exclude`, not shared project state, unlike the `my-dev-things/` tree itself
-(which is committed and shared).
+`.git/info/exclude`. Like `my-dev-things/` it is local, but it sits outside any repo's
+`my-dev-things/` tree.
 
 If such an index exists in a workspace you're in:
 
