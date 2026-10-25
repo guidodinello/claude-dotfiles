@@ -141,12 +141,58 @@ A PR needs review if it has no `reviewed` or `ready-to-merge` label (or has
    opencode models google | grep -E 'gemini-.*flash'              # Gemini API free tier (no billing linked)
    ```
 
-   Prefer a reviewer from a different provider/family than the model that
-   authored the PR, and when reviewing several PRs in parallel, spread them
-   across providers so one provider's free-tier rate limit doesn't stall
-   every pane. Pass the choice via `-- -m <model>` on `agent start`. If you
-   have no prior signal for what's currently reliable, just take the default
-   model opencode starts with.
+   Then rank them by how their past reviews held up (once per babysit run,
+   not per PR; it is read-only and takes about a minute):
+
+   ```bash
+   python3 <this skill's base directory>/scripts/reviewer_leaderboard.py  # --days 180 default
+   ```
+
+   It prints a per-model table: how often each model's findings were
+   accepted ("Fixed in ...") versus declined by `address-pr-comments`, with
+   accepted % = accepted / (accepted + rejected). Below that it prints a
+   paired-recall table: on commits two models both reviewed, the accepted
+   findings one caught that the other missed. Models with fewer than
+   `--min-samples` (default 10) decided findings are marked `low-sample`
+   instead of ranked. Its names are normalized (`deepseek-v4-flash`), so
+   match them back to the ids `opencode models` printed
+   (`opencode/deepseek-v4-flash-free`).
+
+   Choose from the intersection of "free now" and "ranks well":
+
+   - Prefer the top accepted-% models that are free right now. Use the
+     paired-recall table to break ties: a model that keeps missing what
+     another catches, or that posts very few findings, is weaker than its
+     accepted % suggests.
+   - Avoid a model below about 70% accepted when it has enough samples.
+     Its rejected findings cost an `address-pr-comments` pass and were
+     often factually wrong, not just low-value.
+   - Still prefer a reviewer from a different provider/family than the model
+     that authored the PR, and when reviewing several PRs in parallel,
+     spread them across providers so one provider's free-tier rate limit
+     doesn't stall every pane.
+   - **Exploration sampling:** on about 1 in 5 PRs this run, add a second
+     `/code-review` (its own pane) from a free model with fewer than about 10
+     samples, alongside the best known model. New models then build up a
+     record instead of never being tried. A free model that is missing from
+     the table has 0 samples and qualifies. `code-review` already expects
+     several independent reviews per PR, and two reviews of the same commit
+     are what feed the paired-recall table.
+
+   The leaderboard replaces a model list, so don't write one into this
+   skill. If a model you are weighing is `low-sample` only because it aged
+   out of the window, rerun with a longer `--days` (for example 365) for
+   its history. If it has nothing usable (empty window, or nothing ranked
+   is free now), take the default model opencode starts with. Pass the choice via
+   `-- -m <model>` on `agent start`.
+
+   Read the numbers with these caveats in mind. "Accepted" is judged by the
+   Claude-driven `address-pr-comments`, so it measures whether a finding
+   was *valid*, not how important it was, and leniency on nits inflates
+   nit-heavy reviewers. Footer formats vary and some reviews carry no model,
+   so the table is only as good as the script's normalization map. When a
+   new variant shows up as `unknown` or as a near-duplicate row, extend
+   `MODEL_ALIASES` in the script.
 
 3. Prompt it:
 
