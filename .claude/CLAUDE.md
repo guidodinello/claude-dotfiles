@@ -7,6 +7,7 @@
 @guidelines/reasoning-discipline.md
 @guidelines/debugging-patterns.md
 @guidelines/long-running-jobs.md
+@guidelines/design-principles.md
 
 ## Rules
 
@@ -65,4 +66,6 @@ MCP server instructions and the SessionStart hook. Always-on rules:
 You have access to Engram persistent memory via MCP tools (mem_save, mem_search, mem_session_summary, etc.).
 - Save proactively after significant work — don't wait to be asked.
 - After any compaction or context reset, call `mem_context` to recover session state before continuing.
+- Use `scope: project` for knowledge a teammate's agent should find (it may be shared via Engram Cloud) and `scope: personal` for notes only useful to you.
+- Never save secrets, credentials, PHI, patient data or client PII in memory.
 <!-- /lightit-ai:engram -->

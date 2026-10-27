@@ -212,6 +212,12 @@ CREATE UNIQUE INDEX uix_products_external_id ON products(external_id);
 -- If only one NULL should be allowed, enforce with a CHECK constraint instead
 ```
 
+### Column comments are user-facing
+
+Column and table comments surface in BI tools (Metabase, etc.) as descriptions.
+Write them for that reader: self-explanatory, no ticket ids or internal story
+numbers.
+
 ---
 
 ## Foreign keys and cascade behavior
