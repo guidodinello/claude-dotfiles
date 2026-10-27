@@ -131,9 +131,9 @@ cheap guard: a type beats a test, a test beats a comment.
 
 Walk `principles.md` §2 for the attributes Step 3 surfaced. Raise a finding
 only when you can point at code that shows the smell. Every principle-based
-finding names the principle, its catalog ID, and its source link. Also note a
-principle the PR applies well when it explains a decision - that is part of
-the design record, not praise.
+finding names the principle, its catalog ID, and its source link. Also record
+the principle a decision applies, in the `Principle` column of section 2 -
+that is part of the design record, not praise.
 
 ## Step 6 - Write the report
 
@@ -155,8 +155,8 @@ Keep it short: the reader should finish in under five minutes.
 
 ### 2. Quality attributes
 
-| Decision | Attribute (ISO/IEC 25010) | Where the code delivers it |
-|----------|---------------------------|----------------------------|
+| Decision | Attribute (ISO/IEC 25010) | Where the code delivers it | Principle |
+|----------|---------------------------|----------------------------|-----------|
 
 ### 3. Trade-offs
 

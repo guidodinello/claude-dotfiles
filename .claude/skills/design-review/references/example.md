@@ -32,8 +32,7 @@ tests, a post-map assertion, and boot-time checks hold the policy in place.
   that drifts from the entities (explicit, PR description).
 - **Rejected:** keying the policy on the column comment text - it failed open:
   a comment one character off silently loaded real data, and it tied behavior
-  to documentation wording (explicit, PR description and an earlier revision
-  in this PR).
+  to documentation wording (explicit, PR description).
 - **Why:** the policy must not be forgettable when a column is added; putting
   it on the column makes adding a column without a policy decision visible in
   review and detectable by a test.
@@ -62,14 +61,14 @@ tests, a post-map assertion, and boot-time checks hold the policy in place.
 
 ### 2. Quality attributes
 
-| Decision | Attribute (ISO/IEC 25010) | Where the code delivers it |
-|----------|---------------------------|----------------------------|
-| D1 | Security / Confidentiality | Registry is the only input to the filter; an unregistered column cannot be "hidden by accident", and the drift test catches an undecorated one |
-| D1 | Maintainability / Modifiability | Policy lives on the column it governs; the deriver sits next to its column (`@DerivedColumn(statusHistoryDeriver)`) |
-| D2 | Security / Confidentiality | `BaseLoad.run()` is the single path from raw DTO to mapper |
-| D2 | Reliability / Faultlessness | Post-map assertion and boot checks fail the run instead of loading wrong data |
-| D3 | Security / Confidentiality | Scalar-only allowlist drops nested free text |
-| D3 | Maintainability / Analysability | `DerivedValue` tells the mapper exactly what a derived column contains |
+| Decision | Attribute (ISO/IEC 25010) | Where the code delivers it | Principle |
+|----------|---------------------------|----------------------------|-----------|
+| D1 | Security / Confidentiality | Registry is the only input to the filter; an unregistered column cannot be "hidden by accident", and the drift test catches an undecorated one | P1 Fail-safe defaults |
+| D1 | Maintainability / Modifiability | Policy lives on the column it governs; the deriver sits next to its column (`@DerivedColumn(statusHistoryDeriver)`) | P14 One authoritative representation, P15 Locality of behaviour |
+| D2 | Security / Confidentiality | `BaseLoad.run()` is the single path from raw DTO to mapper | P2 Complete mediation |
+| D2 | Reliability / Faultlessness | Post-map assertion and boot checks fail the run instead of loading wrong data | P5 Separation of privilege (the post-map assertion is a second, independent check) |
+| D3 | Security / Confidentiality | Scalar-only allowlist drops nested free text | P1 Fail-safe defaults |
+| D3 | Maintainability / Analysability | `DerivedValue` tells the mapper exactly what a derived column contains | P9 Parse, don't validate |
 
 ### 3. Trade-offs
 

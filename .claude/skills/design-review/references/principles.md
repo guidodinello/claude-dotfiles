@@ -19,10 +19,12 @@ Section 3 lists every source and how it was verified.
 ### 1.1 Quality attribute vocabulary - ISO/IEC 25010:2023
 
 ISO/IEC 25010 is the product quality model of the SQuaRE series. Edition 2
-was published in November 2023 and is "composed of nine characteristics
-(which are further subdivided into subcharacteristics)"
-([ISO catalogue](https://www.iso.org/standard/78176.html)). The breakdown
-below is as listed by [arc42 Quality](https://quality.arc42.org/standards/iso-25010):
+was published in November 2023 and is composed of nine characteristics, each
+subdivided into subcharacteristics
+([ISO catalogue](https://www.iso.org/standard/78176.html); wording taken from
+search results, the page refused direct access). The breakdown below follows
+[arc42 Quality](https://quality.arc42.org/standards/iso-25010) and, for
+Maintainability and Flexibility, [SonarSource's ISO/IEC 25010 guide](https://www.sonarsource.com/resources/library/iso-iec-25010-explained/):
 
 | Characteristic | Subcharacteristics |
 |----------------|--------------------|
@@ -32,18 +34,18 @@ below is as listed by [arc42 Quality](https://quality.arc42.org/standards/iso-25
 | Interaction capability | Appropriateness recognizability, Learnability, Operability, User error protection, User engagement, Inclusivity, User assistance, Self-descriptiveness |
 | Reliability | Faultlessness, Fault tolerance, Availability, Recoverability |
 | Security | Confidentiality, Integrity, Non-repudiation, Accountability, Authenticity, Resistance |
-| Maintainability | Modularity, Reusability, Analysability, Modifiability |
-| Flexibility | Testability, Adaptability, Scalability, Installability, Replaceability |
+| Maintainability | Modularity, Reusability, Analysability, Modifiability, Testability |
+| Flexibility | Adaptability, Scalability, Installability, Replaceability |
 | Safety | Operational constraints, Risk identification, Fail safe, Hazard warning, Safe integration |
 
-The 2023 edition renamed and regrouped terms from the 2011 edition that many
-people still use. Use the 2023 names in reports:
+The 2023 edition renamed terms from the 2011 edition that many people still
+use (Portability also became Flexibility, and Safety is new). Use the 2023
+names in reports:
 
 | Common (2011-era) term | 2023 term to write |
 |------------------------|--------------------|
 | Usability | Interaction capability |
 | Understandability | Interaction capability / Self-descriptiveness (for users) or Maintainability / Analysability (for developers) |
-| Testability (under Maintainability) | Flexibility / Testability, as listed by arc42 |
 
 In a report, write `Characteristic / Subcharacteristic`, for example
 `Security / Confidentiality` or `Maintainability / Modifiability`.
@@ -100,7 +102,7 @@ From *Building Evolutionary Architectures* (O'Reilly), as quoted by the
 an architectural fitness function "provides an objective integrity assessment
 of some architectural characteristics" and "may encompass existing
 verification criteria, such as unit testing, metrics, monitors, and so on."
-Book chapter: [Chapter 2, Fitness Functions](https://oreilly.com/library/view/building-evolutionary-architectures/9781492097532/ch02.html).
+Book chapter (paywalled, not opened): [Chapter 2, Fitness Functions](https://oreilly.com/library/view/building-evolutionary-architectures/9781492097532/ch02.html).
 
 Use it in Step 4: a guard counts as a fitness function when it runs without a
 human and fails loudly. A test that was never seen failing has not been shown
@@ -141,7 +143,7 @@ attribute each principle mainly serves.
 - **Source:** [Saltzer & Schroeder, "The Protection of Information in Computer
   Systems" (1975)](https://www.cs.virginia.edu/~evans/cs551/saltzer/).
   House rule: "Privacy and security controls fail closed"
-  (`.claude/guidelines/design-principles.md`).
+  (`~/.claude/guidelines/design-principles.md`).
 
 #### P2 - Complete mediation
 
@@ -203,7 +205,7 @@ attribute each principle mainly serves.
 - **Smell:** `if (comment.includes(...))`, matching on an error message,
   branching on a display label.
 - **Ask:** What breaks if someone fixes a typo in this string?
-- **Source:** House rule, `.claude/guidelines/design-principles.md`.
+- **Source:** House rule, `~/.claude/guidelines/design-principles.md`.
 
 ### Functional correctness and reliability
 
@@ -371,18 +373,20 @@ attribute each principle mainly serves.
 
 ## 3. Sources
 
-All URLs were opened on 2026-10-27 to confirm the quoted wording.
+Checked on 2026-10-27. Every URL was opened to confirm the quoted wording,
+except where the Notes column says otherwise.
 
 | Source | URL | Notes |
 |--------|-----|-------|
-| ISO/IEC 25010:2023, catalogue entry | <https://www.iso.org/standard/78176.html> | Edition and structure only; the standard itself is paywalled |
-| arc42 Quality, ISO 25010 breakdown | <https://quality.arc42.org/standards/iso-25010> | Characteristic and subcharacteristic names |
+| ISO/IEC 25010:2023, catalogue entry | <https://www.iso.org/standard/78176.html> | Returned 403; edition and structure confirmed from search results only. The standard itself is paywalled |
+| arc42 Quality, ISO 25010 breakdown | <https://quality.arc42.org/standards/iso-25010> | Characteristic and subcharacteristic names. Its page placed Testability under Flexibility; SonarSource places it under Maintainability, which this file follows |
+| SonarSource, "ISO/IEC 25010 explained" | <https://www.sonarsource.com/resources/library/iso-iec-25010-explained/> | Maintainability and Flexibility subcharacteristics |
 | Barbacci et al., *Quality Attribute Workshops, 3rd ed.* (SEI, 2003) | <https://www.sei.cmu.edu/documents/716/2003_005_001_14249.pdf> | Six-part scenario, §3.8 |
 | SEI, ATAM collection | <https://www.sei.cmu.edu/library/architecture-tradeoff-analysis-method-collection/> | Purpose and outputs; the page does not define the terms |
 | Nygard, "Documenting Architecture Decisions" (2011) | <https://www.cognitect.com/blog/2011/11/15/documenting-architecture-decisions> | |
 | MADR 4.0.0 | <https://adr.github.io/madr/> | |
 | Saltzer & Schroeder (1975) | <https://www.cs.virginia.edu/~evans/cs551/saltzer/> | Mirror; the MIT copy returned 404 |
-| Ford, Parsons, Kua, fitness functions | <https://www.thoughtworks.com/radar/techniques/architectural-fitness-function> | Book chapter: <https://oreilly.com/library/view/building-evolutionary-architectures/9781492097532/ch02.html> |
+| Ford, Parsons, Kua, fitness functions | <https://www.thoughtworks.com/radar/techniques/architectural-fitness-function> | Radar page opened; the O'Reilly chapter returned 403 and was not read |
 | Parnas (1972) | <https://www.cs.lafayette.edu/~gexia/cs301/resources/parnas.html> | ACM "Classic of the Month" reprint |
 | Ousterhout, *A Philosophy of Software Design* | <https://danlebrero.com/2021/02/24/philosophy-of-software-design-summary/>, <https://dev.to/markadel/a-philosophy-of-software-design-summary-pk9> | Verified through secondary summaries only; the book is not online |
 | Minsky, "Effective ML Revisited" | <https://blog.janestreet.com/effective-ml-revisited/> | |
