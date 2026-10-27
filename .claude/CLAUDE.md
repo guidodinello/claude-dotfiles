@@ -7,6 +7,7 @@
 @guidelines/reasoning-discipline.md
 @guidelines/debugging-patterns.md
 @guidelines/long-running-jobs.md
+@guidelines/design-principles.md
 
 <!-- gentle-ai:persona -->
 ## Rules
