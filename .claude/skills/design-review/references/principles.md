@@ -7,6 +7,12 @@
 > **Rule**: a principle-based finding cites the catalog ID and the source link
 > from this file. If a concern does not map to an entry here, phrase it as an
 > open question, not a finding.
+>
+> **House rules**: entries whose source is the user's own guidelines
+> (`~/.claude/guidelines/design-principles.md`) are marked **House rule**.
+> They need no URL: cite them as "house rule" plus the file path, for example
+> `Principle: Do not key behavior on human-readable text (P7, house rule
+> ~/.claude/guidelines/design-principles.md)`.
 
 Nothing here is original. Every entry links the source it was taken from;
 quotes are verbatim from the linked page, and paraphrases are marked as such.
@@ -64,12 +70,12 @@ parts ([Barbacci et al., *Quality Attribute Workshops, 3rd ed.*, CMU/SEI-2003-TR
 5. artifact stimulated - the artifact that was stimulated
 6. response measure - the measure by which the system's response will be evaluated
 
-Use it in Step 3 when a claim is vague. "The policy improves security"
-becomes: *a developer (source) adds a column to an entity (stimulus) during
-normal development (environment); the load (artifact) refuses to start or a
-test fails (response) before the column can reach the reporting database
-(measure: zero unreviewed columns loaded).* If the code cannot deliver that
-response, the claim is not earned.
+Use it in Step 3 when a claim is vague. "The retry logic improves
+reliability" becomes: *an upstream service (source) times out (stimulus)
+under normal load (environment); the order service (artifact) retries with
+backoff and the order completes (response) without a duplicate charge
+(measure: zero duplicates, p99 latency under 3 s).* If the code cannot
+deliver that response, the claim is not earned.
 
 ### 1.3 Decision records - Nygard ADRs and MADR
 
@@ -138,11 +144,11 @@ attribute each principle mainly serves.
   conditions, so mistakes block access instead of exposing data (paraphrase
   after the quote).
 - **Smell:** a denylist of what to hide; an unknown value, missing marker, or
-  parse error that falls through to "allow" or "load as-is".
+  parse error that falls through to "allow" or "pass through unchanged".
 - **Ask:** If the policy cannot decide, what happens - hide or expose?
 - **Source:** [Saltzer & Schroeder, "The Protection of Information in Computer
   Systems" (1975)](https://www.cs.virginia.edu/~evans/cs551/saltzer/).
-  House rule: "Privacy and security controls fail closed"
+  Also a **House rule**: "Privacy and security controls fail closed"
   (`~/.claude/guidelines/design-principles.md`).
 
 #### P2 - Complete mediation
@@ -205,7 +211,8 @@ attribute each principle mainly serves.
 - **Smell:** `if (comment.includes(...))`, matching on an error message,
   branching on a display label.
 - **Ask:** What breaks if someone fixes a typo in this string?
-- **Source:** House rule, `~/.claude/guidelines/design-principles.md`.
+- **Source:** **House rule**, `~/.claude/guidelines/design-principles.md`
+  (no URL; cite as "house rule" plus the path).
 
 ### Functional correctness and reliability
 
@@ -248,7 +255,7 @@ attribute each principle mainly serves.
 - **Statement:** record how compliance with a decision is checked, for example
   by a review or an automated test.
 - **Smell:** a decision that only holds while everyone remembers it ("all
-  loads must call X").
+  handlers must call X").
 - **Ask:** What tells us when the codebase drifts away from this decision?
 - **Source:** [MADR 4.0.0, "Confirmation"](https://adr.github.io/madr/).
 
@@ -287,8 +294,8 @@ attribute each principle mainly serves.
   three different representations will most likely fall out of step with
   each other."
 - **Smell:** a second list, map, or config that mirrors facts already declared
-  elsewhere (a list of sensitive columns next to the entity that defines
-  them). DRY is about knowledge, not similar-looking code.
+  elsewhere (a hand-kept list of routes that mirrors the router, a
+  constant that restates a database enum). DRY is about knowledge, not similar-looking code.
 - **Ask:** If this fact changes, how many places must be edited, and what
   catches a missed one?
 - **Source:** [Bill Venners, interview with Dave Thomas, "Orthogonality and the
@@ -368,6 +375,25 @@ attribute each principle mainly serves.
 - **Smell:** a non-obvious choice with no mention of the obvious alternative.
 - **Ask:** What else did you consider, and why not that?
 - **Source:** [MADR 4.0.0, "Considered Options"](https://adr.github.io/madr/).
+
+### Common tensions
+
+The catalog is not a checklist where every box can be ticked; several entries
+pull against each other. When a decision picks one side, record it in the
+report's Trade-offs table as `Tension P<a> vs P<b>: <what was given up>`, not
+as a violation of the losing principle. Raise it as a risk only when the side
+picked looks wrong for this change, and say why.
+
+| Tension | How it shows up |
+|---------|-----------------|
+| P15 vs P14 - locality vs one representation | Repeating a rule next to each use keeps it visible but creates copies that drift. Gross's essay names this trade-off itself. |
+| P15 vs P12 - locality vs separation of concerns | Gross notes that separation of concerns "is, however, in conflict with LoB"; hiding a decision in its own module moves it away from where it acts. |
+| P2 vs P15 - single choke point vs locality | One enforcing middleware or base class means the unit it protects no longer shows the behavior. |
+| P10 vs P14 - complete guard vs one representation | An exhaustive snapshot or expected-value test is a second copy of what it guards; it must change in lockstep, which is the point, but it is still churn. |
+| P10 vs P3 - complete guard vs small, reviewable mechanism | A guard that checks everything grows with the system until no reviewer reads it; prefer a generated or structural check over a long hand-written list. |
+| P5 vs P3 - second key vs economy of mechanism | An independent second check catches what the first misses, at the cost of more protection code to inspect. |
+| P12 vs P18 - hide a likely change vs solve today's problem | Hiding a decision behind an interface costs an abstraction now; justify it with evidence that the decision will change, not a hunch. |
+| P1 vs P6 - fail closed vs easy to use | A strict default rejects some legitimate requests; the safe path must stay the easy one or developers route around it. |
 
 ---
 

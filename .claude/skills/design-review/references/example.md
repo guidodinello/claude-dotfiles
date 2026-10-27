@@ -1,111 +1,129 @@
-# Worked example - an analytics column-privacy policy
+# Worked example - payment idempotency keys
 
 > **Purpose**: a complete `/design-review` report in the exact output format of
-> SKILL.md Step 6. The change is synthetic: names, paths, and counts are
+> SKILL.md Step 6. The change is synthetic: names, paths, and numbers are
 > illustrative, and no real system, client, or person is described.
 >
-> **Context for the reader of this example**: a nightly ETL copies records
-> from an EHR into a reporting database used by a BI tool. The PR adds a
-> per-column privacy policy. Each column is KEEP (copied as-is), HIDE (loaded
-> as null), or DERIVE (replaced by an allowlisted subset, for example only
-> `status` and `changed_at` from each entry of a status-history array).
+> **This is a format reference, not an answer key.** Its decisions, guards,
+> and findings belong to this invented change. Do not look for them in the PR
+> under review; derive every entry from that PR's own diff and description.
+>
+> **Context for the reader of this example**: a payments API calls an external
+> card processor. Mobile clients retry on timeouts, and some retries produced
+> double charges. The PR adds an `Idempotency-Key` header to the payment
+> endpoints.
 
 ---
 
-## Design review - Add column-privacy policy to the reporting ETL (#123)
+## Design review - Add idempotency keys to the payments API (#482)
 
-**Summary.** The PR declares a KEEP / HIDE / DERIVE policy for every column of
-the ETL's reporting entities, directly on the ORM entity, and enforces it in
-the one base class every load extends. Hidden columns arrive as null and
-derived columns as an allowlisted, scalar-only subset. Drift and snapshot
-tests, a post-map assertion, and boot-time checks hold the policy in place.
+**Summary.** The PR adds an `idempotency_keys` table and a middleware on the
+payments router. The first request with a key records it as pending in the
+same transaction that starts the charge; a retry with the same key and body
+replays the stored response, a concurrent one gets 409, and a reuse with a
+different body gets 422. Requiring the header is behind a flag until client
+SDKs send it.
 
 ### 1. Decisions
 
-#### D1 - Policy declared on the entity through custom decorators
+#### D1 - Keys persisted in the primary database with a unique index
 
-- **Chose:** `@HiddenColumn()` and `@DerivedColumn(deriver)` wrap the ORM's
-  column decorator, force the database column comment, and register the
-  column in a registry keyed by entity class (`etl/policy/decorators.ts`,
-  `etl/policy/registry.ts`). 56 entity columns are annotated.
-- **Rejected:** a separate list of hidden columns - a second source of truth
-  that drifts from the entities (explicit, PR description).
-- **Rejected:** keying the policy on the column comment text - it failed open:
-  a comment one character off silently loaded real data, and it tied behavior
-  to documentation wording (explicit, PR description).
-- **Why:** the policy must not be forgettable when a column is added; putting
-  it on the column makes adding a column without a policy decision visible in
-  review and detectable by a test.
+- **Chose:** a table `idempotency_keys (client_id, key, request_hash, state,
+  response)` with a unique index on `(client_id, key)`
+  (`db/migrations/0142_idempotency_keys.sql`).
+- **Rejected:** a cache entry with a TTL - evicted entries let a retry
+  charge twice (explicit, PR description).
+- **Rejected:** deduplicating on a hash of the request body alone - two
+  legitimate identical payments would collide (implied).
+- **Why:** the guarantee must survive restarts and replicas, and the database
+  is already the transactional boundary of a payment.
 
-#### D2 - Enforcement at a single choke point, with independent second checks
+#### D2 - Enforcement in one router middleware, opted into per route
 
-- **Chose:** `BaseLoad.run()` applies the policy to the raw DTO before
-  mapping; a post-map assertion checks that every hidden column is null; boot
-  checks refuse to start if a dedupe key is a hidden or derived column
-  (`etl/loads/base-load.ts`, `etl/policy/boot-checks.ts`).
-- **Rejected:** applying the policy in each load's mapper (implied) -
-  repeated per load and skippable by a new one.
-- **Why:** every load already extends `BaseLoad`, so one call site covers all
-  current and future loads.
+- **Chose:** `idempotencyMiddleware` mounted on the payments router; each
+  mutating route declares `idempotent: true` in its route options
+  (`api/payments/router.ts`, `api/middleware/idempotency.ts`).
+- **Rejected:** a check inside each handler (implied) - repeated, and a new
+  handler can forget it.
+- **Why:** one choke point that every payment mutation passes through.
 
-#### D3 - Derivers parse unknown input into a precise output type
+#### D3 - A key is bound to a request fingerprint and fails closed on mismatch
 
-- **Chose:** derivers take `unknown`, narrow it, and return `DerivedValue`;
-  allowlists keep only scalar values, so a nested object or free-text field is
-  dropped (`etl/policy/derivers.ts`).
-- **Rejected:** typing derivers against the source record shape (implied) -
-  the source is untyped JSON from the EHR, so the type would be a claim, not a
-  proof.
-- **Why:** a deriver is the last thing between raw clinical data and the
-  reporting database; it must fail closed on shapes it does not recognize.
+- **Chose:** the first request stores `request_hash`; a later request with the
+  same key and a different hash gets 422 and is not processed.
+- **Rejected:** last write wins (implied) - a client bug reusing keys would
+  silently drop a payment.
+- **Why:** reusing a key for a different payment is a client error the API
+  should surface, not guess around.
+
+#### D4 - In-flight state as an explicit, constrained state machine
+
+- **Chose:** `state` is `pending` or `completed`; the TypeScript type is a
+  union where only `completed` carries `response`, and a `CHECK` constraint
+  requires `response IS NOT NULL` when `state = 'completed'`. A concurrent
+  duplicate of a `pending` key gets 409.
+- **Rejected:** an in-process lock (implied) - does not hold across replicas.
+- **Why:** a timeout during the processor call must leave a record a retry
+  can reason about.
 
 ### 2. Quality attributes
 
 | Decision | Attribute (ISO/IEC 25010) | Where the code delivers it | Principle |
 |----------|---------------------------|----------------------------|-----------|
-| D1 | Security / Confidentiality | Registry is the only input to the filter; an unregistered column cannot be "hidden by accident", and the drift test catches an undecorated one | P1 Fail-safe defaults |
-| D1 | Maintainability / Modifiability | Policy lives on the column it governs; the deriver sits next to its column (`@DerivedColumn(statusHistoryDeriver)`) | P14 One authoritative representation, P15 Locality of behaviour |
-| D2 | Security / Confidentiality | `BaseLoad.run()` is the single path from raw DTO to mapper | P2 Complete mediation |
-| D2 | Reliability / Faultlessness | Post-map assertion and boot checks fail the run instead of loading wrong data | P5 Separation of privilege (the post-map assertion is a second, independent check) |
-| D3 | Security / Confidentiality | Scalar-only allowlist drops nested free text | P1 Fail-safe defaults |
-| D3 | Maintainability / Analysability | `DerivedValue` tells the mapper exactly what a derived column contains | P9 Parse, don't validate |
+| D1 | Functional suitability / Functional correctness | Unique index makes a second charge for one key a constraint violation, not a race | P8 Make illegal states unrepresentable |
+| D2 | Security / Integrity | Every route with `idempotent: true` passes through `idempotencyMiddleware` | P2 Complete mediation |
+| D3 | Security / Integrity | Hash mismatch returns 422 before the handler runs | P1 Fail-safe defaults |
+| D4 | Reliability / Fault tolerance | A retry after a processor timeout finds `pending` and gets 409 instead of charging again | - |
+| D4 | Maintainability / Analysability | `IdempotencyRecord` union: a completed record without a response cannot be built | P8 Make illegal states unrepresentable |
 
 ### 3. Trade-offs
 
 | Decision | Cost | Accepted because |
 |----------|------|------------------|
-| D1 | A custom decorator the team must learn; 56 entity columns touched in one PR | One source of truth beats a parallel list (P14); the churn is one-time |
-| D1 | Couples the ORM entities to the ETL policy module | The entities exist only for the reporting database |
-| D2 | Every load pays the filter and the post-map assertion | Per-row cost is small next to the nightly batch's I/O |
-| D3 | One `as` cast remains in the function that builds the policed DTO from runtime keys | Keeps the downstream mapper fully typed; the cast is confined to one function |
+| D1 | One extra write and index lookup per payment request | Payment volume is low next to the cost of a double charge |
+| D2 | Tension P2 vs P15: a handler no longer shows that it is idempotent; the behavior lives in the middleware | The `idempotent: true` route option keeps a marker next to the route |
+| D3 | Clients that re-serialize a body differently on retry get 422 (see R1) | Failing closed is safer than processing an ambiguous request |
+| D4 | A crash between "pending" and "completed" blocks the key until the sweeper expires it | Clients get 409 and can retry with backoff |
 
 ### 4. Invariants and their guards
 
 | Invariant | Guard | Kind | Fitness function? |
 |-----------|-------|------|-------------------|
-| Every policy column is decorated and carries its comment | Drift test over all entity metadata | Test | Yes - shown failing by temporarily removing a decorator |
-| The full policy map matches the agreed spreadsheet | Expected-policy snapshot test | Test | Yes |
-| A derived column has a deriver | `@DerivedColumn(deriver)` requires the argument | Type (compile time) | Yes - the illegal state is unrepresentable (P8) |
-| Hidden columns are null after mapping | Post-map assertion in `BaseLoad.run()` | Runtime assertion | Yes - fails the run |
-| A dedupe key is never a hidden or derived column | Boot check | Boot-time check | Yes |
-| Every load extends `BaseLoad` | None | Convention only | No |
+| At most one charge per `(client_id, key)` | Unique index | DB constraint | Yes |
+| A completed record always has a stored response | `CHECK` constraint and the `IdempotencyRecord` union | DB constraint, Type | Yes |
+| Every mutating payments route declares `idempotent: true` | `routes.idempotency.test.ts` | Test | Partly - runs in the `pre-push` hook only, not in CI, so `--no-verify` skips it |
+| A `pending` key is resolved or expired within 15 minutes | Sweeper job in the worker process | Scheduled job | No - nothing alerts if the sweeper stops running |
 
-**Unguarded:** "every load extends `BaseLoad`" - see R1.
+**Unguarded:**
+
+- **U1 - Pending keys can block forever.** If the worker is down, no request
+  with a stuck key can complete. Principle: Guard each invariant with a
+  fitness function (P10, [Thoughtworks Radar](https://www.thoughtworks.com/radar/techniques/architectural-fitness-function)).
+  Cheapest guard: an alert on the age of the oldest `pending` row.
+- **U2 - Route coverage test is skippable (partly guarded).** Running
+  `routes.idempotency.test.ts` in the CI test job makes it automatic.
+  Principle: P10, as above.
 
 ### 5. Risks and open questions
 
-- **R1 - A load that bypasses `BaseLoad` skips the policy.** All current loads
-  extend it, but nothing stops a new one from writing to the reporting database
-  directly. Principle: Complete mediation (P2, [Saltzer & Schroeder](https://www.cs.virginia.edu/~evans/cs551/saltzer/))
-  and Guard each invariant with a fitness function (P10, [Thoughtworks Radar](https://www.thoughtworks.com/radar/techniques/architectural-fitness-function)).
-  Question for the team: add a test that every class registered as a load is a
-  `BaseLoad` subclass, or accept the convention?
-- **Q1 - Column comments are now user-facing text.** The BI tool surfaces
-  column comments as field descriptions, so the forced comment was rewritten
-  for that reader ("Hidden by design: always empty, kept out of reporting to
-  protect patient data."). Since the policy is keyed on the decorator, not the
-  text (P7), rewording is safe; the open question is who owns that copy.
+- **R1 - The fingerprint hashes raw bytes, not the parsed request.**
+  `hashRequest()` in `api/middleware/idempotency.ts` hashes the raw JSON body,
+  so a client retry that reorders keys or changes whitespace gets 422.
+  Principle: Parse, don't validate (P9, [King](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/)).
+  Question for the team: hash the parsed, canonicalized payment request
+  instead?
+- **Q1 - Who turns on `REQUIRE_IDEMPOTENCY_KEY`, and when?** See section 6.
+- Unguarded invariants: see section 4 (U1, U2).
 
-Coverage: read the full diff, the PR description, `BaseLoad` and three
-existing loads, and the ORM column decorator. Did not read the BI tool's
-configuration or run the tests.
+### 6. Rollout and data migration
+
+- **Deploy order:** migration `0142` (a new, empty table) runs before the app
+  deploy; the middleware queries the table on every payment request.
+- **Exposure window:** until `REQUIRE_IDEMPOTENCY_KEY` is on, requests without
+  the header are processed without deduplication - today's behavior, so no
+  regression, but no protection either.
+- **Backfill:** none; keys apply only to new requests.
+
+Coverage: read the full diff, the PR description, the payments router, two
+handlers, and the worker's job registry. The linked ticket could not be
+opened; worked from the PR text and code. Did not run the tests.
