@@ -874,24 +874,12 @@ def flatten(nested):
 
 ## Tests
 
-Every non-trivial module needs tests. Use the `/write-tests` skill: it holds
-the rules (T1–T39) and their sources. The short version:
+Write and review tests with the `/write-tests` skill; it holds the principles.
+Python specifics:
 
-- Test observable behaviour through the public API, not implementation
-  details.
-- Every test must be able to fail: see it go red once before trusting it.
-- Deterministic and order-independent: no real network or clock, no bare
-  sleeps, no shared state between tests.
-- Doubles only at real boundaries, constrained to the real API
-  (`create_autospec` / `spec_set`), never a bare `MagicMock()`.
-
-```bash
-uv run pytest tests/ -v
-```
-
-Name each test file after the unit it tests (`test_<module>.py`), not after a
-ticket or a generic bucket. A project's own conventions (its `CLAUDE.md`,
-ADRs, `.claude/rules/testing.md`) override this section.
+- Runner: `uv run pytest tests/ -v`, with fixtures for setup.
+- Doubles: `create_autospec` / `spec_set`, never a bare `MagicMock()`.
+- Properties: `hypothesis`. Exceptions: `pytest.raises(SpecificError, match=...)`.
 
 ---
 
