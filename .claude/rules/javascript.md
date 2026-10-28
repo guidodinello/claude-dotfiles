@@ -492,23 +492,13 @@ only when the code runs server-side under Node, not in a browser.
 
 ## Tests
 
-Every non-trivial module needs tests. Use the `/write-tests` skill: it holds
-the rules (T1–T39) and their sources. The short version:
+Write and review tests with the `/write-tests` skill; it holds the principles.
+JavaScript/TypeScript specifics:
 
-- Test observable behaviour the way a user or caller does: for UI, query by
-  role and wait for visible outcomes, never fixed delays.
-- Every test must be able to fail: see it go red once before trusting it.
-- Mock at the network boundary (e.g. MSW), not your own API client module.
-- Deterministic and order-independent, with no unexpected console output.
-
-```bash
-pnpm run test
-```
-
-Name each test file after the unit it tests (`thing.test.ts`), not after a
-ticket. Co-locate tests with the source unless the project says otherwise; a
-project's own conventions (its `CLAUDE.md`, ADRs, `.claude/rules/testing.md`)
-override this section.
+- Runner: `pnpm run test` (Vitest or Jest).
+- UI: Testing Library with `user-event`; query by role, wait with `findBy*`.
+- Network: mock HTTP with MSW, not your own API client module.
+- Properties: `fast-check`.
 
 ---
 
