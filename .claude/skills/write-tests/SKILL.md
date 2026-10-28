@@ -1,172 +1,191 @@
 ---
 name: write-tests
 description: >
-  Write high-quality tests following a spec-driven philosophy: tests as executable specifications,
-  testing behavior not implementation, with clear thinking about what belongs in types vs tests vs
-  runtime guards. Use this skill whenever the user asks to write tests, add test coverage, review
-  what should be tested, or wants help thinking through a test suite. Also trigger when the user
-  shares code and asks "should I test this?", "how do I test this?", "what am I missing in my
-  tests?", or "write tests for X". Don't wait for the user to say "write-tests" explicitly —
-  trigger whenever someone needs tests written or wants to reason about test coverage for a
-  non-trivial piece of code.
+  Write high-quality tests following a research-backed philosophy: tests as
+  executable specifications of observable behaviour, doubles only at real
+  boundaries, deterministic and order-independent, with oracles that can
+  actually fail. Use this skill whenever the user asks to write tests, add test
+  coverage, review what should be tested, or wants help thinking through a test
+  suite. Also trigger when the user shares code and asks "should I test
+  this?", "how do I test this?", "what am I missing in my tests?", or "write
+  tests for X". Don't wait for the user to say "write-tests" explicitly.
+  For auditing an existing suite, use /test-health instead.
 ---
 
 # Write Tests
 
-Tests are executable specifications. Your job is to identify the contract this code promises,
-then encode that contract as tests — nothing more, nothing less.
+Tests are executable specifications. Identify the contract the code promises,
+then encode that contract as tests that can fail when the contract breaks and
+give the same answer every time.
 
-## Step 1 — Get the code
+The rules below are numbered T1–T39. Their reasoning, sources and the
+disagreements between authorities are in
+[`references/test-philosophy.md`](references/test-philosophy.md). Read the
+theme for the decision you are making; do not load the whole file for a small
+test.
 
-If the user provided a file path, read it. If they pasted code inline, work from that. If
-neither, ask for the code before proceeding.
+| Theme | Heuristics | Read it when |
+|-------|------------|--------------|
+| A test is a specification a client could read | T1–T7 | Always, before Step 3 |
+| Doubles belong at boundaries the client can observe | T8–T15 | The code has a dependency you might replace |
+| Determinism is enforced by tooling | T16–T22 | The test touches time, I/O, async, shared state |
+| Suite shape and UI tests | T23–T27 | Choosing a level, or testing UI |
+| The oracle decides whether a pass means anything | T28–T36 | Always, before Step 6 |
+| Properties generalise examples | T37–T39 | The contract is "for all inputs" |
 
-**Always search for existing tests before writing anything.** Use grep and find — don't rely
-on guessing filenames, because test files often have suffixes or live in unexpected locations:
+## Step 0 — Load the project's testing conventions
 
-```bash
-# Find any test file that imports or references the target module/function
-grep -r "<module_or_function_name>" tests/ --include="*.py" -l 2>/dev/null
-# Also look for naming variants
-find . -name "test_*<module_stem>*" -o -name "*<module_stem>*_test*" 2>/dev/null | grep -v __pycache__
-```
+Project rules override the generic defaults here. Before writing anything,
+find and read them:
 
-Read every file you find. Explicitly list what's already covered before writing a single new
-test — this prevents duplicating tests that already exist and ensures you only fill real gaps.
+- `CLAUDE.md` files and their testing sections, `.claude/rules/testing.md` if
+  present, and any ADR whose title mentions tests, mocks, isolation or
+  fixtures.
+- The harnesses the suite already runs inside: network/socket guards,
+  console-output guards, request-mocking setup (e.g. MSW handlers), database
+  isolation, randomised or parallel execution, CI-only retries. Note what each
+  one enforces so the new test works inside it rather than around it.
+- Naming and location conventions for test files, and any lint rule or
+  pre-commit hook that enforces them.
+
+If a project convention contradicts a T-rule, follow the project and say so in
+the output.
+
+## Step 1 — Get the code and the existing tests
+
+Read the code under test. Then search for tests that already cover it. Do not
+guess file names; search for the module, class and function names across the
+test directories, in every language the repo uses.
+
+List what is already covered before writing a single new test. Fill gaps; do
+not duplicate.
 
 ## Step 2 — Identify the contract
 
-Before writing a single test, answer: *what does this code promise?*
+Answer *what does this code promise to a caller?* (T1). The contract has three
+parts:
 
-The contract has three parts, each with different testing obligations:
+- **Postconditions:** what is guaranteed on return. Always test these.
+- **Invariants:** what must hold after every mutating operation.
+- **Boundary contracts:** the shape one module expects from another. Test
+  these in integration tests, not in each unit.
 
-**Postconditions** — what the function/class guarantees on return. Always test these.
-Examples: "returns a sorted list", "the record is persisted", "the result is always ≥ 0".
+Do not test preconditions past the point the code rejects bad input. Do not
+test implementation details: ask "would a caller notice if this changed?"
+(T1, T7). Prefer output-based assertions over state, and state over
+interaction checks (T7).
 
-**Class/data invariants** — properties that must hold on an object at all times. Test these
-after every mutating operation.
-Examples: "balance is never negative", "the queue never exceeds max_size".
+## Step 3 — Let types carry what they can
 
-**Boundary contracts** — for integration tests, the interface assumptions between modules.
-Test these when two pieces compose, not when testing each unit alone.
-Examples: "the repository returns items in the shape the service expects".
-
-**Do not test preconditions** — things the caller must ensure. If a function requires
-non-negative input and the behavior on negative input is undefined, don't test the undefined
-path. You may test that the function *rejects* bad input (raises an error), but not behavior
-past the error point — that belongs to the caller's tests.
-
-## Step 3 — Check the type system first
-
-Before writing a test, ask: *can a type enforce this constraint instead?*
-
-If yes, the test is redundant — the type-checker is exhaustive and can't be bypassed. Only
-write tests for things types can't express: behavior, sequencing, temporal ordering, runtime
-values, business rules.
-
-Types absorb more than shape. Before concluding a constraint needs a test, check whether it is:
+Before writing a test, ask whether a type can enforce the constraint instead.
+A test of something a type already guarantees tests the type checker.
 
 | Constraint | Type-expressible as |
 |------------|--------------------|
-| "status is one of four values" | a `Literal` / union — and an exhaustive `match` |
+| "status is one of four values" | a `Literal` / union with an exhaustive `match` |
 | "these fields only exist together" | a discriminated union |
-| "the score is between 0 and 1" | a constrained type (`Annotated[float, Field(ge=0, le=1)]`, `z.number().min(0).max(1)`) |
-| "the vector has 512 elements" | a length-constrained type |
-| "this string is a validated email" | a branded/refined type produced by a parse function |
+| "the score is between 0 and 1" | a constrained type (`Field(ge=0, le=1)`, `z.number().min(0).max(1)`) |
+| "this string is a validated email" | a branded type produced by a parse function |
 
-A test asserting one of those is a test of the type checker, not of your code. If the project
-has a `/type-health` skill, its heuristics (H1–H11) are the fuller version of this table —
-consult it when the answer is "maybe".
+If the project has `/type-health`, its heuristics are the fuller version of
+this table. Rules over histories or relationships between records ("never more
+than N per week", "idempotent on this key") are beyond types; they belong in
+Step 5's property tests.
 
-## Step 3b — Properties over examples
+## Step 4 — Choose the level and the doubles
 
-Some contracts are true for *all* inputs, not for the three you thought of. When a
-postcondition or invariant from Step 2 is universally quantified — "for any input, X holds" —
-an example-based test samples it; a property-based test searches it.
+**Level** (T23–T24): pick the lowest level that can catch the failure. Unit
+tests specify one unit's behaviour; integration tests specify the boundary
+between modules, not the units again; end-to-end tests cover only critical user
+flows. Classify by what the test touches (process, network, disk), not only by
+scope.
 
-Reach for property-based testing (`hypothesis` in Python, `fast-check` in TS/JS) when the
-contract has this shape:
+**Doubles** (T8–T15), in order of preference:
 
-- **Round-trips** — `decode(encode(x)) == x` for any `x`
-- **Invariants under operation** — the balance is never negative *after any sequence* of
-  deposits and withdrawals; the queue never exceeds `max_size`
-- **Algebraic laws** — sorting is idempotent; a merge is commutative; a normalizer applied
-  twice equals applied once
-- **Relations between two implementations** — the fast path always agrees with the slow one
-- **Rules over sequences of states or across records** — "never more than N per week",
-  "an item once shown is not shown again inside the cooldown window", "the operation is
-  idempotent on this key"
+1. The real implementation, if it is fast and deterministic.
+2. A fake the project owns and has checked against the real thing (T14).
+3. A stub that feeds inputs. Never assert on a stub (T10).
+4. A mock that verifies an outgoing call, only for an unmanaged out-of-process
+   dependency whose side effect a client would observe (T9).
 
-That last row is the important one, and it's where types stop entirely. A type constrains a
-*value*; these constrain a *history* or a *relationship between records*. No type system in a
-mainstream language reaches them — this is the territory formal specification languages
-(TLA+, Alloy) were built for, and property-based tests are the affordable approximation.
+Also:
 
-Practical rules:
+- Do not mock types you do not own; wrap them in an adapter you own and double
+  that (T11).
+- Constrain every double to the real API: `create_autospec` / `spec_set` in
+  Python, typed doubles in TypeScript (T12). An unspecced mock accepts calls
+  the real object would reject.
+- On the frontend, mock at the network boundary (e.g. MSW), not your own API
+  client module (T13).
+- Prefer an injected seam over patching a module global (T15).
 
-- Write the property as the test name: `test_cooldown_never_repeats_within_window`.
-- Constrain generators to the legal input domain rather than filtering inside the test —
-  a heavily-filtered generator is a slow generator.
-- Keep a couple of example-based tests alongside the property for the known-tricky cases;
-  properties prove the general rule, examples document the specific bug you once had.
-- When a property fails, the shrunk counterexample *is* the bug report — quote it verbatim.
-
-Don't force it. A function with one input and one obvious output does not need a property;
-reserve this for contracts where "for all" is genuinely the claim.
-
-## Step 4 — Choose the right level
-
-| Level | Spec being tested | Rule |
-|-------|-------------------|------|
-| Unit | Function/class contract in isolation | Dependencies are faked/mocked; test one unit's promises |
-| Integration | Boundary contract between two modules | Don't re-test the units; test the interface assumptions |
-| E2E | Product behavior from the user's perspective | Critical flows only; expensive, keep few |
-
-Don't duplicate across levels. If a unit is already tested, the integration test should verify
-the *boundary*, not re-verify the unit's internals. If the integration is already tested, E2E
-tests verify user-visible outcomes, not internal wiring.
+If isolating the unit needs many doubles, stop and report it as a design
+signal (Step 7) before writing workaround tests.
 
 ## Step 5 — Write the tests
 
-Structure each test around one concept, not one function. A concept might require several
-assertions, but a function might have several independent behaviors worth separate tests.
+- One behaviour per test: one Act, any number of related assertions (T2).
+- Name the test as a sentence about the behaviour and its outcome
+  (T3): `test_withdraw_never_makes_balance_negative`, not `test_withdraw`.
+- Straight-line code: no `if`, loops or computed expectations in the body. Use
+  parametrisation tables (`pytest.mark.parametrize`, `it.each`) (T4).
+- Show the inputs that matter; hide irrelevant construction in builders (DAMP
+  over DRY, T5). Make failure output state expected, actual and parameters
+  (T6).
+- **UI:** query by role and accessible name first (T25). Wait for an observable
+  outcome (`findBy*`, `waitFor`) rather than a fixed delay; treat an `act()`
+  warning as a bug in the test (T26). Do not leave unexpected console output
+  (T27).
+- **Properties** (T37–T39): when the contract is "for all inputs" (round-trips,
+  invariants under any sequence of operations, algebraic laws, model or
+  reference agreement, rules over histories), write a property test with
+  Hypothesis or fast-check. Constrain generators to the legal domain instead
+  of filtering, check the generators produce interesting values, and keep a
+  couple of example tests for known-tricky cases. "Doesn't crash" is not an
+  oracle on its own. If the project lacks the library, say so and write the
+  example-based version; do not add a dependency as a side effect.
 
-Naming: test names should prove something. `test_withdraw_never_makes_balance_negative` is
-a spec. `test_withdraw` is a label.
+Framework defaults, if the project does not say otherwise: Python uses pytest
+with fixtures; TypeScript uses Vitest or Jest; anything else, state the
+assumption.
 
-Avoid asserting on implementation details. If you refactor internals and a test breaks without
-any behavior changing, that test was speccing the wrong thing. Ask: "would a caller care if
-this changed?" If no, don't assert on it.
+## Step 6 — Make sure each test can fail and is deterministic
 
-For data-heavy cases, prefer parametrize/table-driven patterns over repeated identical tests.
+A test you have only seen pass is unverified.
 
-**Framework defaults** (infer from imports/config first):
+- **See it fail** (T28): break the behaviour (invert a condition, return early,
+  drop a call) or run the test before the fix, and confirm it goes red for the
+  right reason. Revert the break.
+- **Exceptions** (T29): assert the specific type and a message match. Never
+  `pytest.raises(Exception)` or a bare `toThrow()` around code that can fail
+  for other reasons.
+- **Negative assertions** (T30): "X did not happen" must run after X had its
+  chance. Anchor it on a positive event that happens at the same time (the
+  request that did go out, the element that did render), or it passes
+  vacuously.
+- **Determinism** (T16–T20): no real network or clock, no bare sleeps, seeded
+  randomness, no reliance on collection or test order. Reset any state the
+  runner does not reset for you.
+- Run the new tests in random order and in parallel if the project supports it
+  (T17), and several times if they involve async or timing.
 
-- Python → `pytest` with fixtures; `hypothesis` for Step 3b properties
-- TypeScript/JavaScript → `vitest` or `jest`; `fast-check` for Step 3b properties
-- Other → state your assumption before writing
+## Step 7 — Surface design signals
 
-If a property test needs a dependency the project doesn't have yet, say so and write the
-example-based version — don't add a dependency as a side effect of writing tests.
-
-## Step 6 — Surface design signals
-
-If a test is hard to write, say so explicitly — this is diagnostic information, not just an
-obstacle.
+If a test is hard to write, say so before writing workarounds:
 
 | Symptom | Likely cause |
 |---------|-------------|
-| Requires many mocks to isolate | Too many dependencies; single-responsibility violation |
-| Hard to name the test clearly | The function does more than one thing |
-| Must expose internal state to assert on it | Testing implementation, not behavior |
-| Setup is longer than the assertion | Missing abstraction or bad boundary |
+| Needs many doubles to isolate | Too many dependencies; split responsibilities |
+| Hard to name in one sentence | The unit does more than one thing |
+| Must reach into internal state to assert | Testing implementation, or a missing query on the API |
+| Setup longer than the assertion | Missing abstraction or a bad boundary |
 
-Surface these before writing workaround tests. The user may prefer to refactor first.
+The user may prefer to refactor first.
 
 ## Output format
 
-1. **Contract** — one short paragraph: what does this code promise?
-2. **Tests** — idiomatic, minimal, ready to run
-3. **Design signals** (only if present) — a short note on what's hard to test and why
-
-Keep the contract section tight. The tests should speak for themselves.
+1. **Contract:** one short paragraph on what the code promises.
+2. **Tests:** idiomatic, minimal, ready to run, with the commands you ran.
+3. **Verification:** how you saw each test fail (Step 6), and whether it ran
+   shuffled or in parallel.
+4. **Design signals:** only if present.
