@@ -492,25 +492,23 @@ only when the code runs server-side under Node, not in a browser.
 
 ## Tests
 
-Every non-trivial module needs tests. Minimum coverage:
+Every non-trivial module needs tests. Use the `/write-tests` skill: it holds
+the rules (T1–T39) and their sources. The short version:
 
-- **Happy path** — does the function return the right thing for normal
-  input?
-- **Edge cases** — empty arrays, zero, `null`/`undefined`, boundary values.
-- **Invariants** — properties that must always hold (e.g. output shape,
-  value bounds).
+- Test observable behaviour the way a user or caller does: for UI, query by
+  role and wait for visible outcomes, never fixed delays.
+- Every test must be able to fail: see it go red once before trusting it.
+- Mock at the network boundary (e.g. MSW), not your own API client module.
+- Deterministic and order-independent, with no unexpected console output.
 
 ```bash
 pnpm run test
 ```
 
-Structure:
-
-```text
-src/
-  thing.ts
-  thing.test.ts       # co-located unit test, same directory as the source
-```
+Name each test file after the unit it tests (`thing.test.ts`), not after a
+ticket. Co-locate tests with the source unless the project says otherwise; a
+project's own conventions (its `CLAUDE.md`, ADRs, `.claude/rules/testing.md`)
+override this section.
 
 ---
 

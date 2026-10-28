@@ -72,6 +72,7 @@ are `user-invocable-only` since they're expensive/niche but still useful on dema
 | `/slite-compare-docs` | Compares two Slite documents to check whether one fully supersedes the other |
 | `/slite-to-clickup` | Syncs a Slite document to a ClickUp Doc page (Slite is source of truth) |
 | `/ticket-refinement` | Writes and refines subtasks for software tickets (endpoints, components, APIs) |
+| `/test-health` | Read-only test-suite audit against T1–T39: proves each harness (network/console guards, random order, retries, merged coverage) covers what it claims, then ranks tests that can't fail and nondeterminism above smells |
 | `/token-report` | Token usage report from Claude Code stats |
-| `/write-tests` | Writes tests from a spec-driven philosophy: tests as executable specifications, behavior not implementation |
+| `/write-tests` | Writes tests from a research-backed philosophy (T1–T39, shared with `/test-health`): behaviour over implementation, doubles only at real boundaries, deterministic, and each test seen failing once |
 | `/writing-react-effects` | Reviews/writes React components to eliminate unnecessary useEffect usage |
