@@ -46,6 +46,7 @@ Running any `.sh` script with no arguments prints its usage and exits before tou
 
 | Condition | Action |
 |---|---|
+| `OPENCODE_SLOTS` is not `1` (the default since 2026-10-27) | Straight to Sonnet. opencode v2.1.4's `execute` tool runs model-written JavaScript with full filesystem access, and no `permission` or `tools` key in the locked config stops it (`deny`, `ask` and `tools.execute: false` were all tested). The review runs also load the global opencode config (MCP servers, plugins). Re-enable only once the slots are isolated |
 | Diff over `SONNET_DIRECT_LINES` (default 1500) | Straight to Sonnet: the free models never finish at that size |
 | Both opencode slots end with model `none` | One Sonnet low-effort review. Never run Sonnet on top of a working opencode review |
 | One slot `none`, the other posted | Report it plainly; do not present a partial review as complete. Do not re-run silently; let the user decide |
@@ -66,6 +67,7 @@ All optional, set as environment variables on the call.
 | `ATTEMPTS_PER_MODEL` | 1 | Attempts before a slot advances |
 | `REVIEW_BUDGET_SECS` | 480 | Wall-clock budget per slot |
 | `SONNET_DIRECT_LINES` | 1500 | Diff size that skips opencode |
+| `OPENCODE_SLOTS` | `0` | `1` runs the opencode slots again. Leave it off until `execute` and the global config are locked out of review runs |
 
 ### CLAUDE.md fallback
 

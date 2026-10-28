@@ -366,11 +366,12 @@ cat > "$LOCKED_CONFIG" <<'EOF'
   "external_directory":"deny","skill":"deny"}}
 EOF
 
-# A tool that actually ran prints "$ cmd" (bash), "→ Read …" or "✱ Glob/Grep …";
-# a rejected one prints "✗ … failed". Any executed call means the lockdown above
-# stopped holding, so that review is discarded rather than posted.
+# A tool that actually ran prints "$ cmd" (bash), "→ Read …", "✱ Glob/Grep …" or
+# "⚙ <tool> {…}" (execute, MCP and other tools); a rejected one prints "✗ … failed".
+# Any executed call means the lockdown above stopped holding, so that review is
+# discarded rather than posted.
 tool_ran() {
-  perl -pe 's/\e\[[0-9;]*m//g' "$1" | grep -qE '^(\$|→|✱|←) '
+  perl -pe 's/\e\[[0-9;]*m//g' "$1" | grep -qE '^(\$|→|✱|←|⚙) '
 }
 
 run_with_model() {
