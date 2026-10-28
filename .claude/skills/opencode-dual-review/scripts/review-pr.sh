@@ -21,6 +21,15 @@ else
 fi
 echo "PR #$PR_NUMBER diff: $lines lines" >&2
 
+# The opencode slots are off by default (2026-10-27): opencode v2.1.4's `execute`
+# tool runs model-written JavaScript with full fs access, and no permission or
+# tools key in the locked config stops it. Until the slots are isolated, every
+# review goes to the no-tools Sonnet path. OPENCODE_SLOTS=1 re-enables them.
+if [[ "${OPENCODE_SLOTS:-0}" != 1 ]]; then
+  echo "opencode slots disabled (OPENCODE_SLOTS!=1): straight to Sonnet" >&2
+  exec "$SCRIPT_DIR/sonnet-review.sh" "$REPO_DIR" "$PR_NUMBER" ${DIFF_BASE:+"$DIFF_BASE"}
+fi
+
 if (( lines > SONNET_DIRECT_LINES )); then
   echo "over $SONNET_DIRECT_LINES lines: straight to Sonnet" >&2
   exec "$SCRIPT_DIR/sonnet-review.sh" "$REPO_DIR" "$PR_NUMBER" ${DIFF_BASE:+"$DIFF_BASE"}
