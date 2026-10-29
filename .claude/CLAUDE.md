@@ -8,6 +8,7 @@
 @guidelines/debugging-patterns.md
 @guidelines/long-running-jobs.md
 @guidelines/design-principles.md
+@guidelines/explaining.md
 
 ## Rules
 
