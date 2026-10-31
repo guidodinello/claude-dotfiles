@@ -1,6 +1,6 @@
 ---
 name: opencode-dual-review
-description: "Trigger: opencode review, dual review, free-model review, second opinion on a PR. Two free opencode models each post their own untriaged inline-comment review (blocking/non-blocking tiers, full-SHA permalinks) to the PR, with one Claude Sonnet low-effort review as fallback. Triage happens later, in the address-pr-comments pass."
+description: "Trigger: opencode review, dual review, free-model review, second opinion on a PR. Two free opencode models each post their own untriaged inline-comment review (blocking/non-blocking tiers, full-SHA permalinks) to the PR, with one Claude Sonnet medium-effort review as fallback. Triage happens later, in the address-pr-comments pass."
 license: Apache-2.0
 metadata:
   author: "guidodinello"
@@ -28,7 +28,7 @@ ODR="$HOME/.claude/skills/opencode-dual-review/scripts"
 |---|---|
 | `review-pr.sh` | Entry point. Picks opencode or Sonnet (see Decision Gates) and runs the review from a fresh detached worktree, so the caller's checkout may be dirty |
 | `dual-review.sh` | Builds the prompt, runs both opencode slots in parallel, posts each review. Needs a clean tree; `review-pr.sh` provides one |
-| `sonnet-review.sh` | Fallback: one `claude -p --model sonnet --effort low` run with no tools, fed the exact prompt `dual-review.sh` builds |
+| `sonnet-review.sh` | Fallback: one `claude -p --model sonnet --effort $SONNET_EFFORT` (default `medium`) run with no tools, fed the exact prompt `dual-review.sh` builds |
 | `post_structured_review.py` | Parses `---FINDING-START---` blocks and posts them as one GitHub review |
 
 Running any `.sh` script with no arguments prints its usage and exits before touching anything.
@@ -48,7 +48,7 @@ Running any `.sh` script with no arguments prints its usage and exits before tou
 |---|---|
 | `OPENCODE_SLOTS` is not `1` (the default since 2026-10-27) | Straight to Sonnet. opencode v2.1.4's `execute` tool runs model-written JavaScript with full filesystem access, and no `permission` or `tools` key in the locked config stops it (`deny`, `ask` and `tools.execute: false` were all tested). The review runs also load the global opencode config (MCP servers, plugins). Re-enable only once the slots are isolated |
 | Diff over `SONNET_DIRECT_LINES` (default 1500) | Straight to Sonnet: the free models never finish at that size |
-| Both opencode slots end with model `none` | One Sonnet low-effort review. Never run Sonnet on top of a working opencode review |
+| Both opencode slots end with model `none` | One Sonnet medium-effort review. Never run Sonnet on top of a working opencode review |
 | One slot `none`, the other posted | Report it plainly; do not present a partial review as complete. Do not re-run silently; let the user decide |
 | PR stacked on an unmerged sibling branch | Pass `diff-base-ref` (e.g. `origin/feature/sibling`, named exactly): GitHub's diff still carries the sibling's commits, so review `<diff-base-ref>...HEAD` |
 | Repo has no CLAUDE.md of its own | Fall back to an ancestor CLAUDE.md (see Configuration) |
@@ -67,6 +67,7 @@ All optional, set as environment variables on the call.
 | `ATTEMPTS_PER_MODEL` | 1 | Attempts before a slot advances |
 | `REVIEW_BUDGET_SECS` | 480 | Wall-clock budget per slot |
 | `SONNET_DIRECT_LINES` | 1500 | Diff size that skips opencode |
+| `SONNET_EFFORT` | `medium` | `--effort` for the Sonnet review (`low`, `medium`, `high`) |
 | `OPENCODE_SLOTS` | `0` | `1` runs the opencode slots again. Leave it off until `execute` and the global config are locked out of review runs |
 
 ### CLAUDE.md fallback

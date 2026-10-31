@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Review a PR: opencode-dual-review first (1 attempt per model, 8 min budget), then one
-# Claude Sonnet low-effort review if both opencode slots post nothing. Diffs over
+# Claude Sonnet review (medium effort) if both opencode slots post nothing. Diffs over
 # SONNET_DIRECT_LINES go straight to Sonnet: the free models never finish at that size.
 # Runs from a fresh detached worktree, so the implementer's worktree may be dirty.
 #
