@@ -32,7 +32,6 @@ from a `CLAUDE.md`.
 |---|---|
 | `guidelines/reasoning-discipline.md` | Verify against primary sources; check the option space |
 | `guidelines/debugging-patterns.md` | Fix-completeness verification in layers |
-| `guidelines/client-issue-workflow.md` | How to handle a client-reported bug end to end |
 | `guidelines/react-native.md` | React Native conventions — see note below |
 | `guidelines/tools/engram.md` | Engram persistent-memory protocol |
 | `guidelines/tools/RTK.md` | RTK token-optimizing CLI proxy |

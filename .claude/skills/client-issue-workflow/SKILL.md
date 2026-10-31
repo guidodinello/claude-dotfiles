@@ -1,3 +1,8 @@
+---
+name: client-issue-workflow
+description: "Trigger: a client reports a bug or unexpected behavior, replying to a client issue, client-facing bug triage. Acknowledge, investigate, explain neutrally, then fix or present options."
+---
+
 # Client-Reported Issue Workflow
 
 When a client reports a bug or unexpected behavior, follow this sequence:

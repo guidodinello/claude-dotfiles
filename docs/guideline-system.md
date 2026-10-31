@@ -209,7 +209,7 @@ not by what it covers.
 | Loads | only when Claude touches a file matching `paths:` | always, via an explicit `@` import |
 | Scoping | glob, layout-independent | whole session |
 | Audience | agent only | agent only |
-| Holds | docker, ci, python, php, database | reasoning-discipline, debugging-patterns, client-issue-workflow, tools/*, react-native |
+| Holds | docker, ci, python, php, database | reasoning-discipline, debugging-patterns, tools/*, react-native |
 
 **Default to a rule.** A guideline that only matters when editing a certain kind of file
 shouldn't burn context on every unrelated session. Use `guidelines/` only for content that
