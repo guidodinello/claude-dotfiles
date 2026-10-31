@@ -31,7 +31,7 @@ symlinked into `~`.
 | [Skills](docs/skills.md) | 32 slash-command skills | `/address-pr-comments`, `/code-health`, `/security-audit`, `/db-migration-planner`, etc. |
 | [Agents](docs/agents.md) | 6 subagents | audit-finding-verifier, clickup-create-task, quality-checker, slite-sync, etc. |
 | [Hooks](docs/hooks.md) | Safety guards + auto-format + status line | Docker volume guard, Wrangler production guard, auto-format.sh, statusline.sh |
-| [Rules & guidelines](docs/guidelines.md) | Reusable coding conventions | **Rules** (path-scoped, auto-load): python, php, docker, ci, database. **Guidelines** (always-on): reasoning-discipline, debugging-patterns, client-issue-workflow, react-native, tools/* |
+| [Rules & guidelines](docs/guidelines.md) | Reusable coding conventions | **Rules** (path-scoped, auto-load): python, php, docker, ci, database. **Guidelines** (always-on): reasoning-discipline, debugging-patterns, react-native, tools/* |
 
 Path-scoped rules in `~/.claude/rules/` apply to **every project on the machine with no
 per-project wiring** — a `.py` edit pulls in `python.md` wherever you are. Full rationale,

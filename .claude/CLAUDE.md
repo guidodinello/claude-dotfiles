@@ -2,8 +2,6 @@
 @guidelines/tools/RTK.md
 @guidelines/tools/github-accounts.md
 
-@guidelines/client-issue-workflow.md
-
 @guidelines/reasoning-discipline.md
 @guidelines/debugging-patterns.md
 @guidelines/long-running-jobs.md
@@ -59,7 +57,6 @@ MCP server instructions and the SessionStart hook. Always-on rules:
 - If a memory call fails or times out, deliver the answer anyway — memory
   failures never block or replace the reply.
 
-@RTK.md
 
 
 <!-- lightit-ai:engram -->
