@@ -77,7 +77,9 @@ To do this, follow these steps precisely:
    e. If there are no verified findings at all, post the "No issues found" review (see below).
    f. After the review is posted, swap the PR's labels. Which label depends on what the review contains:
       - **Any finding at all** (blocking or non-blocking, inline or in the body): `gh pr edit <PR_NUMBER> --remove-label "pending-review" --add-label "reviewed"`. The `address-pr-comments` skill then triages the findings and sets `ready-to-merge` itself.
-      - **Zero findings** (you posted the "No issues found" review): `gh pr edit <PR_NUMBER> --remove-label "pending-review" --add-label "ready-to-merge"`. Nobody runs `address-pr-comments` on a PR with no comments, so without this the PR would sit at `reviewed` forever.
+      - **Zero findings** (you posted the "No issues found" review): `gh pr edit <PR_NUMBER> --remove-label "pending-review" --add-label "reviewed" --add-label "ready-to-merge"`. Nobody runs `address-pr-comments` on a PR with no comments, so without `ready-to-merge` the PR would sit at `reviewed` forever.
+
+      `reviewed` (a review happened) and `ready-to-merge` (the merge gate is passed) coexist — never remove `reviewed` when adding `ready-to-merge`.
 
       Never set `ready-to-merge` when the posted review carries even one finding — it is a standing OK to auto-merge. If the PR doesn't have the `pending-review` label (e.g. it wasn't opened via the feature-workflow skill), it's fine for `--remove-label` to no-op — still add the new label. Verify with `gh pr view <PR_NUMBER> --json labels -q '[.labels[].name]'`.
 
