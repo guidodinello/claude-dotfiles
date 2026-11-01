@@ -208,10 +208,11 @@ A PR needs review if it has no `reviewed` or `ready-to-merge` label (or has
 
 ### Verify the label transition — do not trust it blindly
 
-The `code-review` skill's contract is: it **only ever sets the `reviewed`
-label**, swapping out `pending-review` if present. It never sets
-`ready-to-merge` — that label is exclusively `address-pr-comments`'s to set,
-and only after threads are actually addressed and replied to.
+The `code-review` skill's contract is: it swaps out `pending-review` for
+**`reviewed` when its review has any finding** (blocking or non-blocking), or
+for **`ready-to-merge` only when the review has zero findings** (the "No
+issues found" review). Otherwise `ready-to-merge` is `address-pr-comments`'s
+to set, and only after threads are actually addressed and replied to.
 
 After a review session goes idle, check the actual label
 (`gh pr view <n> --json labels`) against what it *should* be:
@@ -223,10 +224,15 @@ After a review session goes idle, check the actual label
   --add-label "reviewed"`. Do not proceed to auto-merge on the strength of a
   label alone; check for inline comments with `[blocking]` markers
   regardless of what's labeled.
+- If it set `ready-to-merge` but its posted review has **any** inline comment
+  or listed finding (even non-blocking), correct it back to `reviewed` the
+  same way — findings go through `address-pr-comments` first.
 - If it posted a thin, generic-sounding review (a short body, no inline
   comments, on a PR that plausibly has something to say) treat it with
   suspicion — re-read the diff yourself or spawn a second model as a check
-  before trusting a "no issues found" verdict on anything non-trivial.
+  before trusting a "no issues found" verdict on anything non-trivial. Since
+  that verdict now sets `ready-to-merge` directly, swap it back to `reviewed`
+  while you double-check, so nothing auto-merges on the strength of it.
 
 ## Step 4 — Address review findings
 
@@ -240,7 +246,10 @@ the base branch first if Step 1/2 identified a pending fix that hasn't
 landed on this branch yet.
 
 `address-pr-comments` sets the `ready-to-merge` label itself once done — you
-don't need to.
+don't need to. A PR labeled `reviewed` with **no** comments to address
+(e.g. labeled by an older version of `code-review`) is stuck, not pending:
+run `address-pr-comments` on it anyway — its nothing-to-address path still
+swaps the label to `ready-to-merge`.
 
 ## Step 5 — Auto-merge
 
