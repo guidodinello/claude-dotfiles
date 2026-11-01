@@ -75,7 +75,11 @@ To do this, follow these steps precisely:
 
    d. If a finding cannot be mapped to a specific line (e.g. it spans multiple files with no single anchor), include it in the review `body` instead of as an inline comment.
    e. If there are no verified findings at all, post the "No issues found" review (see below).
-   f. After the review is posted (either path), swap the PR's labels: `gh pr edit <PR_NUMBER> --remove-label "pending-review" --add-label "reviewed"`. If the PR doesn't have the `pending-review` label (e.g. it wasn't opened via the feature-workflow skill), it's fine for `--remove-label` to no-op — still add `reviewed`.
+   f. After the review is posted, swap the PR's labels. Which label depends on what the review contains:
+      - **Any finding at all** (blocking or non-blocking, inline or in the body): `gh pr edit <PR_NUMBER> --remove-label "pending-review" --add-label "reviewed"`. The `address-pr-comments` skill then triages the findings and sets `ready-to-merge` itself.
+      - **Zero findings** (you posted the "No issues found" review): `gh pr edit <PR_NUMBER> --remove-label "pending-review" --add-label "ready-to-merge"`. Nobody runs `address-pr-comments` on a PR with no comments, so without this the PR would sit at `reviewed` forever.
+
+      Never set `ready-to-merge` when the posted review carries even one finding — it is a standing OK to auto-merge. If the PR doesn't have the `pending-review` label (e.g. it wasn't opened via the feature-workflow skill), it's fine for `--remove-label` to no-op — still add the new label. Verify with `gh pr view <PR_NUMBER> --json labels -q '[.labels[].name]'`.
 
    Keep each inline comment body brief. Avoid emojis. Include the permalink to the relevant lines in the comment body.
 
