@@ -71,7 +71,7 @@ Get the current user's login for filtering:
 gh api user --jq '.login'
 ```
 
-If nothing remains after filtering, there is nothing to fix — but the review still needs to be acknowledged. Skip Steps 2–6 and go straight to **Step 7** to swap the label (this marks that the implementer processed the review), then tell the user there was nothing to address and stop.
+If nothing remains after filtering, there is nothing to fix — but the review still needs to be acknowledged. Skip Steps 2–6 and go straight to **Step 7** to add `ready-to-merge` (this marks that the implementer processed the review), then tell the user there was nothing to address and stop.
 
 ## Step 2 — Assess each thread
 
@@ -171,20 +171,20 @@ Never write: "I've gone ahead and…" or "Let me…" — state the outcome direc
 **This step is not optional cleanup.** The skill is not finished until it has
 run. Skipping it silently blocks the PR pipeline downstream: nothing else
 watching this PR (an orchestrator, a human, another skill) has any other
-signal that the review was actually addressed, and the PR will sit stuck on
-`reviewed` even though the work is done.
+signal that the review was actually addressed, and the PR will sit at
+`reviewed` without `ready-to-merge` even though the work is done.
 
-Run this even when Step 1 found no threads or summaries to address — swapping the
+Run this even when Step 1 found no threads or summaries to address — adding the
 label is the process signal that the implementer acknowledged the review,
 independent of whether any fixes were needed:
 
 ```bash
-gh pr edit [PR#] --remove-label "reviewed" --add-label "ready-to-merge"
+gh pr edit [PR#] --add-label "ready-to-merge"
 ```
 
-If the PR doesn't have the `reviewed` label (e.g. the review was done outside
-this skill's flow), the `--remove-label` will no-op safely — still add
-`ready-to-merge`.
+Do **not** remove the `reviewed` label. `reviewed` (a review happened) and
+`ready-to-merge` (the merge gate is passed) record separate facts and are
+meant to coexist.
 
 **Before reporting this skill as done, verify the label actually changed:**
 
@@ -197,7 +197,7 @@ re-run it. Do not describe the run as complete while this is still pending.
 
 ## Step 8 — Print summary
 
-Include whether the label swap in Step 7 was confirmed — don't just list the
+Include whether the label update in Step 7 was confirmed — don't just list the
 comment-level outcomes:
 
 ```
@@ -219,4 +219,4 @@ Apply the `receiving-code-review` principle throughout:
 - **Push back technically** — if a suggestion breaks things or is YAGNI, say so clearly.
 - **Never blind-implement** — an external reviewer may lack full context.
 - **Actions over words** — the code change and the reply are the acknowledgment.
-- **The label swap is part of the job, not a footnote** — a review addressed but not marked `ready-to-merge` is indistinguishable, to everything downstream, from a review nobody looked at.
+- **The label update is part of the job, not a footnote** — a review addressed but not marked `ready-to-merge` is indistinguishable, to everything downstream, from a review nobody looked at.

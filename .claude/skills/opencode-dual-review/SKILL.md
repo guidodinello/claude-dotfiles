@@ -110,7 +110,7 @@ The posted format matches `code-review`: a review body with blocking/non-blockin
 
 1. Run `review-pr.sh <repo-dir> <pr-number> [diff-base-ref]` with any configuration the project needs. It checks out the PR (`gh pr checkout --detach`) in a temporary worktree, pulls the diff with `gh pr diff`, inlines it into the prompt, runs both slots in parallel, and removes the worktree. Each slot posts its own review as soon as it succeeds. If posting fails, the slot prints `ERROR: posting the review … failed; findings are in <file>`.
 2. Report which model produced each review (it may not be the primary: read the `[A]`/`[B] succeeded with <model>` lines, or `model_A.txt`/`model_B.txt` in the printed output dir) and how many blocking and non-blocking findings each posted, or that Sonnet ran instead and why. That ends this skill's job.
-3. When the user is ready (possibly another session): run `address-pr-comments` on the same PR. It fetches every unresolved thread, including these reviews, verifies each against the code, fixes what is real and declines the rest. Its label-swap step no-ops harmlessly in repos without its `reviewed`/`ready-to-merge` labels.
+3. When the user is ready (possibly another session): run `address-pr-comments` on the same PR. It fetches every unresolved thread, including these reviews, verifies each against the code, fixes what is real and declines the rest. Its label step (adds `ready-to-merge`, keeps `reviewed`) no-ops harmlessly in repos without its `reviewed`/`ready-to-merge` labels.
 
 ## Cross-checking is not optional
 

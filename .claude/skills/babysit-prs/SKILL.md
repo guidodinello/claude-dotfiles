@@ -210,9 +210,10 @@ A PR needs review if it has no `reviewed` or `ready-to-merge` label (or has
 
 The `code-review` skill's contract is: it swaps out `pending-review` for
 **`reviewed` when its review has any finding** (blocking or non-blocking), or
-for **`ready-to-merge` only when the review has zero findings** (the "No
-issues found" review). Otherwise `ready-to-merge` is `address-pr-comments`'s
-to set, and only after threads are actually addressed and replied to.
+for **`reviewed` plus `ready-to-merge` only when the review has zero findings**
+(the "No issues found" review). Otherwise `ready-to-merge` is
+`address-pr-comments`'s to add, and only after threads are actually addressed
+and replied to. The two labels coexist — `reviewed` is never removed once set.
 
 After a review session goes idle, check the actual label
 (`gh pr view <n> --json labels`) against what it *should* be:
@@ -221,7 +222,7 @@ After a review session goes idle, check the actual label
   unresolved blocking finding in its own posted review**, that's a
   mislabel — a real failure mode observed from at least one free model.
   Correct it back: `gh pr edit <n> --remove-label "ready-to-merge"
-  --add-label "reviewed"`. Do not proceed to auto-merge on the strength of a
+  --add-label "reviewed"` (keeping or adding `reviewed`). Do not proceed to auto-merge on the strength of a
   label alone; check for inline comments with `[blocking]` markers
   regardless of what's labeled.
 - If it set `ready-to-merge` but its posted review has **any** inline comment
@@ -231,12 +232,12 @@ After a review session goes idle, check the actual label
   comments, on a PR that plausibly has something to say) treat it with
   suspicion — re-read the diff yourself or spawn a second model as a check
   before trusting a "no issues found" verdict on anything non-trivial. Since
-  that verdict now sets `ready-to-merge` directly, swap it back to `reviewed`
-  while you double-check, so nothing auto-merges on the strength of it.
+  that verdict now sets `ready-to-merge` directly, remove `ready-to-merge`
+  (keeping `reviewed`) while you double-check, so nothing auto-merges on the strength of it.
 
 ## Step 4 — Address review findings
 
-If a PR is `reviewed` and the review has any `[blocking]` or non-blocking
+If a PR is `reviewed` but not `ready-to-merge` and the review has any `[blocking]` or non-blocking
 inline comments still unaddressed, spawn a Sonnet `Agent`
 (`isolation: "worktree"`) instructed to run the `address-pr-comments` skill
 against that PR number. Give it the specific findings you already know about
@@ -245,11 +246,12 @@ threads itself rather than trust your summary blindly. Also have it merge in
 the base branch first if Step 1/2 identified a pending fix that hasn't
 landed on this branch yet.
 
-`address-pr-comments` sets the `ready-to-merge` label itself once done — you
-don't need to. A PR labeled `reviewed` with **no** comments to address
+`address-pr-comments` adds the `ready-to-merge` label itself once done
+(leaving `reviewed` in place) — you don't need to. A PR labeled `reviewed`
+(and not `ready-to-merge`) with **no** comments to address
 (e.g. labeled by an older version of `code-review`) is stuck, not pending:
 run `address-pr-comments` on it anyway — its nothing-to-address path still
-swaps the label to `ready-to-merge`.
+adds `ready-to-merge`.
 
 ## Step 5 — Auto-merge
 
