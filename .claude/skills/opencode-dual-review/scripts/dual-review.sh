@@ -378,11 +378,18 @@ run_with_model() {
   local model="$1"
   local out_file="$2"
 
-  (cd "$REVIEW_SANDBOX" && OPENCODE_CONFIG="$LOCKED_CONFIG" \
-    opencode run -m "opencode/${model}" "$(cat "$PROMPT_FILE")") > "$out_file" 2>&1 &
+  # Every call runs in a locked-down container (opencode-sandbox.sh): the
+  # permission config above cannot stop opencode's `execute` tool.
+  local container="opencode-review-${PR_NUMBER}-${model//[^a-zA-Z0-9]/-}-$$-$RANDOM"
+  (cd "$REVIEW_SANDBOX" && "$SCRIPT_DIR/opencode-sandbox.sh" "$container" "$LOCKED_CONFIG" \
+    -m "opencode/${model}" "$(cat "$PROMPT_FILE")") > "$out_file" 2>&1 &
   local run_pid=$!
 
-  ( sleep "${3:-$MODEL_TIMEOUT_SECS}" && kill -9 "$run_pid" 2>/dev/null ) &
+  # Killing the docker client alone would leave the container running.
+  ( sleep "${3:-$MODEL_TIMEOUT_SECS}" && {
+      docker --context "${OPENCODE_SANDBOX_DOCKER_CONTEXT:-default}" kill "$container" >/dev/null 2>&1
+      kill -9 "$run_pid" 2>/dev/null
+    } ) &
   local watchdog_pid=$!
 
   local status=0

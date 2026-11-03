@@ -28,6 +28,7 @@ ODR="$HOME/.claude/skills/opencode-dual-review/scripts"
 |---|---|
 | `review-pr.sh` | Entry point. Picks opencode or Sonnet (see Decision Gates) and runs the review from a fresh detached worktree, so the caller's checkout may be dirty |
 | `dual-review.sh` | Builds the prompt, runs both opencode slots in parallel, posts each review. Needs a clean tree; `review-pr.sh` provides one |
+| `opencode-sandbox.sh` | Runs one `opencode run` call in a locked-down Docker container (see Sandbox). `dual-review.sh` calls it for every attempt |
 | `sonnet-review.sh` | Fallback: one `claude -p --model sonnet --effort $SONNET_EFFORT` (default `medium`) run with no tools, fed the exact prompt `dual-review.sh` builds |
 | `post_structured_review.py` | Parses `---FINDING-START---` blocks and posts them as one GitHub review |
 
@@ -42,11 +43,25 @@ Running any `.sh` script with no arguments prints its usage and exits before tou
 - **One unanchorable finding must not sink the review.** Only a file and new-side line present in the PR diff becomes an inline comment; everything else goes in the review body under "Outside the diff", with its permalink. GitHub rejects the whole review (422) if any inline comment points outside the diff.
 - **Never use `git diff` against a possibly diverged base branch** for the PR's diff; it once produced a 385-file false diff. Use `gh pr diff`. The one exception is the explicit `diff-base-ref` below.
 
+## Sandbox
+
+opencode v2.1.4's `execute` tool runs model-written JavaScript, and no `permission` or `tools` key stops it (`deny`, `ask` and `tools.execute: false` were all tested on 2026-10-27, after a free model used it during a review). The model reads an untrusted PR, so every call is treated as running hostile code. `opencode-sandbox.sh` runs it in a Docker container that:
+
+- **has its own network namespace.** Host services bound to `127.0.0.1` (the host opencode service, which answers unauthenticated, plus engram, pihole, cups) are unreachable, and so are the docker bridge gateway and `host.docker.internal`. Outbound internet stays open, because the model API needs it. Hosts on the LAN are still reachable;
+- **holds no credentials.** HOME is a throwaway directory with an empty `auth.json`: the free `opencode/*` models need none. No global opencode config, plugins or MCP servers are loaded;
+- **sees no host files** except the opencode binary, the CA certificates and the locked config, all read-only. The root is read-only, `/work` and `/tmp` are small tmpfs mounts;
+- **has no privileges:** `--cap-drop ALL`, `no-new-privileges`, the caller's uid, a pid and a memory limit. A timeout kills the container, not just the client.
+
+Verified 2026-11-02 with a shell in the same container: every host loopback port, the gateway and `host.docker.internal` were closed, `/home` held nothing, the root was not writable, and `CapEff` was 0. `tool_ran()` still discards any review in which a tool actually ran.
+
+The `babysit-prs` reviewer panes run opencode outside this sandbox; they stay affected until they call this script too.
+
 ## Decision Gates
 
 | Condition | Action |
 |---|---|
-| `OPENCODE_SLOTS` is not `1` (the default since 2026-10-27) | Straight to Sonnet. opencode v2.1.4's `execute` tool runs model-written JavaScript with full filesystem access, and no `permission` or `tools` key in the locked config stops it (`deny`, `ask` and `tools.execute: false` were all tested). The review runs also load the global opencode config (MCP servers, plugins). Re-enable only once the slots are isolated |
+| `OPENCODE_SLOTS=0` | Straight to Sonnet |
+| The sandbox can't run (no `opencode`, Docker unreachable on context `OPENCODE_SANDBOX_DOCKER_CONTEXT`, or the `OPENCODE_SANDBOX_IMAGE` image not pulled) | Straight to Sonnet. Never run the opencode slots outside the sandbox (see Sandbox) |
 | Diff over `SONNET_DIRECT_LINES` (default 1500) | Straight to Sonnet: the free models never finish at that size |
 | Both opencode slots end with model `none` | One Sonnet medium-effort review. Never run Sonnet on top of a working opencode review |
 | One slot `none`, the other posted | Report it plainly; do not present a partial review as complete. Do not re-run silently; let the user decide |
@@ -68,7 +83,9 @@ All optional, set as environment variables on the call.
 | `REVIEW_BUDGET_SECS` | 480 | Wall-clock budget per slot |
 | `SONNET_DIRECT_LINES` | 1500 | Diff size that skips opencode |
 | `SONNET_EFFORT` | `medium` | `--effort` for the Sonnet review (`low`, `medium`, `high`) |
-| `OPENCODE_SLOTS` | `0` | `1` runs the opencode slots again. Leave it off until `execute` and the global config are locked out of review runs |
+| `OPENCODE_SLOTS` | `1` | `0` sends every review to Sonnet |
+| `OPENCODE_SANDBOX_IMAGE` | `ubuntu:24.04` | Base image for the sandbox; must be pulled already (`docker pull ubuntu:24.04`) |
+| `OPENCODE_SANDBOX_DOCKER_CONTEXT` | `default` | Docker context the sandbox runs on |
 
 ### CLAUDE.md fallback
 
