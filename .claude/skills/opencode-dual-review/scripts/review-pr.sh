@@ -21,12 +21,22 @@ else
 fi
 echo "PR #$PR_NUMBER diff: $lines lines" >&2
 
-# The opencode slots are off by default (2026-10-27): opencode v2.1.4's `execute`
-# tool runs model-written JavaScript with full fs access, and no permission or
-# tools key in the locked config stops it. Until the slots are isolated, every
-# review goes to the no-tools Sonnet path. OPENCODE_SLOTS=1 re-enables them.
-if [[ "${OPENCODE_SLOTS:-0}" != 1 ]]; then
-  echo "opencode slots disabled (OPENCODE_SLOTS!=1): straight to Sonnet" >&2
+# opencode v2.1.4's `execute` tool runs model-written JavaScript and no permission
+# or tools key stops it (2026-10-27), so the opencode slots only run inside the
+# Docker sandbox (opencode-sandbox.sh). When the sandbox can't run, every review
+# goes to the no-tools Sonnet path. OPENCODE_SLOTS=0 forces Sonnet.
+sandbox_ready() {
+  local docker=(docker --context "${OPENCODE_SANDBOX_DOCKER_CONTEXT:-default}")
+  command -v opencode >/dev/null \
+    && "${docker[@]}" info >/dev/null 2>&1 \
+    && "${docker[@]}" image inspect "${OPENCODE_SANDBOX_IMAGE:-ubuntu:24.04}" >/dev/null 2>&1
+}
+if [[ "${OPENCODE_SLOTS:-1}" == 0 ]]; then
+  echo "opencode slots disabled (OPENCODE_SLOTS=0): straight to Sonnet" >&2
+  exec "$SCRIPT_DIR/sonnet-review.sh" "$REPO_DIR" "$PR_NUMBER" ${DIFF_BASE:+"$DIFF_BASE"}
+fi
+if ! sandbox_ready; then
+  echo "opencode sandbox unavailable (docker, opencode or the ${OPENCODE_SANDBOX_IMAGE:-ubuntu:24.04} image missing): straight to Sonnet" >&2
   exec "$SCRIPT_DIR/sonnet-review.sh" "$REPO_DIR" "$PR_NUMBER" ${DIFF_BASE:+"$DIFF_BASE"}
 fi
 
