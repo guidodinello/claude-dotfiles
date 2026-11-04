@@ -220,6 +220,61 @@ numbers.
 
 ---
 
+## Data modelling: facts vs. interpretation
+
+### Store facts, not your current reading of them
+
+Before adding a column, ask: does it record a **fact** (what a source said,
+what happened, when), or the application's **current interpretation** of facts
+(which answer wins, what role a source plays, a precedence order)? Facts belong
+in rows; interpretation belongs in code or config, where changing it needs no
+data migration.
+
+A classic trap is a key that bakes in today's configuration:
+
+```sql
+-- Avoid — "role" is pipeline config; a second model for the same role
+-- cannot be stored, and reassigning roles means rewriting rows
+UNIQUE (item_id, role)
+
+-- Good — the row says what model M answered under prompt P;
+-- which model plays which role is decided in code
+UNIQUE (item_id, model, prompt_version)
+```
+
+The test: if a config change (swap a model, reorder precedence) would make
+existing rows wrong or force a migration, the row is storing interpretation.
+
+### Keep costly-to-regenerate outputs, including the losers
+
+Persist expensive or unrepeatable data as append-only facts keyed by source and
+version: model inference output, third-party values that cannot be re-fetched
+later, results of long-running jobs. Keep every source's value, not only the one
+that currently wins. Storage is cheap; re-running inference or losing a vendor
+value is not, and kept outputs let you calibrate or compare sources later
+without re-running anything.
+
+Cheap, deterministic derivations (a lowercase copy, a sum over local rows) don't
+need this — recompute them.
+
+### Derived values stored for speed are projections
+
+A value derived from facts may still live on a hot table when reads need it
+(filters, sort keys, scoring). Treat it as a projection, not a source of truth:
+
+- **One writer** — a single function computes and writes it; nothing else
+  updates the column.
+- **Documented as derived** — a column comment or model docstring says what it
+  is derived from.
+- **Rebuildable** — a command recomputes it from the facts. Running it and
+  getting the same values is the proof that the column is truly derived.
+
+A separate table or a materialized view also works, but costs a join on the hot
+path or an all-at-once refresh; prefer them only when the projection has a
+different lifecycle from the entity row.
+
+---
+
 ## Foreign keys and cascade behavior
 
 Declare an explicit `ON DELETE` action on every FK constraint. Defaulting to the
@@ -461,6 +516,10 @@ this migration.
 
 ### Adding a new table
 
+- [ ] Each column records a fact, not interpretation (roles, precedence,
+  "which answer wins" live in code or config)
+- [ ] Costly-to-regenerate outputs are kept as facts keyed by source and version
+- [ ] Derived columns have one writer and a rebuild path
 - [ ] Table name is plural `snake_case`
 - [ ] Primary key is `BIGINT GENERATED ALWAYS AS IDENTITY` (or `BIGSERIAL`);
   avoid plain `INTEGER`
