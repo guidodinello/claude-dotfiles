@@ -54,6 +54,7 @@ are `user-invocable-only` since they're expensive/niche but still useful on dema
 | `/system-integration-map` | Clickable two-level map of a system: every external integration and internal process, each arrow labeled with direction and mechanism and linked to its code, plus traceable flows. Built from code by parallel explorers |
 | `/dev-docs-index` | Conventions for a repo's `my-dev-things/` knowledge base: a README index in every folder, inline source citations, and tree-first navigation |
 | `/figma-to-tailwind` | Implements UI components from Figma designs using Tailwind 4 + tailwind-variants |
+| `/find-session` | Finds past Claude Code sessions by remembered keywords (TF-IDF ranked) and gives the resume command; `--pick` opens an fzf picker |
 | `/git-brag` | Finds your commits on a path, formatted for perf-review docs |
 | `/hipaa-audit` | HIPAA Security Rule compliance audit for healthcare codebases |
 | `/improve-codebase-architecture` | Surfaces architectural friction and proposes deepening opportunities — refactors that turn shallow modules into deep, testable, AI-navigable ones † |
