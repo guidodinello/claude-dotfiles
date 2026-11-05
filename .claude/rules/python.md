@@ -279,13 +279,21 @@ def get_logger(name: str, log_file: Path | None = None) -> logging.Logger:
     return logger
 ```
 
-Use `%`-style formatting in logger calls — it defers string construction until
-the message is actually emitted:
+Put contextual fields in the `extra=` dict — never interpolated into the
+message string. This keeps the message constant (so a structured backend can
+index by field) and, like `%`-style formatting, defers construction of the
+field values' string form until the record is actually emitted:
 
 ```python
-logger.info("processed %d items in %.2fs", count, elapsed)  # good
-logger.info(f"processed {count} items in {elapsed:.2f}s")   # bad — always evaluated
+logger.info("processed items", extra={"count": count, "elapsed": elapsed})  # good
+logger.info(f"processed {count} items in {elapsed:.2f}s")                   # bad — always evaluated, not indexable
 ```
+
+Two caveats: the plain-text formatter above prints only `%(message)s`, so
+`extra` fields are invisible unless the handler uses a structured (JSON)
+formatter or the format string names them. And `extra` keys must not collide
+with `LogRecord` attributes (`name`, `message`, `args`, `module`, ...) — that
+raises `KeyError`.
 
 `print()` is acceptable only for structured output that is the *primary product*
 of a script (e.g. a formatted report or table).
@@ -497,7 +505,7 @@ import time
 def timed(label: str):
     t0 = time.perf_counter()
     yield
-    logger.info("%s: %.3fs", label, time.perf_counter() - t0)
+    logger.info("Timed block finished", extra={"label": label, "elapsed": time.perf_counter() - t0})
 
 with timed("data loading"):
     data = load(path)
@@ -538,7 +546,10 @@ class TrainConfig:
     checkpoint_dir: Path = Path("checkpoints")
 
 def train(cfg: TrainConfig) -> None:
-    logger.info("lr=%s steps=%d seed=%d", cfg.lr, cfg.total_steps, cfg.seed)
+    logger.info(
+        "Starting training run",
+        extra={"lr": cfg.lr, "steps": cfg.total_steps, "seed": cfg.seed},
+    )
     ...
 ```
 
@@ -630,7 +641,10 @@ def timed(fn):
     def wrapper(*args, **kwargs):
         t0 = time.perf_counter()
         result = fn(*args, **kwargs)
-        logger.info("%s took %.3fs", fn.__name__, time.perf_counter() - t0)
+        logger.info(
+            "Function finished",
+            extra={"function": fn.__name__, "elapsed": time.perf_counter() - t0},
+        )
         return result
     return wrapper
 
@@ -755,7 +769,7 @@ async def handle_request(user_id: int) -> Response:
     try:
         user = load_user(user_id)
     except DBError as e:
-        logger.exception("DB lookup failed for user %d", user_id)
+        logger.exception("DB lookup failed", extra={"user_id": user_id})
         return Response(500)
 ```
 

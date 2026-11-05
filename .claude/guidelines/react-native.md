@@ -121,6 +121,7 @@ export function Button({ intent, label, onPress }: Props) {
 <!-- TODO #05: fill in after scaffold -->
 
 General rules (library-agnostic):
+
 - Server state (API data) lives in TanStack Query — never replicate it into local state.
 - Client state that needs to be shared across screens goes in the global store (Zustand).
 - Component-local UI state (modal open, input focus) stays in `useState` — don't hoist unnecessarily.

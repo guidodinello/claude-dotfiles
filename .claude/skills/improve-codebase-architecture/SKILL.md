@@ -30,6 +30,14 @@ This skill is _informed_ by the project's domain model. The domain language give
 
 ## Process
 
+### 0. Explore from the integration branch, not the release branch
+
+If the project has a separate integration branch that feature PRs merge into (check the root `CLAUDE.md` or branching docs), it runs ahead of the release branch. Reviewing the release branch surfaces friction that is already fixed and misses everything merged since the last promotion. Skip this step if there is only one long-lived branch.
+
+- Start from the current tip: fetch the integration branch and explore a checkout of it.
+- If the review produces artifacts (design records, `CONTEXT.md` entries), commit them on a feature branch cut from the integration branch. Never commit to the integration or release branch directly.
+- Any pull request this skill opens targets the integration branch. Promotion to the release branch is a separate path (the project's release skill or process).
+
 ### 1. Explore
 
 Read the project's domain glossary and any ADRs in the area you're touching first.

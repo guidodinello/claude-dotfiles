@@ -135,6 +135,31 @@ cp "${ORIGIN_CWD}/${SEED_REL}" "$dest"
 
 Copy **only the one file named by `--seed`** — never the whole directory it lives in (e.g. don't also copy a README index alongside it). If the inner skill needs to update sibling files (like an index), it should do so inside the worktree itself once it's running there.
 
+### Dependencies (lockfile-driven)
+
+Make sure dependency trees are usable before any inner skill runs typecheck, lint or tests. Detect them from the lockfiles instead of hard-coding paths: for each tracked lockfile, symlink the dependency directory from `ORIGIN_CWD` when the lockfile is byte-identical there (instant, and an identical lockfile guarantees identical resolved deps), otherwise install fresh.
+
+```bash
+while IFS= read -r lock; do
+  dir=$(dirname "$lock"); name=$(basename "$lock")
+  case "$name" in
+    pnpm-lock.yaml)    dep=node_modules; install="pnpm install" ;;
+    package-lock.json) dep=node_modules; install="npm ci" ;;
+    yarn.lock)         dep=node_modules; install="yarn install --frozen-lockfile" ;;
+    uv.lock)           dep=.venv;        install="uv sync" ;;
+    *) continue ;;  # unknown lockfile: leave it to the inner skill
+  esac
+  [ -e "$dir/$dep" ] && continue   # already present
+  if cmp -s "${ORIGIN_CWD}/$lock" "$lock" && [ -d "${ORIGIN_CWD}/$dir/$dep" ]; then
+    ln -s "${ORIGIN_CWD}/$dir/$dep" "$dir/$dep"
+  else
+    (cd "$dir" && $install)
+  fi
+done < <(git ls-files '*pnpm-lock.yaml' '*package-lock.json' '*yarn.lock' '*uv.lock')
+```
+
+A symlinked `node_modules` or `.venv` is shared with the origin checkout: don't run an install or `uv sync` inside the worktree for it without first replacing the symlink with a real directory.
+
 ## Step 3 — Run the inner skill
 
 Read `"${ORIGIN_CWD}/.claude/skills/${INNER_SKILL}/SKILL.md"` in full — **from `ORIGIN_CWD`, not the worktree** — and follow its instructions, treating `INNER_ARGS` as that skill's own invocation arguments.

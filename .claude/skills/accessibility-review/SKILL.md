@@ -22,20 +22,29 @@ actual design tokens, and screen-reader-invisible content. This is not a
 A2). A well-calibrated run on a healthy screen produces few or no
 blocker/high findings — don't manufacture severity to fill out a report.
 
-**Calibration case**: `components/ui/FeedRow.tsx`'s item thumbnail is a
-`<div style={{ backgroundImage: ... }} />`, not an `<img>` — it renders the
+**Calibration case**: a list-row thumbnail written as
+`<div style={{ backgroundImage: ... }} />`, not an `<img>`, renders a
 product photo with zero accessible name reachable by a screen reader (WCAG
-1.1.1). The same file's dismiss/save buttons *do* get this right —
-`aria-label="Dismiss item"` / `aria-label={savedState ? 'Unsave' : 'Save'}`
-on icon-only `<button>`s. Use the second pattern as the bar for "acceptable
-icon-only control"; use the first as the bar for "this is a real finding,"
-not a nitpick.
+1.1.1). Icon-only `<button>`s in the same row that carry
+`aria-label="Dismiss item"` / `aria-label={saved ? 'Unsave' : 'Save'}` get
+it right. Use the second pattern as the bar for "acceptable icon-only
+control"; use the first as the bar for "this is a real finding," not a
+nitpick.
 
-This skill is **web-only**, scoped to `frontend/web/src` (React 19 + Vite +
-Tailwind v4 + TanStack Router, per `frontend/web/CLAUDE.md`). It audits
-JSX/TSX markup, ARIA attributes, and Tailwind color-token contrast — not
-React Native accessibility props (`accessibilityLabel`, `accessibilityRole`,
-etc.), which are a `frontend/mobile` concern and out of scope here.
+This skill is **web-only**, scoped to the project's web frontend source
+(default `frontend/web/src`, React + Tailwind; substitute your path in the
+greps below). It audits JSX/TSX markup, ARIA attributes, and utility-class
+color-token contrast — not React Native accessibility props
+(`accessibilityLabel`, `accessibilityRole`, etc.), which are out of scope.
+
+**Project specifics live in the project, not here.** Before scanning, read
+the project's design-token table (usually the web frontend's `CLAUDE.md`),
+any contrast or accessibility ADR, and an "Accessibility review notes"
+section there if one exists. They hold the token values, the contrast
+numbers, the known-bad literals and the calibration examples for this
+codebase. This skill carries no token values of its own; if the project has
+no such doc, compute contrast from the project's actual token source
+(theme CSS / tokens file) with a contrast tool.
 
 ---
 
@@ -86,9 +95,12 @@ grep -rn "tabIndex={[1-9]" frontend/web/src --include="*.tsx"
 # Keyboard navigation — onKeyDown handlers that might trap/intercept Tab or Escape
 grep -rn "onKeyDown\|onKeyPress" frontend/web/src --include="*.tsx"
 
-# Color & contrast — small/eyebrow text on the mute token (contrast risk, see Appendix A)
-grep -rn "text-mute" frontend/web/src --include="*.tsx" | grep -E "text-\[(9|10|11|12)px\]"
-grep -rn "text-mute-2\|text-paper-3" frontend/web/src --include="*.tsx"
+# Color & contrast — small text on the project's low-emphasis text tokens
+# (names from the project's design-token table; contrast risk, see Appendix A)
+grep -rn "text-<muted-token>" frontend/web/src --include="*.tsx" | grep -E "text-\[(9|10|11|12)px\]"
+grep -rn "text-<placeholder-token>" frontend/web/src --include="*.tsx"
+# ...and hardcoded colour literals that bypass the token utility entirely
+grep -rnE "#[0-9a-fA-F]{6}\b" frontend/web/src --include="*.tsx"
 
 # Screen reader support — <img> alt text and background-image "photo" divs
 grep -rn "<img" frontend/web/src --include="*.tsx"
@@ -128,7 +140,7 @@ still belong in `ui-ux-review` instead).
 | ARIA | Icon-only `<button>` with no `aria-label`; redundant `aria-label` restating the role (e.g. `aria-label="Save button"` on a `<button>`); wrong/absent `role` | Icon-only control with **zero** accessible name (no `aria-label`, no visible text) | 4.1.2 |
 | ARIA — live regions | Async mutation success/error with no `aria-live`/`role="status"`/`role="alert"` announcement | Error state after a form submit that's silent to screen readers | 4.1.3 |
 | Keyboard | Positive `tabIndex`; `onKeyDown` that swallows Tab/Escape; a `role="dialog"` with no focus moved into it on open and no Escape-to-close | Focus trap (can't Tab or Escape out); dialog leaves focus behind the overlay | 2.1.1, 2.1.2, 2.4.3 |
-| Color & contrast | Text token pairs from `frontend/web/CLAUDE.md`'s design table used below the 4.5:1 (normal text) / 3:1 (large text, ≥18px or ≥14px bold) thresholds; color as the only differentiator (e.g. red text with no icon/label for an error) | `text-mute` (`#8A8A8A`) on `bg-paper` (`#FAF8F5`) computes to roughly 3.2:1 — below 4.5:1 for any use under ~18px. Every eyebrow-label use of `text-mute` at `text-[10px]` (the pattern in `FeedRow`, `FeedScreen`, `AdminScreen`, `YouScreen`) is a real candidate — verify with a contrast tool, don't just take this note's number as final | 1.4.1, 1.4.3 |
+| Color & contrast | Text token pairs from the project's design-token table used below the 4.5:1 (normal text) / 3:1 (large text, ≥18px or ≥14px bold) thresholds; color as the only differentiator (e.g. red text with no icon/label for an error) | A low-emphasis text token on the page background at a small size (e.g. 10px eyebrow labels) — compute the ratio from the project's real token values and check it, don't assume an established pattern passes. Also flag any hardcoded gray literal that bypasses the token utility class | 1.4.1, 1.4.3 |
 | Screen reader | `<img>` without meaningful `alt`; a `backgroundImage` div carrying content (not decoration) with no accessible name; form input with no associated `<label>`/`aria-label`; error text not linked via `aria-describedby` | Content-bearing image (product photo, not a pure background pattern) with no text alternative anywhere in the DOM | 1.1.1, 3.3.1, 4.1.2 |
 | Motion | CSS animation/transition with no `prefers-reduced-motion` check, for anything beyond a ≤200ms opacity/color tap-feedback transition (`active:opacity-90`-style feedback is fine as-is — see Appendix A) | Auto-playing, non-essential animation that can't be paused/reduced | 2.3.3 (AAA, still worth flagging as `low`) |
 | Touch target | Interactive element smaller than `size-6` (24px) with no padding/hit-area compensation; two adjacent interactive elements with <8px gap | Primary interactive control (not a rare/secondary one) under 24×24px | 2.5.8 |
@@ -221,9 +233,9 @@ more than one at once saying the same thing (redundant), never zero
 (invisible to assistive tech).
 
 ```tsx
-// Bad — FeedRow-style calibration case: content-bearing image, no name anywhere
+// Bad — calibration case: content-bearing image, no name anywhere
 <div
-  className="bg-paper-2 h-30 w-24 shrink-0 bg-cover bg-center"
+  className="h-30 w-24 shrink-0 bg-cover bg-center"
   style={{ backgroundImage: `url(${item.image_url})` }}
 />
 
@@ -231,13 +243,13 @@ more than one at once saying the same thing (redundant), never zero
 <div
   role="img"
   aria-label={item.name}
-  className="bg-paper-2 h-30 w-24 shrink-0 bg-cover bg-center"
+  className="h-30 w-24 shrink-0 bg-cover bg-center"
   style={{ backgroundImage: `url(${item.image_url})` }}
 />
 ```
 
 ```tsx
-// Good — the pattern already used correctly in FeedRow's icon-only controls
+// Good — an icon-only control with an accessible name
 <button type="button" aria-label="Dismiss item" onClick={handleDismiss}>
   <Icon name="x" size={16} />
 </button>
@@ -255,8 +267,8 @@ says "Save" doesn't need `aria-label="Save button"` — that produces
 ### A3. Keyboard and dialog focus management
 
 ```tsx
-// Current pattern in YouScreen's ResetConfirmModal — correct role/aria-modal,
-// but no focus is moved into the dialog on open and no Escape handler exists.
+// A modal with correct role/aria-modal, but no focus is moved into the
+// dialog on open and no Escape handler exists.
 // This is exactly the kind of gap this skill should flag as `blocker`:
 // a keyboard-only user tabbing through the page behind the overlay can
 // still reach controls hidden under it.
@@ -272,7 +284,7 @@ says "Save" doesn't need `aria-label="Save button"` — that produces
 ### A4. Live regions for async state
 
 ```tsx
-// Good — the pattern already used correctly in YouScreen's SuccessToast
+// Good — a success toast announced politely
 <div role="status" aria-live="polite">
   <span>Style reset — taste updated.</span>
 </div>
@@ -284,18 +296,19 @@ errors that block the user's next action (failed form submit). Never
 apply live regions to content that changes purely for visual/animation
 reasons.
 
-### A5. Color contrast against this repo's actual tokens
+### A5. Color contrast against the project's actual tokens
 
-Verify pairs from `frontend/web/CLAUDE.md`'s design-token table, not
-Tailwind's default gray scale (the repo bans raw `gray-*` anyway). Known
-risk to check first: `text-mute` (`#8A8A8A`) on `bg-paper` (`#FAF8F5`)
-sits close to the 4.5:1 line and reads as **below** it at small sizes —
-every `text-[10px] ... text-mute` eyebrow label (store names, section
-labels, timestamps) is worth verifying with a contrast checker rather than
-assumed to pass because it's an established pattern. `text-mute-2`
-(`#B8B5AF`, placeholder/disabled) on `bg-paper` is lower contrast still —
-acceptable *only* on genuinely disabled controls (WCAG exempts disabled
-content), not on any readable label.
+Verify pairs from the project's design-token table, not the framework's
+default gray scale. Check first: the low-emphasis text token (metadata,
+captions, timestamps) on every background it is rendered on, especially at
+small sizes — each tiny eyebrow label is worth verifying with a contrast
+checker rather than assumed to pass because it's an established pattern.
+Placeholder/disabled tokens are acceptable *only* on genuinely disabled
+controls (WCAG exempts disabled content), not on any readable label. When a
+token has been corrected after a contrast failure, the lasting risk is a
+hardcoded literal (an older value of the same token) that bypasses the
+utility class and silently keeps failing — grep for those literals before
+assuming every label inherits the current token.
 
 ### A6. Reduced motion
 
@@ -306,20 +319,18 @@ content), not on any readable label.
 }
 ```
 
-The repo's `active:opacity-90` / `active:bg-terracotta-press` tap-feedback
-transitions (≤200ms, functional press feedback) are fine as-is — don't
-flag them. Flag animation used for decoration (entrance transitions,
-onboarding pick scale/opacity per `frontend/web/CLAUDE.md`'s "Motion"
-section, `animate-pulse` skeleton loaders left running indefinitely) that
-has no `prefers-reduced-motion` guard.
+Short functional press-feedback transitions (≤200ms, e.g. `active:opacity-90`)
+are fine as-is — don't flag them. Flag animation used for decoration
+(entrance transitions, selection scale/opacity per the project's motion
+rules, `animate-pulse` skeleton loaders left running indefinitely) that has
+no `prefers-reduced-motion` guard.
 
 ### A7. Touch target size (WCAG 2.2, 2.5.8)
 
 Tailwind v4's `size-N` utility is `N × 4px` (`size-11` = 44px, `size-6` =
-24px). The repo already clears this in most icon-only controls — `FeedRow`
-dismiss (`size-11`) and save (`size-8`) buttons both clear 24px. Flag any
-new icon-only interactive element under `size-6` with no compensating
-padding, and any two adjacent interactive elements with less than 8px gap.
+24px). Flag any new icon-only interactive element under `size-6` with no
+compensating padding, and any two adjacent interactive elements with less
+than 8px gap.
 
 ### A8. Navigation vs. button semantics
 
@@ -327,7 +338,8 @@ Cross-reference `react-composition-audit` before flagging: that skill
 already owns "navigation implemented as button" findings (see issue #092,
 closed). This skill should still flag the accessibility *consequence* of
 navigation-as-button when it also drops an accessible state — e.g.
-`TabBar`'s active-tab `<Link>` has no `aria-current="page"`, so a screen
+a tab bar's active `<Link>` has no `aria-current="page"` (check first —
+most router `Link`s set it automatically), so a screen
 reader user tabbing through the tab bar gets no indication of which tab is
 currently selected (WCAG 4.1.2/1.3.1) — but leave the element-choice
 finding itself (`<button>` vs `Link`) to `react-composition-audit` to avoid
