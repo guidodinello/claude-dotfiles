@@ -34,9 +34,8 @@ re-propose it.
 1. `docs/conventions.md` — the central index (if it exists). This is your starting set.
 2. All ADRs in `docs/process/adr/` — scan titles first via the `README.md`, then read
    any whose title suggests a convention rather than a one-time decision.
-3. The 7 `CLAUDE.md` files: root, `backend/`, `frontend/web/`, `frontend/mobile/`,
-   `scripts/`, `docker/`, `backend/alembic/`. Extract explicit rules (logging, DB
-   access, typing, design tokens, etc.).
+3. Every `CLAUDE.md` in the repo (`git ls-files '*CLAUDE.md'`). Extract explicit rules
+   (logging, DB access, typing, design tokens, etc.).
 
 Build a mental (or written) set: **"already codified in {source}"** for each convention
 you find. This prevents Phase 3 from producing noise about things that are well-covered.
@@ -49,7 +48,10 @@ Use the Agent tool with `subagent_type=Explore` to spawn **two agents in paralle
 one scoped to the backend, one to the frontend. Give each agent the already-codified
 set from Phase 1 so they focus on gaps.
 
-Also run these deterministic grep checks (they find the clean cases quickly):
+Also run these deterministic grep checks (they find the clean cases quickly).
+Then, if `docs/conventions-scans.md` exists, run the project-specific scans it
+lists and honour the known exceptions it records — do not re-file a documented
+exception as a finding.
 
 ```bash
 # Frontend: env access bypassing lib/env.ts
@@ -57,11 +59,43 @@ grep -rn "import\.meta\.env\|process\.env" frontend/web/src \
   --include="*.ts" --include="*.tsx" \
   | grep -v "src/lib/env\.ts"
 
-# Frontend: components/routes making direct API calls instead of going through
-# query hooks — structural convention violation (not a type issue)
-grep -rn "privateApi\.\|publicApi\." frontend/web/src/screens frontend/web/src/routes \
-  --include="*.ts" --include="*.tsx" \
-  | grep -v "isAxiosError\|HttpStatusCode"
+# Frontend: code making direct API calls instead of going through the project's
+# typed wrappers / query hooks — structural convention violation (not a type
+# issue). Scope is all of src/, not just screens/ + routes/: violations tend to
+# hide in lib/ and store/. -U is required because a call chain often breaks
+# across lines (`void api\n  .get(...)`). Uses rg, not grep — GNU grep has no
+# --multiline. Replace `privateApi|publicApi` with your HTTP client's names.
+rg -nU --multiline '(privateApi|publicApi)\s*\.' frontend/web/src -g '*.ts' -g '*.tsx' \
+  | grep -v "src/lib/api\.ts\|__tests__\|isAxiosError\|HttpStatusCode"
+
+# Frontend: design-token bypasses, part 1 — framework utility literals (e.g.
+# Tailwind palette classes) that the project's token rules forbid. Any hit is a
+# violation, not a candidate. Adjust the pattern to the project's banned set.
+grep -rnE "text-red-|border-red-|bg-red-|text-green-|bg-green-|bg-black/|text-gray-|bg-gray-" \
+  frontend/web/src/screens frontend/web/src/components \
+  --include="*.tsx" --include="*.ts"
+
+# Frontend: design-token bypasses, part 2 — raw colour literals in inline
+# `style={{…}}` props. The utility-class pattern above structurally CANNOT see
+# these. Scope is all of src/, since an inline style can appear anywhere.
+#
+# 6- and 8-digit hex. Deliberately NOT {3,8}: a 3-digit run matches issue and PR
+# references like `PR #613` in prose, which is the whole false-positive class.
+grep -rnE "#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?\b" frontend/web/src \
+  --include="*.ts" --include="*.tsx"
+
+# 3-digit hex, but only when it contains a letter — `#fff`/`#a1b` are colours,
+# `#613` is a PR number. Catches the short form without the prose noise.
+grep -rnE "#[0-9a-fA-F]{2}[a-fA-F]\b|#[a-fA-F][0-9a-fA-F]{2}\b" frontend/web/src \
+  --include="*.ts" --include="*.tsx"
+
+# Colour functions. No false-positive class — there is no other reason for
+# `rgba(` to appear in a .ts/.tsx file.
+grep -rnE "\b(rgba?|hsla?)\(" frontend/web/src --include="*.ts" --include="*.tsx"
+
+# Every colour hit is a violation unless the token source (theme CSS / tokens
+# file) genuinely has no token for it. Check the numbers against it before
+# believing otherwise — hits are often a token respelled numerically.
 
 # Backend: logging bypassing get_logger
 grep -rn "logging\.getLogger\|print(" backend/src --include="*.py" \
