@@ -339,7 +339,7 @@ if [[ -n "${PROMPT_ONLY:-}" ]]; then
   exit 0
 fi
 
-FALLBACKS=(nemotron-3-ultra-free mimo-v2.5-free hy3-free nemotron-3.5-lightning-free)
+FALLBACKS=(deepseek-v4.1-flash-free)  # 2026-11-07: nemotron-* removed (rubber-stamps NO_FINDINGS); mimo-v2.5 and hy3 no longer exist
 USED_MODELS_FILE="$OUT_DIR/used_models.txt"
 : > "$USED_MODELS_FILE"
 
@@ -475,7 +475,7 @@ review_slot() {
 
 review_slot "A" "big-pickle" &
 PID_A=$!
-review_slot "B" "muse-spark-1.2-contributor-free" &
+review_slot "B" "glm-5.3-flash-free" &
 PID_B=$!
 
 wait "$PID_A" || true
