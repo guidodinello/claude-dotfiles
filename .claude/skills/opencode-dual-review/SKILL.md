@@ -103,8 +103,8 @@ Without any fallback, the prompt promised guidance "below" that was not there, a
 ## Model order
 
 - Slot A primary: `big-pickle`
-- Slot B primary: `muse-spark-1.2-contributor-free`
-- Shared fallback chain, in order: `nemotron-3-ultra-free` → `mimo-v2.5-free` → `hy3-free` → `nemotron-3.5-lightning-free`
+- Slot B primary: `glm-5.3-flash-free`
+- Shared fallback chain: `deepseek-v4.1-flash-free`. Chosen 2026-11-07 from `babysit-prs/scripts/reviewer_leaderboard.py` (60 days): glm-5.3-flash 3.5 findings/review at 96% accepted, deepseek-v4.1-flash 96% (small sample). Removed: `nemotron-*` (23 reviews, 22 with no findings, 0 accepted; on fitted #1079 it answered a bare NO_FINDINGS), and `muse-spark-1.2-contributor-free`, `mimo-v2.5-free`, `hy3-free`, which `opencode models` no longer lists. Re-run the leaderboard and `opencode models | grep free` before changing this list.
 - One attempt per model by default, then the slot advances. A model already used by the other slot is skipped, so the two reviews stay independent.
 
 The skill assumes only the free `opencode/*` models are available. They are flaky; the fallback chain and the Sonnet fallback exist to absorb that.
