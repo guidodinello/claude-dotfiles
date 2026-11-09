@@ -16,7 +16,10 @@ Must be installed separately via `claude plugin install <name>`.
 
 ### 3. MCP plugins
 Expose tools to Claude via the Model Context Protocol.
-**Token impact: high** — tool definitions are injected into every API request, whether used or not.
+**Token impact: medium to high.** With tool search on (the current default), full tool
+schemas are deferred until used. What every session still pays for each connected server is
+its **instructions block** plus **one line per tool name** in the deferred-tools list. A
+70-tool server (Sentry, ClickUp) is 70 lines in every session, used or not.
 
 ---
 
@@ -24,7 +27,7 @@ Expose tools to Claude via the Model Context Protocol.
 
 | Type | Always-on cost | Example |
 |---|---|---|
-| MCP server | High (tool definitions in every request) | github, svelte MCP, huggingface |
+| MCP server | Medium–high (instructions + one line per tool name) | github, svelte MCP, huggingface |
 | SessionStart hook | High (injected into every session) | superpowers |
 | PreToolUse hook | Low (runs per edit, no token cost) | security-guidance |
 | LSP plugin | None (background process) | pyright-lsp, rust-analyzer-lsp |
@@ -34,20 +37,24 @@ Expose tools to Claude via the Model Context Protocol.
 
 ---
 
-## Current global plugin config (~/.claude/settings.json)
+## Global plugin config (~/.claude/settings.json)
 
 Global config is kept to **universal-only** plugins — anything language- or
 stack-specific is enabled per-project (see below).
 
-### Always-on globally (universal, low/no overhead)
-- `skill-creator` — on-demand skill
-- `code-simplifier` — on-demand skill/agent
-- `engram` — persistent-memory MCP (kept global by choice; note MCP tool defs
-  are the main per-conversation cost)
-- `claude-code-setup` — on-demand skill
-- `security-guidance` — PreToolUse hook, checks for XSS/injection patterns on every file edit
-- `claude-md-management` — on-demand skill
-- `code-review` — disabled globally (`false`)
+`enabledPlugins` is not tracked in this repo. `sync.sh` lists it in `LOCAL_KEYS`, so
+each config dir keeps its own toggles. Read the live state there:
+
+```bash
+jq '.enabledPlugins' ~/.claude/settings.json
+```
+
+Plugins that are global by design:
+- `engram` — persistent-memory MCP. Load it **only** as the plugin: a second copy in
+  `~/.claude.json` doubles its tool names and instructions (see
+  [MCP servers](#mcp-servers-global-vs-per-project)).
+- `aws-core` — AWS MCP plus skills; almost every Light-it project runs on AWS.
+- `security-guidance` — PreToolUse hook, checks for XSS/injection patterns on every file edit.
 
 ### Enabled per-project (not global)
 Language-specific LSPs and stack tools live in the **project's** settings so a
@@ -64,6 +71,47 @@ high — enable them only in the specific projects that need them:
 - `svelte@svelte` — Svelte MCP + LSP (MCP overhead not worth it globally)
 - `superpowers` — SessionStart hook injects ~800 words into every session
 - `huggingface-skills` — HuggingFace MCP server
+
+---
+
+## MCP servers: global vs per project
+
+MCP servers come from three places, and each is scoped differently:
+
+| Source | Where it lives | Tracked in this repo? | How to scope it |
+|---|---|---|---|
+| Plugin MCPs (`engram`, `aws-core`) | `enabledPlugins` in `~/.claude/settings.json` and project settings | **No** (`LOCAL_KEYS` in `sync.sh`) | `true`/`false` per settings scope |
+| Standalone MCPs (`context7`, `railway`, `linear`) | `~/.claude.json` | **No** | `claude mcp add -s user` (global) or `-s local` (one project path) |
+| claude.ai connectors (ClickUp, Slack, ...) | Your claude.ai account | No | Opt-out only: disable per project in `/mcp` |
+
+### The global set
+
+Global because they are used in every Light-it workspace:
+- Plugins: `engram`, `aws-core` (almost every Light-it project is hosted on AWS; the
+  plugin also lists ~30 skills in every session)
+- Standalone: `context7` (2 tools, live library docs)
+- claude.ai: ClickUp, Slite, Slack, Sentry, Google Drive, Google Sheets, Claude Docs
+
+Everything else is per project: `railway` (`-s local` in build101), `linear`
+(`-s local` in allswell-workspace).
+
+### Gotchas
+
+- **`-s local` is tied to one path.** Orca worktrees of the same repo are different
+  paths and don't get the server. If worktrees need it, put it in the repo's
+  `.mcp.json` instead.
+- **claude.ai connectors are opt-out.** Every project gets every connector in your
+  claude.ai "Yours" list. Disabling one in `/mcp` writes it to
+  `projects[<path>].disabledMcpServers` in `~/.claude.json`.
+- **Unauthenticated connectors still cost tokens.** A connector you never connected
+  shows as "needs authentication" and adds two tool names (`authenticate`,
+  `complete_authentication`) to every session. Cheap, but not zero.
+- **Check for duplicates.** The same server added as a plugin and in `~/.claude.json`
+  loads twice. `/mcp` lists both.
+- **The AWS MCP uses the default credential chain.** Set `AWS_PROFILE` in the
+  workspace's `.claude/settings.local.json` `env` so it uses that client's profile, not
+  `[default]`. A `-32602 Invalid request parameters` on connect usually means the SSO
+  or `aws login` session expired: re-run `aws sso login --sso-session <name>`.
 
 ---
 
@@ -154,10 +202,19 @@ nodenv rehash
 
 ## Diagnosing plugin issues
 
-Check `~/.claude/debug/latest` for startup errors:
+Debug logs are only written in debug mode; without it, `~/.claude/debug/latest` can be a
+dangling symlink. Start from the project directory, since project settings (such as
+`env`) apply:
+
 ```bash
-grep -i "lsp\|mcp\|error\|warn" ~/.claude/debug/latest | head -40
+claude mcp list                    # health-checks every server: ✔ Connected / ✘ Failed to connect
+claude --debug=mcp --debug-file /path/to/mcp-debug.log mcp list
+grep -i "error\|failed" /path/to/mcp-debug.log | head -40
 ```
+
+The debug log includes each server's stderr, which is where the real cause shows up: a
+bare `-32602: Invalid request parameters` in `/mcp` hid an expired AWS SSO token. For
+an LSP or a whole session, use `claude --debug --debug-file <path>`.
 
 Key things to look for:
 - `Total LSP servers loaded: N` — confirms LSP plugins started
@@ -180,12 +237,12 @@ Practical consequence: there's no clean way to have "shared baseline, but this m
 its own untracked exceptions" for anything in `~/.claude/settings.json` (skills, plugins,
 env vars, etc.). Two real options if a machine needs to diverge from the committed baseline:
 
-1. **Edit the symlinked `~/.claude/settings.json` directly and leave the change uncommitted.**
-   Since `~/.claude/settings.json` is a symlink into this repo, editing it edits a
-   git-tracked file — `git status` in this repo will show it dirty until you commit or
-   discard. Fine for a rare, deliberate one-off (e.g. temporarily re-enabling a ClickUp skill
-   on a machine that needs it), but it's easy to forget and accidentally commit or lose the
-   override on `git stash`/`checkout`.
+1. **Edit `~/.claude/settings.json` directly.** It is not a symlink: `sync.sh` generates it
+   by merging `settings.base.json` with the keys Claude Code writes at runtime. Edits to
+   `LOCAL_KEYS` (`autoMode`, `enabledPlugins`, `outputStyle`) survive a re-sync, and so do
+   entries added to `hooks` and to the `permissions` lists (both are unioned with the live
+   file). Any other key, such as `env`, is rebuilt from `settings.base.json` on the next
+   `./sync.sh`, so put those in the base instead.
 2. **Don't persist it — use the session-scoped skill picker / `claude plugin enable --scope
    local` for that one session.** Appropriate when the divergence is truly one-off rather than
    a standing per-machine preference.
@@ -196,16 +253,23 @@ work exactly as documented and are unaffected by this — see `project-init --lo
 
 ## Environment variables for MCP plugins
 
-`settings.local.json` only exists at **project scope**, not user scope — same constraint
-as above.
-`~/.zshrc` exports are NOT picked up — Claude Code is launched by VS Code, not a terminal.
+Never put secrets in the `env` of `~/.claude/settings.json`. `env` is not in
+`LOCAL_KEYS`, so the next `./sync.sh` rebuilds it from `settings.base.json` and drops
+anything added by hand. Putting them in `settings.base.json` instead commits them to
+this repo.
 
-**Correct place for user-scoped secrets: `~/.claude/settings.json` under `"env"`**
-```json
-{
-  "env": {
-    "GITHUB_PERSONAL_ACCESS_TOKEN": "gho_..."
-  }
-}
-```
-The token can be sourced from the `gh` CLI: `gh auth token`.
+Where each kind of value goes:
+
+| Value | Place | Tracked? |
+|---|---|---|
+| Secret for a standalone MCP | `claude mcp add <name> -s user -e KEY=value -- <cmd>` (stored in `~/.claude.json`) | No |
+| Per-project, non-secret (e.g. `AWS_PROFILE`) | `env` in `<project>/.claude/settings.local.json` | No, if the project gitignores it |
+| Secret for a plugin MCP (e.g. `github`) | Your shell environment, exported before launching `claude` | No |
+
+`~/.zshrc` exports only reach Claude Code when it is started from a terminal. A session
+launched from an editor or app that doesn't load your shell profile won't see them; for
+those, prefer a standalone MCP with `-e`.
+
+Check that a project's `settings.local.json` is ignored before writing to it
+(`git check-ignore .claude/settings.local.json`). If a team repo tracks it, unstage it
+(`git rm --cached`) and add it to `.git/info/exclude`.
