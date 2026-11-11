@@ -76,4 +76,5 @@ are `user-invocable-only` since they're expensive/niche but still useful on dema
 | `/test-health` | Read-only test-suite audit against T1–T39: proves each harness (network/console guards, random order, retries, merged coverage) covers what it claims, then ranks tests that can't fail and nondeterminism above smells |
 | `/token-report` | Token usage report from Claude Code stats |
 | `/write-tests` | Writes tests from a research-backed philosophy (T1–T39, shared with `/test-health`): behaviour over implementation, doubles only at real boundaries, deterministic, and each test seen failing once |
+| `/worktree-bootstrap` | Per-repo Orca setup and archive scripts that source a shared helper lib: isolated compose project and ports per worktree, env files copied, deps installed, workspace `CLAUDE.md` and notes linked; with a self-check |
 | `/writing-react-effects` | Reviews/writes React components to eliminate unnecessary useEffect usage |
