@@ -158,6 +158,68 @@ three (`r.data as unknown` in `items.ts`/`users.ts`/`interactions.ts`, the
 run all three had been fixed. A stale hotspot list is worse than none: it invites
 confirming a finding that no longer exists. Let the greps find what is there.
 
+## 2b. Source scan — TypeScript backend (NestJS/Express + TypeORM)
+
+Replace `src` with the roots in `tsconfig.json` `include` (often `apps libs`).
+Precondition: `strictNullChecks` (or `strict`) on, or every nullability finding
+is moot — report that first and skip B2–B3. `strictPropertyInitialization: false`
+is normal for TypeORM entities; leave it. Why: [`type-philosophy.md`](type-philosophy.md)
+§ "TypeScript backend".
+
+```bash
+X='\.spec\.ts|/test/|__tests__|\.d\.ts|/migrations/'
+
+# B1. Vendor responses typed by hand (H2): typed HTTP calls and response casts...
+grep -rnE "\.(get|post|put|patch|delete|request)<[^>]+>\(" src --include="*.ts" \
+  | grep -vE "$X" | grep -viE "config(Service)?\.get<|reflector\.get" | sort
+grep -rnE "(\.data|\.json\(\)\)?) as [A-Z]" src --include="*.ts" | grep -vE "$X" | sort
+# ...and the client files among them that never parse anything at runtime
+grep -rnE "\.(get|post|put|patch|delete|request)<[^>]+>\(" src --include="*.ts" \
+  | grep -vE "$X" | grep -viE "config(Service)?\.get<|reflector\.get" | cut -d: -f1 | sort -u \
+  | xargs grep -LE "\.parse\(|safeParse\(|plainToInstance|validateOrReject|validateSync"
+
+# B2. Relations typed as always loaded (H2, H8) — an inventory; most relations hit.
+# `Promise<T>` (lazy) is honest; `Relation<T>` is only an ESM alias and is NOT.
+grep -rlE "@(OneToMany|ManyToOne|OneToOne|ManyToMany)\(" src --include="*.ts" | grep -vE "$X" \
+  | xargs awk '/@(OneToMany|ManyToOne|OneToOne|ManyToMany)\(/ {rel=1; next}
+    rel && /^[ \t]+(public |readonly )*[A-Za-z_][A-Za-z0-9_]*[?!]?: [^;]+;[ \t]*$/ {
+      if ($0 !~ /\?:|undefined|Promise</) print FILENAME":"FNR":"$0; rel=0 }'
+
+# B3. Column nullability vs TS type, both directions (H2, H8)
+grep -rlE "@Column\(" src --include="*.ts" | grep -vE "$X" | xargs awk '
+  /@(Column|Primary(Generated)?Column|(Create|Update|Delete)DateColumn)\(/ {col=1; dec=""}
+  col {dec=dec $0}
+  col && /^[ \t]+(public |readonly )*[A-Za-z_][A-Za-z0-9_]*[?!]?: [^;]+;[ \t]*$/ {
+    n = (dec ~ /nullable: *true/) || (dec ~ /DeleteDateColumn/); t = ($0 ~ /\| *null|null *\|/)
+    if (n && !t) print FILENAME":"FNR": nullable column, non-null type:"$0
+    if (!n && t) print FILENAME":"FNR": NOT NULL column, nullable type:"$0
+    col=0 }'
+# Partial selects: unselected columns are undefined despite their type
+grep -rnE "select: *[\[{]|\.select\(|\.addSelect\(" src --include="*.ts" | grep -vE "$X" | sort
+
+# B4. Other untyped inputs (H2, H8). `JSON.parse(...) as unknown` is honest — it
+# forces narrowing — so it is filtered out.
+grep -rn "JSON.parse(" src --include="*.ts" | grep -vE "$X" | grep -v "as unknown" | sort
+grep -rn "process\.env" src --include="*.ts" | grep -vE "$X" \
+  | grep -vE "(^|/)config/|\.config\.ts|env\.validation" | sort
+```
+
+Index-signature lookups (`answers['4'].answer`) have no useful grep (mostly
+guarded or enum-keyed); measure `noUncheckedIndexedAccess` with tsc instead (§3).
+
+Reading the hits:
+
+- **B1** — for each client, compare the declared types of the fields that drive
+  a decision (`===`, `filter`, `if`, a switch) with what the vendor actually
+  sends (docs marked optional, sandbox output, logged shapes).
+- **B2** — the finding is a *read* of a relation on a query that did not load it
+  (`relations`, `leftJoinAndSelect`; `eager` covers `find*` only, not QueryBuilder).
+- **B3** — the migration, not the decorator, is the source of truth: check it
+  before deciding which side moves. A `transformer:` changes what is returned.
+- **B4 env** — decorator arguments (`@Cron({ timeZone: process.env.X! })`) run
+  before the config module exists: the fix is one validated exported constant, and
+  identical hits are one finding. An `env = process.env` default param is LEGITIMATE.
+
 ---
 
 ## 3. Checker-configuration audit
@@ -180,6 +242,7 @@ Read `backend/pyproject.toml` `[tool.pyright]` and
 | `exactOptionalPropertyTypes` | tsconfig | `{ x: undefined }` silently satisfying `{ x?: T }` | H7b |
 | `noFallthroughCasesInSwitch` | tsconfig | missing `break` | H4 |
 | `noImplicitOverride` / `reportImplicitOverride` | both | accidental override of a base method | — |
+| `@typescript-eslint/no-unnecessary-condition` | eslint (TS backend) | guards the types say are dead — **only trustworthy after B1–B3 are fixed**, see below | H8 |
 
 Also check pyright's `exclude` list, not just its flags — an excluded directory
 is exempt from *every* rule above. `src/fitted_backend/ml` is currently
@@ -203,6 +266,27 @@ npx tsc -p tsconfig.app.json --noEmit --exactOptionalPropertyTypes 2>&1 | grep -
 npx tsc -p tsconfig.app.json --noEmit --noUncheckedIndexedAccess 2>&1 \
   | grep "error TS" | sed 's/(.*//' | sort | uniq -c | sort -rn
 ```
+
+For a TypeScript backend, use the build config (it usually excludes tests),
+measure the baseline first and report the difference, and pass
+`--incremental false` — with `incremental: true` tsc writes a `.tsbuildinfo`
+even under `--noEmit`. The lint rule is measured read-only, never with `--fix`:
+
+```bash
+npx tsc -p tsconfig.build.json --noEmit --incremental false 2>&1 | grep -c "error TS"
+npx tsc -p tsconfig.build.json --noEmit --incremental false --noUncheckedIndexedAccess 2>&1 | grep -c "error TS"
+./node_modules/.bin/eslint --rule '{"@typescript-eslint/no-unnecessary-condition":"error"}' \
+  -f json src > "${TMPDIR:-/tmp}/nuc.json"
+node -e 'let n=0,f=0;for(const x of require(process.argv[1])){const m=x.messages.filter(m=>m.ruleId==="@typescript-eslint/no-unnecessary-condition").length;n+=m;f+=m>0}console.log(n,"hits in",f,"files")' "${TMPDIR:-/tmp}/nuc.json"
+git status --porcelain   # must print nothing
+```
+
+Call the local eslint binary: on a pnpm repo `npx` can run an install first.
+
+**The `no-unnecessary-condition` gate.** Recommend the rule only after B1–B3 are
+fixed: until then most hits are guards protecting the values §2b shows are
+lying. Report the count as INVESTIGATE with that dependency; §4 says when a single
+guard may go.
 
 Pyright has no equivalent one-shot CLI override for report flags, so the
 setting must be added to `[tool.pyright]` in `backend/pyproject.toml` — a
@@ -269,6 +353,8 @@ around the line in the actual file first — never classify from the grep string
 - Parameter typed `list[T]` / `T[]` but never mutated → `Sequence[T]` / `readonly T[]` (H9)
 - A bound stated only in a docstring/comment, or enforced only by a `max()`/`min()` clamp in the body → tighten it **statically** where the language allows (`int` → `Literal[...]`, a stringly-typed code → an enum). If the only way to express the bound is a *validating* constraint — `Field(ge=…, le=…)`, `z.number().min().max()` — it is INVESTIGATE, not FIX; see below (H10)
 - A sanctioned brand cast (`as UserId`) sitting outside the module that owns the parse function → route it through that parse function (H11)
+- A hand-written vendor response type stricter than what the vendor sends → make it mirror observed nullability (`| null`, `?:`), when its consumers are local. Type-only, so no payload starts failing (H2)
+- `JSON.parse(x) as T` → `as unknown` plus narrowing, or a schema parse (H2)
 
 ### LEGITIMATE — the loose type is correct
 
@@ -292,6 +378,9 @@ around the line in the actual file first — never classify from the grep string
   > A real near-miss from this skill's first run: `RecommendedItemSchema.score` looks like a textbook `[0, 1]` case — `ConceptScoreSchema.score` in the *same file* is already `.min(0).max(1)`. But `freshness.py` multiplies scores by `max_boost = 1.5`, so recommendation scores legitimately exceed 1 and the "fix" would have failed `.parse()` on every feed response. Only following the call chain three modules deep catches it. Also ask whether the value is even read — an unread field gains a rejection path and nothing else.
   >
   > The Pydantic half is not hypothetical either: the same run tightened `TasteVector` to `Field(min_length=512, max_length=512)`. `ML_DIMENSION` is a settable env var, so on any deployment where it is not 512 that annotation turns `POST /onboarding/answers` into a 500. The constraint is defensible — the DB columns are `Vector(512)` — but that is a judgment call about which source of truth wins, which is exactly what INVESTIGATE is for.
+- Adding Zod or class-validator to a vendor client (B1) — a validating constraint at an IO boundary. Recommend it incrementally, starting with the fields that drive decisions
+- Changing an entity's relation or column type (B2, B3) — it ripples into every consumer. For relations, propose a per-query loaded type (`Order & { items: Item[] }`, returned by the repository method that joins it) rather than flipping every relation to `?:`
+- **Deleting a guard because a type-aware rule calls it unnecessary.** Never a FIX on the rule's word. Remove one only when the guarantee can be cited: the value is computed in our own code, it is a column whose nullability matches its type *and* the query loads it, or it was already narrowed above. Otherwise the guard is LEGITIMATE (H8)
 - Anything that would require deciding *where parse functions live* or *whether raw constructors become private* — H11's broad form awaits that project decision; only sanctioned-cast leakage is FIX
 - A product invariant brushed by a scan (cooldown windows, per-week notification caps, idempotency keys): note "invariant — belongs in property-based tests, see `/write-tests`" and move on. These are not type findings
 - Anything the philosophy doc lists under "Concepts we document but do not
