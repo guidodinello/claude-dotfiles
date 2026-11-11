@@ -770,6 +770,40 @@ established. Without it, those three degrade quietly over time.
 
 ---
 
+## TypeScript backend: honest boundary types before strict rules
+
+A NestJS/Express backend has H2's boundary problem without the habit of
+parsing. **Priority: High** — the failure is silent: wrong results, not a crash.
+Three sources hand it values whose type promises more than runtime delivers:
+
+- **Vendor clients.** `http.get<VendorOrder>(url)` and `res.data as VendorOrder`
+  are casts. The interface records what someone believed the vendor sends. When
+  a field typed `active: boolean` arrives `null` on every row,
+  `orders.filter((o) => o.active === false)` drops everything, and the checker is
+  satisfied. Remedy: parse at the client (Zod, or class-validator +
+  class-transformer), incrementally, starting with the fields that drive
+  decisions; until then, make the type mirror observed nullability so the
+  checker demands the guard.
+- **ORM hydration.** TypeORM declares `items: Item[]` but fills it only when the
+  query loads it; otherwise it is `undefined`. A `@Column({ nullable: true })`
+  typed `string` returns `null`. A partial `select` returns an entity-typed
+  object missing every unselected column. The entity type describes the table,
+  not what a given query returned.
+- **Untyped sources.** `JSON.parse`, `process.env`, and index-signature reads
+  (`answers['4'].answer` without `noUncheckedIndexedAccess`) are `any` or `T`
+  where the truth is `unknown` or `T | undefined`.
+
+**The lint-rule trap.** `@typescript-eslint/no-unnecessary-condition` flags a
+guard as dead when the *declared* type says it can't fail. On a backend with the
+lies above, most hits are guards (`?.`, `??`, `|| []`) protecting exactly those
+values. Deleting them on the rule's word converts a lying type into a runtime
+crash. The rule is a proof only after the boundary types are honest, so the order
+is: vendor types, then entity nullability and loaded-relation types, then the
+rule. Never delete a guard on the rule's word; `type-checks.md` §4 says when a
+guard can go.
+
+---
+
 ## Concepts we document but do not check
 
 These are real ideas from the same tradition. They are here because they inform

@@ -3,7 +3,8 @@ name: type-health
 allowed-tools: Bash Read Edit Agent
 description: >
   Audit and improve type coverage across the codebase on demand — Python
-  backend (Pydantic at every IO boundary) and TypeScript frontend (Zod-first
+  backend (Pydantic at every IO boundary), TypeScript frontend (Zod-first
+  types) and TypeScript backend (NestJS/TypeORM: honest vendor and entity
   types). Use after a big feature lands or as a periodic health check.
   Does NOT auto-commit — reports findings and applies fixes to the working
   tree only.
@@ -12,7 +13,7 @@ description: >
 ## Goal
 
 Tighten types where it prevents real bugs, not to maximize annotation count.
-Two project conventions anchor every finding:
+Three profiles anchor every finding; audit the ones the repo has:
 
 - **Backend — Pydantic at every IO boundary.** Data entering or leaving the
   system (API request/response, DB rows, external service payloads) should have
@@ -24,6 +25,12 @@ Two project conventions anchor every finding:
   duplicate schema information — they drift. Never `as`-cast at IO boundaries —
   use Zod `.parse()`/`.safeParse()` instead. (The `apiGet`/`privateApiGet`
   helpers already embed this pattern.)
+- **TypeScript backend — honest boundary types first.** NestJS/Express + an ORM
+  such as TypeORM. Vendor HTTP responses are parsed at the client (Zod or
+  class-validator), or at least typed with the nullability actually observed;
+  entity relations and columns are typed as what a query returns, not what the
+  table holds. Type-aware lint rules such as `no-unnecessary-condition` come
+  *after* that — never delete a guard on their word alone.
 
 A well-typed codebase should produce few findings.
 
@@ -58,7 +65,8 @@ them, and say which policy you applied in the report.
 
 Run the Python and TypeScript scans from
 [`references/type-checks.md`](references/type-checks.md) §1–2 verbatim, from
-the repo root. Collect all hits into a structured list.
+the repo root, plus §2b for a TypeScript backend. Collect all hits into a
+structured list.
 
 ---
 
@@ -68,7 +76,8 @@ Skip only if Step 0 narrowed the scope to a single module.
 
 Follow [`references/type-checks.md`](references/type-checks.md) §3: read
 `backend/pyproject.toml` `[tool.pyright]` and
-`frontend/web/tsconfig.app.json`, compare against the recommended-flag table,
+`frontend/web/tsconfig.app.json` (for a TypeScript backend: its `tsconfig.json`
+and eslint config), compare against the recommended-flag table,
 and **measure** each missing flag by running the checker with it enabled. Check
 the `exclude` list too — an excluded directory is exempt from every rule at once.
 
@@ -86,7 +95,9 @@ the Step 1 grep output and these instructions:
 You are classifying type-coverage findings in a Python FastAPI + Celery /
 TypeScript React codebase. The backend convention is Pydantic at every IO
 boundary; the frontend convention is Zod-first types (schema at the boundary,
-type via z.infer).
+type via z.infer). For a TypeScript backend (NestJS + TypeORM), the convention
+is honest boundary types: vendor responses parsed or typed as observed, entity
+types matching what each query loads (type-checks.md §2b).
 
 Read BOTH of these first, in full:
   .claude/skills/type-health/references/type-checks.md    (§4 classification rules)
@@ -128,6 +139,7 @@ see the Priority Summary in `references/type-philosophy.md`):
    - Python: `uv run --project backend ruff check <file>` and
      `uv run --project backend pyright <file>`
    - TypeScript: `cd frontend/web && npx tsc --noEmit 2>&1 | grep <file>`
+   - TS backend: `npx tsc -p tsconfig.build.json --noEmit --incremental false 2>&1 | grep <file>`
 
 If a fix would ripple across multiple files (shared signature change, new
 schema consumed by several modules), do NOT apply it silently — move it to
@@ -158,6 +170,9 @@ data.
 (cd backend && uv run pytest -q -m "not integration")
 (cd frontend/web && npx vitest run)
 ```
+
+On a TypeScript backend, run its test script whenever a fix touched an entity or
+a vendor response type.
 
 State in the report which suites ran and which did not (integration tests need
 Postgres; say so rather than implying full coverage).
