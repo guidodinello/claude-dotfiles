@@ -23,6 +23,7 @@ The method lives here; everything project-specific lives in a per-project docs f
 - **Claim only what ran.** Every cell comes from a run's output, using the cell vocabulary in method §8. Never fill a cell by inference.
 - **Leave no trace.** Revert temporary code and config (`git status` clean) and restore changed local rows, or say they were left changed. Never start the app's scheduler.
 - **Drafts only.** The user approves the PR comment before it is posted.
+- **Script language follows where it runs:** outside the app, Python stdlib (`python3 -I`); inside the app's process, the project's language.
 
 ## Decision Gates
 
@@ -55,4 +56,4 @@ Reply in the conversation language: scenario path, base and PR SHAs, the table, 
 - [references/method.md](references/method.md): the full procedure.
 - [references/docs-template.md](references/docs-template.md): profile, scenario, write-log entry, PR comment.
 - [references/research.md](references/research.md): sources and what each changed.
-- [examples/scoped-write.mjs](examples/scoped-write.mjs), [examples/capture-runner.ts](examples/capture-runner.ts): skeletons.
+- [examples/scoped-write.py](examples/scoped-write.py) (Python stdlib, runs outside the app), [examples/capture-runner.ts](examples/capture-runner.ts) (Node/TypeScript, runs inside the app): skeletons.

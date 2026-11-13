@@ -56,7 +56,9 @@ Prefer **deny by default**: an allowlist of read methods, everything else throws
 
 **If a path cannot be made impossible, stop** and tell the user. Do not run "carefully".
 
-**Scoped write scripts** (one per resource kind, see `examples/scoped-write.mjs`):
+**Script language follows where the code runs.** Scripts that run outside the app (scoped writes, read-only probes, run helpers) use Python stdlib, run with `python3 -I`, or shell. Anything that runs inside the app's process (a capture runner, a base-version runner) uses the project's language, because it loads the app's own client.
+
+**Scoped write scripts** (one per resource kind, see `examples/scoped-write.py`):
 
 - Hard-code the allowlisted test account and resource ids; refuse any other.
 - Print the API host first; refuse anything but the sandbox host.

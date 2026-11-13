@@ -1,3 +1,8 @@
+// Node/TypeScript example. A capture runner runs inside the app's process, so write it in the project's
+// language. Other stacks: in Python, patch the client class or instance (unittest.mock.patch.object with a
+// side_effect that records and raises); with a DI container, bind a test double for the client before
+// resolving the unit. The rules are the same: allowlisted reads, recorded writes, everything else throws.
+//
 // Skeleton: a fail-closed stub for the vendor client, applied in the process that runs the flow.
 // Allowlisted reads stay real, listed sends are captured and printed, every other method throws.
 // Decision-only mode (recordBlocked): every blocked call is also recorded with a payload summary
