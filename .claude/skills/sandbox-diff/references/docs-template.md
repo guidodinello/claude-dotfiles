@@ -30,7 +30,7 @@ Local only; never committed to the product repo.
 - **Run base code**: <second worktree, or one-file swap command>
 - **Read local state**: <one read query helper>
 - **Sandbox host**: <host the scripts must see>
-- **Allowlisted test accounts**: <ids or handles; who approved, when>
+- **Allowlisted test accounts**: <ids or handles, owned by the user (never a teammate's); who approved, when>
 - **Write log**: <path>
 - **Deployed environments on the same sandbox**: <env, job, cron expression, file:line>
 

@@ -11,14 +11,14 @@ metadata:
 
 Load before verifying a backend PR that touches a third-party vendor integration by running real code against the vendor's sandbox: base branch vs PR on the same data, a regression check before review, merge or release, or a scheduled job whose timing must be simulated. Also load when writing or extending a harness script.
 
-Not for synthetic-data migration and backfill checks (`release-sim`), and not for finding out what the vendor itself does (a vendor-behavior investigation; feed its findings back there). Unit and mutation tests stay with `write-tests`.
+Not for synthetic-data migration and backfill checks (`release-sim`), and not for finding out what the vendor itself does (a vendor-behavior investigation; feed its findings back there). Writing tests stays with `write-tests`; this skill runs the diff-scoped mutation check on them.
 
 The method lives here. Everything project-specific (stack commands, allowlisted test accounts, write-log path, scoped scripts, scenarios) lives in a per-project docs folder. Never put project, vendor, client or person names in this skill.
 
 ## Hard Rules
 
 - **No path to a real person.** Before any run, list every path from the flow to an email, SMS, push or vendor-sent message (including the vendor's own API sending on your behalf) and make each impossible, in every process that runs the code, not only the runner. If one cannot be made impossible, stop.
-- **Writes only on allowlisted test accounts**, through a scoped script that hard-codes the target, refuses anything else, and prints the API host first and refuses a non-sandbox host. Every write goes in the append-only write log as it happens.
+- **Writes only on the user's own allowlisted test accounts**, never a teammate's or anyone else's, even in the sandbox, through a scoped script that hard-codes the target, refuses anything else, and prints the API host first and refuses a non-sandbox host. Every write goes in the append-only write log as it happens.
 - **Claim only what ran.** Every result cell comes from an actual run, quoted from its output. A case not run says `not run`; unit-test coverage says `unit-tested only`. Never fill a cell by inference.
 - **Leave no trace in the repo.** Temporary code, data and config changes are uncommitted and reverted; `git status` is clean at the end. Never start the app's scheduler.
 - **Drafts only.** The PR comment is a draft the user approves before it is posted.

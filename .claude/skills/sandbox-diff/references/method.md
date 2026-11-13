@@ -16,6 +16,7 @@ local stack of the PR worktree ── local DB (yours, resettable)
 
 - List the cases. For each, write the expected outcome **for base and for PR** with the code line that predicts it (`file:line`). The base expectation comes from reading base, not from the ticket.
 - Prefer data the sandbox already has. Read-only scripts first; create data only for cases nothing existing covers.
+- When a case depends on how a person acts in the vendor's UI, shape the data through UI automation (Playwright) on the real portal: some vendors enforce rules only in their UI, and the API can accept states the UI refuses. Label any API-shaped state the UI cannot produce, or the table tests an impossible state.
 - When real sandbox payloads are free to read, check the change's assumptions against them, not only against synthetic seeds: a seed encodes the same assumptions as the code.
 
 ## 1. Safety gate (before anything that can write or send)
