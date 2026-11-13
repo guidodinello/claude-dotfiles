@@ -69,6 +69,7 @@ are `user-invocable-only` since they're expensive/niche but still useful on dema
 | `/qa-check` | Runs type-check, linting, and tests via the quality-checker subagent (stack-agnostic) |
 | `/recap` | Rebuilds your GitHub, git, ClickUp, Slack and engram activity for a day or range, grouped by ticket, for standups |
 | `/release-sim` | Simulates a release locally (prod ref → next ref, optionally a fix PR) with synthetic data shapes to catch migration/backfill bugs; per-project docs folder holds shapes and lessons |
+| `/sandbox-diff` | Verifies a backend PR that touches a vendor integration by running base and PR code on the same vendor-sandbox data: a fail-closed safety gate before any write or send, scoped write scripts, time simulation, a mutation check, and tables that claim only what ran; per-project docs folder holds the profile and scenarios |
 | `/security-audit` | Application security audit covering OWASP Top 10 vulnerability patterns |
 | `/slite-compare-docs` | Compares two Slite documents to check whether one fully supersedes the other |
 | `/slite-to-clickup` | Syncs a Slite document to a ClickUp Doc page (Slite is source of truth) |
