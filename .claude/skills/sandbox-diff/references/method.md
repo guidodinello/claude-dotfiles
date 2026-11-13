@@ -16,10 +16,13 @@ local stack of the PR worktree ── local DB (yours, resettable)
 
 - **Resolve base and PR to SHAs** (`git rev-parse`) and write both in the scenario header.
   - Open PR: base = `git merge-base <target> <pr head>`; PR = the head SHA.
-  - Merged PR: PR = the merge commit; base = its first parent (`<merge>^1`). For a squash merge, base = the parent of the squashed commit.
+  - Merged PR: PR = the merge commit; base = its first parent (`<merge>^1`).
+  - Squash merge: `git cat-file -p <merge>` shows one `parent` line (`<merge>^2` fails). PR = the squash commit; base = its parent. The PR's head ref (`headRefOid`) is **not** the PR SHA: it may have branched before other merged work, so code at the head lacks changes the squash commit has.
+  - **Every run, not only the mutation check, comes from the PR SHA.** Check the worktree's `HEAD`; if it differs, `git switch --detach <pr sha>` and switch back at the end.
   - Check every run helper honours the SHA. A helper that runs `git show <target branch>:<file>` runs PR code once the PR is merged, and the table then reports "no difference".
 - **Reuse earlier work carefully.** If a scenario for the same PR exists, read it and cross-link it; write a new file for a new run instead of editing its table. Its base expectations hold only if its base SHA equals yours.
-- List the cases. For each, write the expected outcome **for base and for PR** with the code line that predicts it (`file:line`). The base expectation comes from reading base at its SHA, not from the ticket or an earlier scenario.
+- **Separate versions stay separate.** "PR as merged" and "PR plus a temporary change" (a later data fix applied locally so the case is reachable at all) are different rows or columns, never one. The table must not claim the merged code did what only the patched code did.
+- List the cases, before any run, in the scenario's Expected section. For each, write the expected outcome **for base and for PR** with the code line that predicts it (`file:line`). The base expectation comes from reading base at its SHA, not from the ticket or an earlier scenario.
 - Prefer data the sandbox already has. Read-only scripts first; create data only for cases nothing existing covers.
 - When a case depends on how a person acts in the vendor's UI, shape the data through UI automation (Playwright) on the real portal: some vendors enforce rules only in their UI, and the API can accept states the UI refuses. Label any API-shaped state the UI cannot produce, or the table tests an impossible state.
 - When real sandbox payloads are free to read, check the change's assumptions against them, not only against synthetic seeds: a seed encodes the same assumptions as the code.
@@ -32,7 +35,7 @@ local stack of the PR worktree ── local DB (yours, resettable)
 
 | Technique | Use when | Limit |
 |---|---|---|
-| Capture runner: replace the vendor client's methods in-process; allowlisted reads stay real, listed sends are captured and printed, everything else throws | The flow runs in one process you start | Covers only that process |
+| Capture runner: replace the vendor client's methods in-process; allowlisted reads stay real, listed sends are captured and printed, everything else throws. It prints the API host first and refuses anything but the sandbox, like a write script, because its reads are real | The flow runs in one process you start | Covers only that process |
 | Dead host: point the vendor base URL at `http://127.0.0.1:9` for the runner | Second layer under the capture runner | Env set on the runner does not reach other containers |
 | Vendor test credentials or magic values (some SMS/payment vendors never deliver with them) | The vendor offers them | Not every vendor has them |
 | Local mail/SMS sink (SMTP catcher) | The app sends through its own SMTP or provider client | Useless when the vendor sends |
@@ -40,9 +43,16 @@ local stack of the PR worktree ── local DB (yours, resettable)
 
 Prefer **deny by default**: an allowlist of read methods, everything else throws. Enumerating the send methods fails open when someone adds a new one.
 
-**Cover every process that runs the code.** A command that enqueues a job is executed by the queue worker, with unstubbed services and its own env. A scheduler container runs every sweep unattended. Simplest: call the unit directly in one stubbed process and do not start the worker; the job wrapper is then `not run`. Otherwise prove the other processes cannot reach a send path. Check `docker ps` before and after.
+**Cover every process that runs the code.** A command that enqueues a job is executed by the queue worker, with unstubbed services and its own env. A scheduler container runs every sweep unattended. Simplest: call the unit directly in one stubbed process and do not start the worker; the job wrapper is then `not run`. Also check what the app process itself runs on boot (migrations, queue consumers, in-process crons) before starting it: an app container that consumes jobs is a worker. Otherwise prove the other processes cannot reach a send path. Check `docker ps` before and after.
 
-**Self-test the stub.** Before the real run, call one unlisted method through the runner and confirm it throws. A stub that walks only the direct prototype misses inherited methods: audit any runner the project already has against this before reusing it.
+**Self-test the stub.** Before the real run, call one unlisted method through the runner and confirm it throws.
+
+**Audit a runner before reusing it**, at the SHA you will run:
+
+- It walks the whole prototype chain and own function properties; a stub over the direct prototype misses inherited methods.
+- Every name in its read and internal allowlists exists on the client at that SHA, and so does its self-test target (a missing target throws a `TypeError`, not the harness error).
+- Its claims about the unit hold at that SHA (for example "the unit catches errors per item"): read the unit, not the runner's header.
+- It prints and checks the host.
 
 **If a path cannot be made impossible, stop** and tell the user. Do not run "carefully".
 
@@ -64,6 +74,15 @@ Prefer **deny by default**: an allowlist of read methods, everything else throws
 
 **Decision-only:** block every vendor write in the runner, for both versions, the same way sends are blocked. Each blocked call is recorded (method, target id, a summary of the payload, such as a tag or external id) and then throws. Read each version's decision from its attempted calls and its logs. Zero sandbox writes, no write-log entries, no permanent duplicates, both versions see identical input, and order does not matter. The unit's own error handling may catch the throw; that is fine as long as the attempt was recorded. Cells read `attempted, blocked: <call> <id>`.
 
+Throw or simulate:
+
+| The unit at that SHA | Blocked write |
+|---|---|
+| Catches errors per item, or the decision is complete at the first write | **Throw** (default) |
+| Has no catch around the write, and the decision continues past it (later writes, routing of the rest) | **Simulate**: return a response built from real reads (the destination's real definition, the record as it would exist) so the unit continues; the call still never reaches the vendor |
+
+Read the unit at both SHAs to choose; the choice can differ per version. A simulated response is harness-built: say how it was built in the scenario, and label those cells `simulated: <call> <target>`. A difference that appears only after a simulated response depends on the simulation being faithful.
+
 **Real writes:** only when the effect is the question. Before the first write:
 
 - Read the write log's latest entries for the same test account. If another check is in progress that depends on the account's current state (a derived score, a pending sync), block writes or use another account.
@@ -73,6 +92,7 @@ Prefer **deny by default**: an allowlist of read methods, everything else throws
 
 - **Fresh enough schema.** Tables exist and match the branch: re-run migrations when the local schema is stale (a dropped column still `NOT NULL` breaks inserts). Restart app processes that booted before the tables existed.
 - **Old data stays old.** Mark pre-existing vendor records as already processed in the local DB, so a local sweep acts only on the records the case needs. Local DB edits only.
+- **Isolate cases when a version aborts.** If a version can abort the sweep on one record, run each case on its own: one unprocessed record per run, everything else marked processed.
 - **Snapshot before, restore after.** Other scenarios share the local DB. Save the rows you change (`COPY ... TO`, or a `SELECT` into a scratch table) and restore them at the end, or state in the scenario that the local DB was left changed and how.
 - **Narrow the population.** Seed only the test accounts the case needs; jobs that load "every local record" then touch no one else.
 - **Temporary code or config** (a mapping the branch lacks, a low threshold): apply as an uncommitted change in the worktree, list it in the scenario, revert, `git status` clean.
@@ -93,7 +113,7 @@ Restoring a local DB snapshot gives both versions identical input, but the secon
 **Run the base version.** Two options:
 
 - A second worktree at the base SHA on the same DB (clean, heavier).
-- Swap only the changed unit: copy the base file (`git show <base sha>:<path>`) into the running container outside mounted paths, build it with the PR's dependencies, call it once. Cheaper; only that file is base, its imports are the PR's. Check it is faithful: list the PR's other changed source files (`git diff --name-only <base>..<pr>`) and confirm the base file imports none of them, or that the change there is additive. Say so in the table header.
+- Swap only the changed unit (record the faithfulness check in the scenario's Setup): copy the base file (`git show <base sha>:<path>`) into the running container outside mounted paths, build it with the PR's dependencies, call it once. Cheaper; only that file is base, its imports are the PR's. Faithful only if the base file imports none of the PR's other changed source files (`git diff --name-only <base>..<pr>`), or the change there is additive.
 
 **Noise baseline.** Re-run the same version once more on the same data. Anything that changes between two runs of the same code (ids, timestamps, order, a deployed environment's sweep) is noise, not a PR difference. Normalize ids and timestamps before comparing.
 
@@ -113,13 +133,13 @@ The other direction matters as much: your writes change the state a deployed env
 ## 7. Recording
 
 - **Write log (per project, append-only):** one entry per sandbox write, written right after it: date, script and mode, account, created or changed ids, why. Vendor data often cannot be deleted; the log is how the next run knows what exists.
-- **Scenario file per run:** question, safety (paths found, how each was neutralized), setup (SHAs, local prep, temporary changes reverted), the expected-vs-observed table with `file:line` citations, observations that are not regressions, side effects, not covered.
-- **PR comment:** a draft built from the scenario table, kept at the end of the scenario file. The user approves the exact text before it is posted. For a merged PR, ask whether it should be posted at all (for the record) or stay in the scenario.
+- **Scenario file per run:** question, expected (before the run), safety (paths found, how each was neutralized), setup (SHAs, local prep, temporary changes reverted), the expected-vs-observed table with `file:line` citations, observations that are not regressions, side effects, not covered.
+- **PR comment:** a draft built from the scenario table, kept at the end of the scenario file. The user approves the exact text before it is posted. For a merged PR, the comment is optional: ask whether to post it for the record, or, when you cannot ask (a delegated run), mark it `not posted; optional`.
 
 ## 8. Claim only what ran
 
 - Each observed cell quotes or summarizes output from a run in this session or a cited earlier scenario. Before writing the draft, match every cell to its run.
-- Cells use: an observed value; `attempted, blocked: <call> <id>` (decision-only); `not run`; `not seen: consumed by the <x> run`; `unit-tested only (<spec file>)`; `observed live on <env>, not run locally`.
+- Cells use: an observed value; `attempted, blocked: <call> <id>` (decision-only); `simulated: <call> <target>` (decision-only, harness-built response); `not run`; `not seen: consumed by the <x> run`; `unit-tested only (<spec file>)`; `observed live on <env>, not run locally`.
 - A case whose run failed for an unrelated reason is `not run`, with the reason.
 
 ## 9. Mutation check
@@ -129,9 +149,11 @@ The other direction matters as much: your writes change the state a deployed env
 3. For each changed line under the question, reintroduce the old behavior (revert the fix line, flip the guard), run the tests, confirm they fail for the expected reason, restore with `git checkout -- <file>`.
 4. `git status` clean. List which changed lines were mutated and which were not (`not mutation-checked`), so the report does not imply full coverage.
 
+Config and data lines (ids, mapping tables, thresholds) usually cannot be mutation-checked offline: whether an id is right depends on the vendor's live state. Say so, and point to the sandbox run (or a read of the vendor's published definition) as their check. This is often the strongest reason to run the harness at all.
+
 A test that still passes does not cover the fix. Full mutation tools are overkill for this; the diff-scoped check is the point.
 
 ## 10. Readers and the documented path
 
-- **Every reader of every table the change writes**, in code or in documented SQL: grep the entity and the table name across apps, jobs and crons, and state the effect on each. Say whether readers outside the code (BI dashboards, documented SQL) were checked. A reset of a row can also move another feature's cycle.
+- **Every reader of every table the change writes**, in code or in documented SQL: grep the entity and the table name across apps, jobs and crons, and state the effect on each. Say whether readers outside the code (BI dashboards, documented SQL) were checked. A reader's effect may be cited from an earlier scenario when the SHA and the reader's code are the same: write `observed in <scenario>, not re-run`. A reset of a row can also move another feature's cycle.
 - **Operator procedures** (docs, SQL, commands): the test or harness must run exactly the documented path, not an equivalent one. A delete and a reset reach different code.

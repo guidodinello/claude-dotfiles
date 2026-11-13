@@ -1,6 +1,6 @@
 # Per-project docs folder template
 
-Use this only to bootstrap a missing folder. When the folder already exists in another shape, keep it: map each profile field below to where the folder keeps it (a workflow section, a section of a shared accounts file used as the write log), and note missing fields in the scenario instead of restructuring.
+Use this only to bootstrap a missing folder. When the folder already exists in another shape, keep it: map each profile field below to where the folder keeps it (a workflow section, a section of a shared accounts file used as the write log), and write that mapping once in the scenario's Setup (one line per field), noting missing fields, instead of restructuring.
 
 Layout, following the `dev-docs-index` convention (every folder has a `README.md`):
 
@@ -56,16 +56,23 @@ Local only; never committed to the product repo.
 PR <link> (open / merged): PR `<full sha>`, base `<full sha>` (<how derived>). Worktree stack `<name>`, vendor **sandbox**, local DB.
 Mode: decision-only (writes blocked) / real writes. Earlier scenarios for this PR: <links, and whether their base SHA matches>.
 
+## Expected (written before any run)
+
+| # | Case | Base predicts (`file:line` at base SHA) | PR predicts (`file:line` at PR SHA) |
+|---|---|---|---|
+
 ## Safety
 
 Paths from this flow to a person (code on <ref>):
 - <channel>: `<file:line>` → ... → `<vendor client method>`
 
-Neutralized by: <capture runner / dead host / stopped worker ...>, in <which processes>. Stub self-test: <unlisted method threw>.
+Neutralized by: <capture runner / dead host / stopped worker ...>, in <which processes>. Host printed: <sandbox host>. Stub self-test: <unlisted method threw>. Blocked writes: <throw / simulated (how the response is built)> per version. App boot runs: <migrations, consumers, crons; none of them can send>.
 
 ## Setup
 
-- Local prep: <migrations, records marked processed, seeds>
+- Docs folder mapping (only if the folder predates the template): <profile field → where it lives>
+- Worktree HEAD: <sha>, detached to the PR SHA for every run (yes / already there)
+- Local prep: <migrations, records marked processed, seeds; one case per run if a version aborts>
 - Temporary changes: <file, what>; reverted, `git status` clean.
 - Sandbox data: existing <ids> read; created <ids> (write log entries <dates>).
 - Order: <PR first, base second / any>, because <reason>.
@@ -75,11 +82,11 @@ Neutralized by: <capture runner / dead host / stopped worker ...>, in <which pro
 
 ## Results
 
-| # | Case | Expected (code) | Base | PR |
-|---|---|---|---|---|
-| 1 | <case> | <outcome> (`file:line`) | <observed> | <observed> |
+| # | Case | Expected (code) | Base | PR | PR + <temporary change> (only if needed) |
+|---|---|---|---|---|---|
+| 1 | <case> | <outcome> (`file:line`) | <observed> | <observed> | <observed> |
 
-Allowed cell values besides an observed result: `attempted, blocked: <call> <id>`, `not run`, `not seen: consumed by the <x> run`,
+Allowed cell values besides an observed result: `attempted, blocked: <call> <id>`, `simulated: <call> <target>`, `not run`, `not seen: consumed by the <x> run`,
 `unit-tested only (<spec>)`, `observed live on <env>, not run locally`.
 
 Noise baseline: <second run of the same version: unchanged / what changed>.
@@ -95,9 +102,11 @@ Noise baseline: <second run of the same version: unchanged / what changed>.
 | Changed line | Mutated | Tests failed as expected |
 |---|---|---|
 
+Config/data lines not mutation-checkable offline: <lines; checked by the sandbox run or a read of the vendor definition>.
+
 ## PR comment draft
 
-<the draft below, for approval; for a merged PR, note whether it should be posted at all>
+<the draft below, for approval; for a merged PR it is optional: `not posted; optional` unless the user asks>
 
 ## Not covered
 

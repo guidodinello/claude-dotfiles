@@ -17,7 +17,7 @@ The method lives here; everything project-specific lives in a per-project docs f
 
 ## Hard Rules
 
-- **Base and PR are SHAs**, resolved at the start and quoted in the scenario. Never a branch: after a merge the target branch already holds the PR, so a "base" run on it runs PR code.
+- **Base and PR are SHAs**, resolved at the start, quoted in the scenario, and checked out for every run. Never a branch or a squashed PR's head ref (method §0).
 - **No path to a real person.** List every path from the flow to an email, SMS, push or vendor-sent message and make each impossible in every process that runs the code. If one cannot be, stop.
 - **Writes only on the user's own allowlisted test accounts**, never a teammate's, through a scoped script that hard-codes the target and refuses a non-sandbox host. Log every write as it happens.
 - **Claim only what ran.** Every cell comes from a run's output, using the cell vocabulary in method §8. Never fill a cell by inference.
@@ -30,7 +30,7 @@ The method lives here; everything project-specific lives in a per-project docs f
 |---|---|
 | Docs folder missing | Bootstrap it from the template, show it, wait for confirmation |
 | Docs folder exists in another shape | Use it as is; map each profile field to where it lives; do not restructure |
-| Question is what each version selects or decides | **Decision-only**: block every vendor write, read decisions from attempted calls; zero sandbox writes |
+| Question is what each version selects or decides | **Decision-only**: block every vendor write, read decisions from attempted calls; simulate the response when the unit has no catch (method §2) |
 | The written effect itself is the question | Real writes, PR first, base second; method §4 |
 | Recent write-log entries on the same account show a check in progress | Block writes, or use another account |
 | A worker or second process also runs the code | Run the unit in one stubbed process, do not start the worker |
@@ -48,7 +48,7 @@ The method lives here; everything project-specific lives in a per-project docs f
 
 ## Output Contract
 
-Reply in the conversation language: scenario path, base and PR SHAs, the table, side effects and write-log entries (or `none, writes blocked`), not covered, local DB and `git status` state, and the PR comment draft for approval.
+Reply in the conversation language: scenario path, base and PR SHAs, the table, side effects and write-log entries (or `none, writes blocked`), not covered, local DB and `git status` state, and the PR comment draft for approval (optional for a merged PR).
 
 ## References
 
