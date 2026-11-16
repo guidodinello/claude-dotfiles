@@ -3,14 +3,15 @@ name: address-pr-comments
 description: >
   Address incoming PR review comments end-to-end: fetch all unresolved inline
   review threads AND PR review summaries, assess their validity, fix valid ones,
-  commit and push, then reply to every thread (and each review summary) with the
-  outcome. Use when a PR has received review feedback that needs to be triaged
-  and responded to.
+  commit and push, reply to every thread (and each review summary) with the
+  outcome, then resolve every thread that was fixed or declined (the merge
+  ruleset blocks on unresolved threads). Use when a PR has received review
+  feedback that needs to be triaged and responded to.
 ---
 
 # Address PR Comments
 
-Automates the full loop for responding to PR review comments: fetch → assess → fix → commit → reply.
+Automates the full loop for responding to PR review comments: fetch → assess → fix → commit → reply → resolve.
 
 ## Invocation
 
@@ -31,6 +32,8 @@ gh repo view --json owner,name
 
 - If no open PR is found, stop and tell the user.
 - If the PR is already closed or merged, stop.
+- `{owner}` is `.owner.login` and `{repo}` is `.name` from the `gh repo view` output. Use
+  those values everywhere below; never hardcode them.
 
 ## Step 1 — Fetch inline review comment threads AND review summaries
 
@@ -53,17 +56,24 @@ Group inline comments into threads:
 - A comment with no `in_reply_to_id` is a **thread root**
 - Comments with `in_reply_to_id` are replies to the root
 
-Process **thread roots only**. For inline threads, skip a thread if:
+Process **thread roots only**. Do **not** skip bot-authored threads (Copilot
+included) or outdated threads (`position` is `null`): the `development` ruleset
+blocks merge on ANY unresolved conversation, so they are triaged, replied to and
+resolved like every other thread. For an outdated thread there is no
+`line`; use `original_line` to find the code and check whether the current code
+already addresses the comment (then reply with that fact and resolve, as FIX or
+DECLINE as fits).
 
-- `author_association` is `"BOT"` or the login contains `[bot]`
-- `position` is `null` (outdated diff line — the code changed since the comment was posted)
-- The current git user (`git config user.name`) has already replied in that thread
+The only thread skipped for triage is one where the current git user
+(`git config user.name`) has already replied (an earlier run). Do not re-reply, but
+if it is still unresolved it is handled by **Step 6b** (earlier-run rule).
 
 For review summaries, treat each non-empty non-`PENDING` review body as a
 separate item to triage (it is not a thread — the reviewer left a comment on the
 PR as a whole, e.g. "CHANGELOG not updated"). Skip summaries that are empty or
 bot-authored. Note whether you have already replied to a given summary by
 checking for a later `COMMENTED`/submitted review from the current user.
+Summaries are not threads and cannot be resolved; Steps 6b and 6c do not cover them.
 
 Get the current user's login for filtering:
 
@@ -71,7 +81,7 @@ Get the current user's login for filtering:
 gh api user --jq '.login'
 ```
 
-If nothing remains after filtering, there is nothing to fix — but the review still needs to be acknowledged. Skip Steps 2–6 and go straight to **Step 7** to add `ready-to-merge` (this marks that the implementer processed the review), then tell the user there was nothing to address and stop.
+If nothing remains after filtering, there is nothing to fix — but the review still needs to be acknowledged. Skip Steps 2–6, run **Steps 6b and 6c** (earlier-run threads may still be unresolved), then **Step 7** to add `ready-to-merge` (this marks that the implementer processed the review), then tell the user there was nothing to address and stop.
 
 ## Step 2 — Assess each thread
 
@@ -166,6 +176,51 @@ gh api --method POST repos/{owner}/{repo}/pulls/{pr_number}/reviews \
 Never write: "Thanks!", "Great catch!", "You're right!", "Good point!", or any gratitude or praise.
 Never write: "I've gone ahead and…" or "Let me…" — state the outcome directly.
 
+## Step 6b — Resolve threads (a reply is not enough)
+
+The `development` ruleset sets `required_review_thread_resolution: true`. A PR
+with green CI sits `BLOCKED` while **any** review thread is unresolved, and
+replying does not resolve a thread. After replying, resolve explicitly.
+
+Rules:
+
+- `FIX` and `DECLINE` threads: resolve after the reply is posted.
+- `CLARIFY` threads: leave open. They are the only threads that stay open.
+- Earlier-run threads (the current user replied in a previous run and the thread is
+  still unresolved): resolve them too, unless that reply starts with
+  `Need clarification:`.
+- Bot-authored (Copilot) and outdated threads follow the same rules as any other.
+
+List the threads, then resolve one (same queries as the `babysit-prs` section
+"Resolve review threads — a reply is not enough"; owner/repo come from Step 0,
+and `databaseId` is added so a thread maps to the REST comment `id` used in
+Steps 1 and 6):
+
+```bash
+# list threads: id (PRRT_...), state, and the root comment's REST id
+gh api graphql \
+  -f query='query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){pullRequest(number:$n){reviewThreads(first:100){nodes{id isResolved isOutdated comments(first:1){nodes{databaseId path body author{login}}}}}}}}' \
+  -f owner="{owner}" -f name="{repo}" -F n={pr_number} \
+  --jq '.data.repository.pullRequest.reviewThreads.nodes[]'
+
+# resolve one
+gh api graphql \
+  -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' \
+  -f id="<PRRT_id>"
+```
+
+Match each thread to its root comment by `comments.nodes[0].databaseId` ==
+the REST comment `id`. If a PR has more than 100 threads, page with `after`.
+
+## Step 6c — Final check: report unresolved threads
+
+Run the list query again. Every thread must be `isResolved: true` except
+`CLARIFY` threads. Report each remaining unresolved thread with a specific
+reason: `waiting on author` (CLARIFY question posted), or `resolve failed`
+(with the error). If a thread is unresolved for any other reason, resolve it
+or fix the cause; do not report the run as done. Review summaries are not
+threads and are not covered by this check.
+
 ## Step 7 — Update PR labels (mandatory — do not skip)
 
 **This step is not optional cleanup.** The skill is not finished until it has
@@ -201,11 +256,13 @@ Include whether the label update in Step 7 was confirmed — don't just list the
 comment-level outcomes:
 
 ```
-| # | File:Line | Decision | Reply posted |
-|---|-----------|----------|-------------|
-| 1 | src/api.ts:42 | FIX | ✓ |
-| 2 | lib/utils.ts:7 | DECLINE | ✓ |
+| # | File:Line | Decision | Reply posted | Resolved |
+|---|-----------|----------|--------------|----------|
+| 1 | src/api.ts:42 | FIX | ✓ | ✓ |
+| 2 | lib/utils.ts:7 | DECLINE | ✓ | ✓ |
+| 3 | lib/x.ts:9 | CLARIFY | ✓ | open (waiting on author) |
 
+Unresolved threads: 1 (#3 waiting on author)
 Label: ready-to-merge ✓ confirmed
 ```
 
