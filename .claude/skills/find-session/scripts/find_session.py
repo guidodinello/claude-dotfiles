@@ -25,6 +25,7 @@ import json
 import math
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -34,7 +35,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-PROJECTS_DIR = Path.home() / ".claude" / "projects"
+PROJECTS_DIRS: list[Path] = []  # set in main() from --config-dir / $CLAUDE_CONFIG_DIR / both defaults
 USER_WEIGHT = 3
 SNIPPET_WIDTH = 160
 MARKUP = re.compile(r"</?(?:pasted_content|bash-[a-z]+|(?:local-)?command-[a-z]+|system-reminder|task-notification)\b[^>]*>|```")
@@ -55,17 +56,41 @@ class Session:
     tool_texts: list[str] = field(default_factory=list)
 
 
+def projects_dirs(config_dir: str | None) -> list[Path]:
+    """--config-dir, else $CLAUDE_CONFIG_DIR, else every default dir that exists."""
+    explicit = config_dir or os.environ.get("CLAUDE_CONFIG_DIR")
+    if explicit:
+        projects = Path(explicit).expanduser() / "projects"
+        if not projects.is_dir():
+            sys.exit(f"no projects dir at {projects}")
+        return [projects]
+    found: dict[Path, Path] = {}
+    for name in (".claude", ".claude-work"):
+        candidate = Path.home() / name / "projects"
+        if candidate.is_dir():
+            found.setdefault(candidate.resolve(), candidate)
+    return list(found.values())
+
+
+def resume_prefix(path: Path) -> str:
+    """Env prefix so `claude --resume` looks in the config dir the session lives in."""
+    config_dir = path.parent.parent.parent
+    if config_dir.resolve() == (Path.home() / ".claude").resolve():
+        return ""
+    return f"CLAUDE_CONFIG_DIR={shlex.quote(str(config_dir))} "
+
+
 def in_project(path: Path, project: str | None) -> bool:
     return not project or project.lower() in path.parent.name.lower()
 
 
 def corpus_size(project: str | None) -> int:
-    return sum(1 for p in PROJECTS_DIR.glob("*/*.jsonl") if in_project(p, project))
+    return sum(1 for d in PROJECTS_DIRS for p in d.glob("*/*.jsonl") if in_project(p, project))
 
 
 def files_containing(term: str, project: str | None) -> set[Path]:
     conversation_line = f'^(?=.*"type":"(user|assistant)")(?=.*{re.escape(term)})'
-    cmd = ["rg", "-l", "-i", "-P", "--max-depth", "2", "-g", "*.jsonl", "-e", conversation_line, str(PROJECTS_DIR)]
+    cmd = ["rg", "-l", "-i", "-P", "--max-depth", "2", "-g", "*.jsonl", "-e", conversation_line, *map(str, PROJECTS_DIRS)]
     out = subprocess.run(cmd, capture_output=True, text=True).stdout
     return {Path(line) for line in out.splitlines() if line and in_project(Path(line), project)}
 
@@ -169,7 +194,7 @@ def describe(s: Session, score: float, mtime: float, patterns: list[re.Pattern],
     lines += [f"  pr:      {pr}" for pr in s.prs[:5]]
     found = snippets(s.user_texts, patterns, n_snippets) or snippets(s.assistant_texts, patterns, n_snippets)
     lines += [f"  match:   {snip}" for snip in found]
-    lines.append(f"  resume:  cd {s.cwd or '.'} && claude --resume {s.session_id}")
+    lines.append(f"  resume:  cd {shlex.quote(s.cwd or '.')} && {resume_prefix(s.path)}claude --resume {s.session_id}")
     return "\n".join(lines)
 
 
@@ -198,6 +223,9 @@ def pick(ranked: list[tuple[float, float, Session]], patterns: list[re.Pattern])
     s = by_id[choice]
     if s.cwd and Path(s.cwd).is_dir():
         os.chdir(s.cwd)
+    prefix = resume_prefix(s.path)
+    if prefix:
+        os.environ["CLAUDE_CONFIG_DIR"] = str(s.path.parent.parent.parent)
     os.execvp("claude", ["claude", "--resume", choice])
 
 
@@ -210,8 +238,16 @@ def main() -> int:
     ap.add_argument("--tools", action="store_true", help="also search tool output (noisy)")
     ap.add_argument("--include-current", action="store_true", help="do not hide the running session")
     ap.add_argument("--pick", action="store_true", help="choose interactively in fzf and resume it")
+    ap.add_argument(
+        "--config-dir",
+        help="Claude config dir holding projects/ (default: $CLAUDE_CONFIG_DIR, else ~/.claude and ~/.claude-work)",
+    )
     args = ap.parse_args()
 
+    PROJECTS_DIRS[:] = projects_dirs(args.config_dir)
+    if not PROJECTS_DIRS:
+        print("no projects dir found (try --config-dir)", file=sys.stderr)
+        return 1
     patterns = [re.compile(re.escape(t), re.IGNORECASE) for t in args.terms]
     current = os.environ.get("CLAUDE_CODE_SESSION_ID", "")
     cutoff = time.time() - args.days * 86400 if args.days else 0
