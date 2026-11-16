@@ -28,8 +28,8 @@ symlinked into `~`.
 
 | Area | Description | Details |
 |---|---|---|
-| [Skills](docs/skills.md) | 32 slash-command skills | `/address-pr-comments`, `/code-health`, `/security-audit`, `/db-migration-planner`, etc. |
-| [Agents](docs/agents.md) | 6 subagents | audit-finding-verifier, clickup-create-task, quality-checker, slite-sync, etc. |
+| [Skills](docs/skills.md) | Slash-command skills | `/address-pr-comments`, `/code-health`, `/security-audit`, `/db-migration-planner`, etc. |
+| [Agents](docs/agents.md) | Subagents | audit-finding-verifier, quality-checker, slite-sync, stats-analyzer |
 | [Hooks](docs/hooks.md) | Safety guards + auto-format + status line | Docker volume guard, Wrangler production guard, auto-format.sh, statusline.sh |
 | [Rules & guidelines](docs/guidelines.md) | Reusable coding conventions | **Rules** (path-scoped, auto-load): python, php, docker, ci, database. **Guidelines** (always-on): reasoning-discipline, debugging-patterns, react-native, tools/* |
 
