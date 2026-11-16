@@ -222,7 +222,7 @@ false positive you rebut), resolve the thread explicitly:
 
 ```bash
 # list unresolved threads
-gh api graphql -f query='query($n:Int!){repository(owner:"guidodinello",name:"fitted"){pullRequest(number:$n){reviewThreads(first:50){nodes{id isResolved comments(first:1){nodes{path body}}}}}}}' \
+gh api graphql -F owner='{owner}' -F name='{repo}' -f query='query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){pullRequest(number:$n){reviewThreads(first:50){nodes{id isResolved comments(first:1){nodes{path body}}}}}}}' \
   -F n=<n> --jq '.data.repository.pullRequest.reviewThreads.nodes[]|select(.isResolved==false)'
 # resolve one
 gh api graphql -f query='mutation{resolveReviewThread(input:{threadId:"<PRRT_id>"}){thread{isResolved}}}'
