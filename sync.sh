@@ -36,8 +36,16 @@ LOCAL_KEYS=("autoMode" "enabledPlugins" "outputStyle")
 # hooks, gentle-ai adds engram permissions and secret-file deny rules. Hooks
 # (per event) and these permission lists are unioned with the live file instead
 # of replaced, so a sync never drops an installer's entry. The cost: removing an
-# entry from the base does not remove it from an existing config dir.
+# entry from the base does not remove it from an existing config dir, unless
+# its command is listed in RETIRED_HOOK_COMMANDS below.
 UNION_PERMISSIONS='["allow","deny","ask","additionalDirectories"]'
+
+# Hook commands that were removed from settings.base.json on purpose. To retire
+# a hook, delete it from the base AND add its exact command here: merge_settings
+# strips these from the live file before the union, so the old entry is not
+# kept next to the new one. Keep entries listed (they are harmless once gone).
+#   "rtk hook claude" - its rewrite voids auto-mode verdicts (Issue 389).
+RETIRED_HOOK_COMMANDS=("rtk hook claude")
 
 GREEN='\033[1;32m'; YELLOW='\033[1;33m'; RED='\033[1;31m'; NC='\033[0m'
 log_info() { echo -e "${GREEN}[INFO]${NC}  $*"; }
@@ -114,15 +122,25 @@ merge_settings() {
         rm "${current}"
     fi
 
+    local retired_json
+    retired_json="$(printf '%s\n' "${RETIRED_HOOK_COMMANDS[@]}" | jq -R . | jq -s .)"
+
     local merged
     merged="$(jq -n \
         --argjson base "$(sed "s|{{CONFIG_DIR}}|${dst}|g" "${base}")" \
         --argjson live "${live_json}" \
         --argjson localKeys "${local_keys_json}" \
+        --argjson retired "${retired_json}" \
         --argjson unionPerms "${UNION_PERMISSIONS}" '
         def union($a; $b): reduce ($b // [])[] as $x (($a // []);
             if any(.[]; . == $x) then . else . + [$x] end);
-        ($live | with_entries(select(.key as $k | $localKeys | index($k)))
+        def unretire: if (.hooks | type) == "object" then .hooks |= with_entries(
+            .value |= (map(if (.hooks | type) == "array"
+                           then .hooks |= map(select((.command // "") as $c | ($retired | index($c)) | not))
+                           else . end)
+                       | map(select((.hooks | type) != "array" or (.hooks | length) > 0)))) else . end;
+        ($live | unretire) as $live
+        | ($live | with_entries(select(.key as $k | $localKeys | index($k)))
                | with_entries(select(.value != null))) as $own
         | ($base * $own)
         | .hooks = (reduce ((($base.hooks // {}) + ($live.hooks // {})) | keys[]) as $ev
