@@ -3,8 +3,8 @@ name: babysit-prs
 description: >
   Orchestrate every open PR in this repo toward merge: check the self-hosted
   CI runner is healthy, triage failed CI runs (flaky vs. real), resolve merge
-  conflicts, get unreviewed PRs reviewed via a free opencode model in a herdr
-  pane, dispatch address-pr-comments on reviewed PRs with findings, and enable
+  conflicts, get unreviewed PRs reviewed by a herdr Sonnet session running the
+  full /code-review (scripts/spawn_reviewer.py), dispatch address-pr-comments on reviewed PRs with findings, and enable
   auto-merge on anything clean. Use when the user asks to "babysit the PRs",
   "clear the PR queue", "orchestrate the open PRs", or "get everything
   mergeable" for this repo. Requires an interactive herdr session — do not use
@@ -18,20 +18,19 @@ a time. This is an orchestration *procedure*, not a single tool call — expect
 to spawn several `Agent` calls and a couple of herdr panes, and to loop back
 after each merge because landing one PR can put another into conflict.
 
-Mental model: **Claude Sonnet agents write/fix code, a free opencode model
-(via herdr) reviews it.** You are the orchestrator tying both together with
-`gh`, never the one hand-editing PR branches yourself except for trivial,
-mechanical merge-conflict resolution you're confident about.
+Mental model: **Claude Sonnet agents write/fix code, and a separate herdr
+Sonnet (medium effort) session running the full `/code-review` reviews it.**
+You are the orchestrator tying both together with `gh`, never the one
+hand-editing PR branches yourself except for trivial, mechanical
+merge-conflict resolution you're confident about.
 
 ## Herdr caveat
 
-Step 3 (getting a PR reviewed) needs a live, interactive herdr pane running
-opencode. This only works when invoked from an active herdr-managed session
-(`test "${HERDR_ENV:-}" = 1`). If that check fails, stop and tell the user —
-don't fall back to a headless `opencode run` fanout. Free-tier opencode
-models churn frequently and several have failed silently in headless mode in
-the past — hanging, posting empty/thin reviews, or mislabeling PRs — so
-treat a headless fanout as unreliable rather than a fallback (see Step 3).
+Step 3 (getting a PR reviewed) needs a live, interactive herdr pane running a
+Claude session. This only works when invoked from an active herdr-managed
+session (`test "${HERDR_ENV:-}" = 1`). If that check fails, stop and tell the
+user — don't fall back to a headless review fanout or a single-reviewer
+`claude -p` pass. The reviewer must run the full multi-agent `/code-review`.
 
 ## Step 0 — Runner health check
 
@@ -107,107 +106,51 @@ directly is fine — reserve the Sonnet agent for conflicts that need judgment
 about actual source changes. Either way, run the affected test suite before
 pushing.
 
-## Step 3 — Get unreviewed PRs reviewed (via herdr + opencode)
+## Step 3 — Get unreviewed PRs reviewed (herdr Sonnet + `/code-review`)
 
 A PR needs review if it has no `reviewed` or `ready-to-merge` label (or has
-`pending-review`).
+`pending-review`). Do not hand-type the spawn recipe: one script does it.
 
-1. Split a sibling pane per PR needing review (don't reuse one pane for
-   multiple sequential reviews if you can parallelize — each is a real
-   background wait):
+```bash
+python3 -I <this skill's base directory>/scripts/spawn_reviewer.py <PR> \
+  [-R <owner/repo>] [--context "<PR-specific context>"]
+```
 
-   ```bash
-   herdr pane split --current --direction right --cwd "$PWD" --no-focus
-   ```
+Run it with `run_in_background`, one per PR, and handle its exit when notified.
+It:
 
-   (or `--direction down` off an already-split pane — avoid stacking splits
-   in the same direction until columns/rows get unusably thin).
+1. Refuses to start unless it is inside herdr, the PR is open, no `rev<PR>`
+   workspace exists yet, and fewer than 3 reviewer workspaces (`rev<N>`) are
+   running. **Max 3 concurrent reviewers**; start the next one when one exits.
+2. Adds a detached worktree of the PR head branch, creates the herdr workspace
+   `rev<PR>` with `CLAUDE_CONFIG_DIR` set, and starts Claude Sonnet (medium
+   effort, auto permission mode) in it.
+3. Sends the full `/code-review` brief (all sub-agents, no fallback, no polling
+   with sleep). `--context` appends PR-specific facts, for example "This PR
+   needs a full review; do not skip it as simple or docs-only" for a docs PR,
+   because the skill's eligibility check may otherwise skip it.
+4. Waits for the review to be **posted** (a new review starting with
+   `### Code review`), not for the pane to go idle: a reviewer waiting on its
+   own sub-agents is idle. It uses `watch.py` as a wake signal.
+5. Lets the reviewer finish its own label swap, then reconciles the labels from
+   the posted review: **clean** (`No issues found`, no inline comments) gives
+   `reviewed` + `ready-to-merge`; anything else gives `reviewed` only and
+   removes a `ready-to-merge` the reviewer set by mistake. Labels are never
+   touched before the review exists.
+6. Closes the workspace and removes the worktree (`--keep` skips this).
 
-2. Start an opencode agent in the new pane:
+Defaults come from the repo and environment (`-R` from `origin`,
+`--config-dir` from `$CLAUDE_CONFIG_DIR`, else `~/.claude`), so it works from
+any repo. Exit codes: `0` done, `2` refused (not in herdr, PR not open, limit
+or duplicate), `3` a tool is missing, `124` no review within `--timeout`
+(default 45 min; labels untouched, workspace and worktree kept so you can read
+the reviewer with `herdr agent read rev<PR> --source recent-unwrapped
+--lines 150`). Do not poll `herdr agent get` by hand and do not treat `idle`
+as finished.
 
-   ```bash
-   herdr agent start <name> --kind opencode --pane <pane-id>
-   ```
-
-   Model choice is a judgment call each run. The free tier churns
-   constantly (models get added, withdrawn, or lose their free badge without
-   warning), so don't hardcode a model list in this skill — look up what's
-   free *now*, across every provider opencode is logged into
-   (`opencode auth list`), not just Zen:
-
-   ```bash
-   opencode models | grep -E -- '-free$|:free$|^opencode/big-pickle$'  # Zen, OpenRouter, Kilo
-   opencode models nvidia                                         # NVIDIA NIM: free dev tier, all models
-   opencode models google | grep -E 'gemini-.*flash'              # Gemini API free tier (no billing linked)
-   ```
-
-   Then rank them by how their past reviews held up (once per babysit run,
-   not per PR; it is read-only and takes about a minute):
-
-   ```bash
-   python3 <this skill's base directory>/scripts/reviewer_leaderboard.py  # --days 180 default
-   ```
-
-   It prints a per-model table: how often each model's findings were
-   accepted ("Fixed in ...") versus declined by `address-pr-comments`, with
-   accepted % = accepted / (accepted + rejected). Below that it prints a
-   paired-recall table: on commits two models both reviewed, the accepted
-   findings one caught that the other missed. Models with fewer than
-   `--min-samples` (default 10) decided findings are marked `low-sample`
-   instead of ranked. Its names are normalized (`deepseek-v4-flash`), so
-   match them back to the ids `opencode models` printed
-   (`opencode/deepseek-v4-flash-free`).
-
-   Choose from the intersection of "free now" and "ranks well":
-
-   - Prefer the top accepted-% models that are free right now. Use the
-     paired-recall table to break ties: a model that keeps missing what
-     another catches, or that posts very few findings, is weaker than its
-     accepted % suggests.
-   - Avoid a model below about 70% accepted when it has enough samples.
-     Its rejected findings cost an `address-pr-comments` pass and were
-     often factually wrong, not just low-value.
-   - Still prefer a reviewer from a different provider/family than the model
-     that authored the PR, and when reviewing several PRs in parallel,
-     spread them across providers so one provider's free-tier rate limit
-     doesn't stall every pane.
-   - **Exploration sampling:** on about 1 in 5 PRs this run, add a second
-     `/code-review` (its own pane) from a free model with fewer than about 10
-     samples, alongside the best known model. New models then build up a
-     record instead of never being tried. A free model that is missing from
-     the table has 0 samples and qualifies. `code-review` already expects
-     several independent reviews per PR, and two reviews of the same commit
-     are what feed the paired-recall table.
-
-   The leaderboard replaces a model list, so don't write one into this
-   skill. If a model you are weighing is `low-sample` only because it aged
-   out of the window, rerun with a longer `--days` (for example 365) for
-   its history. If it has nothing usable (empty window, or nothing ranked
-   is free now), take the default model opencode starts with. Pass the choice via
-   `-- -m <model>` on `agent start`.
-
-   Read the numbers with these caveats in mind. "Accepted" is judged by the
-   Claude-driven `address-pr-comments`, so it measures whether a finding
-   was *valid*, not how important it was, and leniency on nits inflates
-   nit-heavy reviewers. Footer formats vary and some reviews carry no model,
-   so the table is only as good as the script's normalization map. When a
-   new variant shows up as `unknown` or as a near-duplicate row, extend
-   `MODEL_ALIASES` in the script.
-
-3. Prompt it:
-
-   ```bash
-   herdr agent prompt <name> "/code-review <PR URL>" --wait --timeout 120000
-   ```
-
-   Expect the wait to time out (multi-agent code review legitimately takes
-   10–25 min) — that's not a failure, it just means the command moved to
-   background. Do not poll `herdr agent get` by hand, and do not treat
-   `idle` as "finished" (a reviewer waiting on its sub-agents is idle). Watch
-   the PR and the reviewer together with `scripts/watch.py` (see "Loop until
-   clear"): `--pr <n> --agent <name> --until review,label:reviewed`. When it
-   reports `DONE`, run `herdr agent read <name> --source recent-unwrapped
-   --lines 150` to see what it posted.
+`opencode-dual-review` (free opencode models) is deprecated and opt-in only,
+and `scripts/reviewer_leaderboard.py` only matters for it. Do not use either on
+the default path.
 
 ### Verify the label transition — do not trust it blindly
 
@@ -218,8 +161,10 @@ for **`reviewed` plus `ready-to-merge` only when the review has zero findings**
 `address-pr-comments`'s to add, and only after threads are actually addressed
 and replied to. The two labels coexist — `reviewed` is never removed once set.
 
-After a review session goes idle, check the actual label
-(`gh pr view <n> --json labels`) against what it *should* be:
+`spawn_reviewer.py` already reconciles the labels from the posted review, so a
+mislabel from the reviewer session is normally corrected before it exits. Still
+check the actual label (`gh pr view <n> --json labels`) against what it *should*
+be before auto-merge, and when a review was triggered some other way:
 
 - If the model jumped straight to `ready-to-merge` **and there's an
   unresolved blocking finding in its own posted review**, that's a
@@ -357,11 +302,9 @@ overriding).
 When the queue is clear (or as clear as it's going to get this pass), give
 the user a concise summary: what merged, what infra issues were found and
 how (runner health, CI flake vs. real failures), what conflicts were
-resolved and how, what review findings were addressed, and — if more than
-one model reviewed PRs this run — a short note on which one's output you'd
-trust more next time and why (review quality vs. label/process discipline
-are separate axes; call out mislabeling explicitly, it's a different failure
-mode from a bad review).
+resolved and how, what review findings were addressed, and any reviewer
+session that mislabeled a PR or timed out (call mislabeling out explicitly,
+it's a different failure mode from a bad review).
 
 Close any herdr panes you opened for this run once their work is done,
 unless the user wants them kept open.

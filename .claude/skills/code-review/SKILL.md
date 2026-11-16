@@ -11,7 +11,7 @@ Provide a code review for the given pull request.
 
 To do this, follow these steps precisely:
 
-1. Use a Haiku agent to check if the pull request (a) is closed, (b) is a draft, or (c) does not need a code review (eg. because it is an automated pull request, or is very simple and obviously ok). If so, do not proceed. Do NOT skip based on a prior review already existing on the PR (including one from you) — multiple independent reviews (eg. from different models/harnesses run in parallel) are expected and each should post its own findings.
+1. Use a Haiku agent to check if the pull request (a) is closed, (b) is a draft, or (c) does not need a code review (eg. because it is an automated pull request, or is very simple and obviously ok). The agent must start its answer with a single token, `ELIGIBLE` or `NOT ELIGIBLE`, then give the reason on the same line or after it; proceed only when that first token is `ELIGIBLE`, and read nothing else in the answer as the verdict. If `NOT ELIGIBLE`, do not proceed. Do NOT skip based on a prior review already existing on the PR (including one from you) — multiple independent reviews (eg. from different models/harnesses run in parallel) are expected and each should post its own findings.
 2. Use another Haiku agent to give you a list of file paths to (but not the contents of) any relevant CLAUDE.md files from the codebase: the root CLAUDE.md file (if one exists), as well as any CLAUDE.md files in the directories whose files the pull request modified
 3. Use a Haiku agent to view the pull request, and ask the agent to return a summary of the change
 4. Then, launch 5 parallel Sonnet agents to independently code review the change. The agents should do the following, then return a list of issues and the reason each issue was flagged (eg. CLAUDE.md adherence, bug, historical git context, etc.):
@@ -101,6 +101,7 @@ Notes:
 - Do not check build signal or attempt to build or typecheck the app. These will run separately, and are not relevant to your code review.
 - Use `gh` to interact with Github (eg. to fetch a pull request, or to create inline comments), rather than web fetch
 - Make a todo list first
+- Wait for sub-agent completion messages; do not poll with sleep or Monitor
 - You must cite and link each bug (eg. if referring to a CLAUDE.md, you must link it)
 - For each inline comment, use this format:
 

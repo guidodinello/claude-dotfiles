@@ -1,6 +1,6 @@
 ---
 name: opencode-dual-review
-description: "Trigger: opencode review, dual review, free-model review, second opinion on a PR. Two free opencode models each post their own untriaged inline-comment review (blocking/non-blocking tiers, full-SHA permalinks) to the PR, with one Claude Sonnet medium-effort review as fallback. Triage happens later, in the address-pr-comments pass."
+description: "DEPRECATED, opt-in only: the default reviewer is the herdr Sonnet /code-review session that babysit-prs spawns with scripts/spawn_reviewer.py. Trigger: opencode review, dual review, free-model review, second opinion on a PR. Two free opencode models each post their own untriaged inline-comment review (blocking/non-blocking tiers, full-SHA permalinks) to the PR, with one Claude Sonnet medium-effort review as fallback. Triage happens later, in the address-pr-comments pass."
 license: Apache-2.0
 metadata:
   author: "guidodinello"
@@ -8,6 +8,8 @@ metadata:
 ---
 
 ## Activation Contract
+
+**Deprecated.** The default review path is `babysit-prs`'s `scripts/spawn_reviewer.py` (a herdr Sonnet session running the full `/code-review`). Use this skill only when the user explicitly asks for an opencode or free-model review.
 
 Load when the user asks for an opencode review, a dual or free-model review, or a second opinion on a PR before or alongside the native `code-review` skill.
 
