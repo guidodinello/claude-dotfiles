@@ -1,7 +1,7 @@
 # Claude Code Usage Insights
 
 Reference document for understanding token usage patterns, cost drivers, and optimization strategies.
-Run `/token-report` for a live report.
+For a live report, ask Claude for your usage stats; it delegates to the `stats-analyzer` agent.
 
 ---
 
