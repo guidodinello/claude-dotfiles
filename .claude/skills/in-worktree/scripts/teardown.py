@@ -4,7 +4,8 @@
 usage: teardown.py WORKTREE [--label LABEL] [--force] [--dry-run]
 
 Run it from the main checkout or the orchestrator, never from inside the worktree or
-from the herdr workspace being closed. Run with `python3 -I`.
+from the herdr workspace being closed. Run with `python3 -I`. Needs git and gh (and herdr
+when --label is given).
 
 herdr: `herdr workspace close` takes a workspace ID, not a label. Closing by label fails
 silently. This script resolves the id from `herdr workspace list` (label -> workspace_id),
@@ -24,8 +25,10 @@ Every check runs before any action. Refused (exit 2) when:
 
 Actions, in order:
   1. herdr workspace close <id>   (verified by listing again)
-  2. unlink the node_modules/.venv symlinks (symlinks only, never a real directory, so the
-     main checkout's node_modules/.venv stay intact)
+  2. unlink untracked node_modules/.venv symlinks (symlinks only, never a real directory).
+     A gitignored one (frontend/web/node_modules) is not listed by git status; it is removed
+     by step 3, which unlinks symlinks without following them, so the main checkout's
+     node_modules/.venv stay intact either way
   3. git worktree remove --force WORKTREE, git worktree prune
   4. git branch -D BRANCH, only when a MERGED PR exists for it whose head commit equals
      the local branch tip. -D is needed because squash merges make `branch -d` refuse.
@@ -33,6 +36,9 @@ Actions, in order:
 
 --force skips the uncommitted-changes check, the unreachable-detached-HEAD check and the
 "no workspace with that label" refusal. It does not skip the other refusals.
+
+If step 3 fails after step 1 closed the workspace, rerun without --label (a rerun with
+--label is refused because the workspace is gone).
 
 Exit codes: 0 done, 2 refused, 3 tool missing, 1 any other failure.
 """

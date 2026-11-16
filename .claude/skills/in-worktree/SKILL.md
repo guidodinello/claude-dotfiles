@@ -143,7 +143,7 @@ Make sure dependency trees are usable before any inner skill runs typecheck, lin
 
 Two guards keep this cheap on a small disk:
 
-- **Node dependencies are opt-in per lockfile directory.** `NODE_DIRS` is the newline-separated list of paths the task touches: the `--deps` values in fresh mode, or the files in `git diff --name-only "origin/<default>...HEAD"` in PR/branch mode. Any other Node lockfile directory is skipped with a log line. `uv.lock` is always set up (uv hardlinks from its cache).
+- **Node dependencies are opt-in per lockfile directory.** `NODE_DIRS` is the newline-separated list of paths the task touches: the `--deps` values in fresh mode, or the files in `git diff --name-only "origin/<default>...HEAD"` in PR/branch mode. Any other Node lockfile directory is skipped with a log line. `uv.lock` is not gated by `NODE_DIRS` (uv hardlinks from its cache), but it is subject to the free-disk guard below.
 - **A real install needs free disk.** Below `MIN_FREE_GB` (default 5) the install is skipped with a warning. Never push with `SKIP=` to get past a hook that needs the missing dependencies; free space or set the dependencies up, then push.
 
 Before the loop, set `NODE_DIRS` to one path per line: fresh mode → the `--deps` values, one per line (e.g. `NODE_DIRS=$(printf '%s\n' frontend/web)`); PR/branch mode → `NODE_DIRS=$(git diff --name-only "origin/<default>...HEAD")`. A Node lockfile directory is set up when any listed path equals it or lies under it. The block is plain POSIX plus `<<<` and `< <(…)`, so it runs unchanged in bash and zsh (zsh does not word-split unquoted variables, so it iterates lines, never `for p in $VAR`).
