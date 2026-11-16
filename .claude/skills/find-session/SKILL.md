@@ -1,10 +1,10 @@
 ---
 name: find-session
-description: "Trigger: which session did we..., find that conversation where, resume the session about X, in which claude session. Search past Claude Code transcripts by remembered keywords and return the session id plus its resume command."
+description: "Trigger: which session did we..., find that conversation where, resume the session about X, in which claude session. Search past Claude Code transcripts by remembered keywords and return the session id plus its resume command. Also renders a session (or a repo's newest sessions) as readable text for reading, retros or a sub-agent."
 license: Apache-2.0
 metadata:
   author: "guidodinello"
-  version: "1.0"
+  version: "1.1"
 ---
 
 ## Activation Contract
@@ -35,3 +35,27 @@ Load when the user wants to find or reopen a past Claude Code session from keywo
 | `--pick` | interactive fzf picker; Enter resumes the session. Only for the user's own terminal: never run it from the Bash tool, it needs a TTY |
 
 Ranking is TF-IDF with square-root length normalization: rare terms count more, and a short session about the topic beats a long one that mentions it in passing. The script docstring explains why BM25 was rejected.
+
+## Render a session as readable text
+
+Use `scripts/render_session.py` when someone, or a sub-agent, needs to read a session, not
+just find it: after a compaction, to inspect a worker's session, or for a retro. Raw jsonl is
+mostly tool output, and a long session can pass 100 MB. Don't write a one-off parser; this
+script already handles the format.
+
+```bash
+python3 ~/.claude/skills/find-session/scripts/render_session.py --session <id-prefix> --out <dir>
+python3 ~/.claude/skills/find-session/scripts/render_session.py --repo <repo-path> --count 5 \
+    --exclude <current-session-id> --out <dir>
+```
+
+- The output keeps user turns, assistant text, tool calls, truncated results and tool errors.
+  It drops sidechains.
+- `--repo` also picks up the repo's worktree project dirs (`<slug>-wt-*`), where worker and
+  reviewer sessions live, and guesses each session's role.
+- Sessions bigger than `--chunk-bytes` (default 750000) are split into `.partN.txt` files, so a
+  sub-agent can read each part whole.
+- Transcripts live under `$CLAUDE_CONFIG_DIR/projects` (default `~/.claude`). Pass
+  `--config-dir ~/.claude-work` for the work account.
+- Write output to a scratch dir, never a repo. The text can hold secrets or client data, under
+  the same rule as the Hard Rules above.
