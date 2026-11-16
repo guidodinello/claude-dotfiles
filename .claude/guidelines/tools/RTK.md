@@ -40,20 +40,7 @@ dir or tool that keeps the hook.
 
 ## Decision (Issue 389): drop the hook
 
-Why: the classifier is server-side and runs before any PreToolUse hook, so RTK cannot run first.
-`rtk hook claude` has no mode that changes this.
-
-Options considered, last 30 days (rows capped at 7.5k input tokens, which reproduces `rtk gain`):
-
-| Option | Fixes the cause | Tokens given up (of 2.62M saved) |
-|--------|-----------------|----------------------------------|
-| (a) `exclude_commands` for git/gh/grep/ssh | No: read, pytest, wc, ruff, find, rg, uv still rewrite | 1.40M (53%), grep 0.94M |
-| (b) drop the hook (chosen) | Yes | up to 2.62M, less what opt-in `rtk` wins back |
-| (c) run RTK before the classifier | Not possible | n/a |
-
-Trade-off: grep, read, ls, pytest and gh output gets bigger unless you opt in. Follow-up, not
-done: `rtk llm-proxy` compresses at the API layer and leaves tool input alone, but needs Claude
-Code repointed at a local proxy.
-
-To retire a hook, delete it from `settings.base.json` and add its command to
-`RETIRED_HOOK_COMMANDS` in `sync.sh`, or the union with the live file keeps it.
+The hook is removed because its rewrite voids auto-mode verdicts. The options, the token numbers
+and the trade-off are recorded once, in Fitted Issue 389
+(`docs/process/issues/389-rtk-hook-rewrite-invalidates-auto-mode-verdicts.md`). To retire another
+hook, follow the comment above `RETIRED_HOOK_COMMANDS` in `sync.sh`.

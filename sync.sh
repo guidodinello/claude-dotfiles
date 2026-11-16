@@ -123,7 +123,9 @@ merge_settings() {
     fi
 
     local retired_json
-    retired_json="$(printf '%s\n' "${RETIRED_HOOK_COMMANDS[@]}" | jq -R . | jq -s .)"
+    # select(length > 0): an empty array prints one blank line, which must not
+    # become [""] and match every hook that has no command.
+    retired_json="$(printf '%s\n' "${RETIRED_HOOK_COMMANDS[@]}" | jq -R 'select(length > 0)' | jq -s .)"
 
     local merged
     merged="$(jq -n \
@@ -134,11 +136,19 @@ merge_settings() {
         --argjson unionPerms "${UNION_PERMISSIONS}" '
         def union($a; $b): reduce ($b // [])[] as $x (($a // []);
             if any(.[]; . == $x) then . else . + [$x] end);
-        def unretire: if (.hooks | type) == "object" then .hooks |= with_entries(
-            .value |= (map(if (.hooks | type) == "array"
-                           then .hooks |= map(select((.command // "") as $c | ($retired | index($c)) | not))
-                           else . end)
-                       | map(select((.hooks | type) != "array" or (.hooks | length) > 0)))) else . end;
+        # Strip retired commands from one event entry. Drop the entry only when
+        # the strip emptied it; entries that were already empty, or are not
+        # shaped like {hooks: [...]}, pass through untouched.
+        def unretire_entry:
+            if type == "object" and (.hooks | type) == "array" then
+                (.hooks | length) as $n
+                | .hooks |= map(select((type == "object" and ((.command // "") | IN($retired[]))) | not))
+                | if $n > 0 and (.hooks | length) == 0 then empty else . end
+            else . end;
+        def unretire:
+            if (.hooks | type) == "object" then
+                .hooks |= with_entries(.value |= (if type == "array" then map(unretire_entry) else . end))
+            else . end;
         ($live | unretire) as $live
         | ($live | with_entries(select(.key as $k | $localKeys | index($k)))
                | with_entries(select(.value != null))) as $own
