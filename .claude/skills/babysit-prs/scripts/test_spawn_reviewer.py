@@ -45,7 +45,8 @@ class BriefTests(unittest.TestCase):
 
     def test_default_brief_overrides_the_not_needed_skip_but_keeps_closed_draft_stop(self) -> None:
         text = sr.render_brief(5, "o/r", "")
-        self.assertIn("Run all of steps 1-8", text)
+        self.assertIn("Follow the skill exactly, except for one override", text)
+        self.assertIn("run all of steps 1-8", text)
         self.assertIn("closed or a draft, stop as the skill says", text)
         self.assertIn("do not stop because it calls the PR docs-only, trivial or not needing review", text)
 
@@ -159,12 +160,18 @@ class RetryTests(unittest.TestCase):
         self.assertEqual(len(calls), 1)
 
 
-class PaneBusyRetryTests(unittest.TestCase):
+class StartRaceRetryTests(unittest.TestCase):
     BUSY = 'herdr agent start failed (1): {"error":{"code":"agent_pane_busy","message":"not an available shell"}}'
 
-    def test_only_agent_pane_busy_is_retryable(self) -> None:
-        self.assertTrue(sr.is_pane_busy(sr.SpawnError(self.BUSY)))
-        self.assertFalse(sr.is_pane_busy(sr.SpawnError("herdr agent start failed (1): unknown_agent")))
+    NAME_GONE = (
+        'herdr agent start failed (1): {"error":{"code":"agent_name_not_found",'
+        '"message":"named agent rev84 no longer owns the target terminal"}}'
+    )
+
+    def test_only_start_race_errors_are_retryable(self) -> None:
+        self.assertTrue(sr.is_start_race(sr.SpawnError(self.BUSY)))
+        self.assertTrue(sr.is_start_race(sr.SpawnError(self.NAME_GONE)))
+        self.assertFalse(sr.is_start_race(sr.SpawnError("herdr agent start failed (1): unknown_agent")))
 
     def test_retries_busy_then_succeeds(self) -> None:
         calls: list[int] = []
@@ -176,7 +183,20 @@ class PaneBusyRetryTests(unittest.TestCase):
                 raise sr.SpawnError(self.BUSY)
             return "started"
 
-        self.assertEqual(sr.retry_pane_busy(start, attempts=5, delay=2.0, sleep=sleeps.append), "started")
+        self.assertEqual(sr.retry_start_race(start, attempts=5, delay=2.0, sleep=sleeps.append), "started")
+        self.assertEqual(sleeps, [2.0, 2.0])
+
+    def test_retries_agent_name_not_found_then_succeeds(self) -> None:
+        calls: list[int] = []
+        sleeps: list[float] = []
+
+        def start() -> str:
+            calls.append(1)
+            if len(calls) < 3:
+                raise sr.SpawnError(self.NAME_GONE)
+            return "started"
+
+        self.assertEqual(sr.retry_start_race(start, attempts=5, delay=2.0, sleep=sleeps.append), "started")
         self.assertEqual(sleeps, [2.0, 2.0])
 
     def test_gives_up_when_it_stays_busy(self) -> None:
@@ -187,7 +207,7 @@ class PaneBusyRetryTests(unittest.TestCase):
             raise sr.SpawnError(self.BUSY)
 
         with self.assertRaises(sr.SpawnError):
-            sr.retry_pane_busy(start, attempts=4, delay=0, sleep=lambda _: None)
+            sr.retry_start_race(start, attempts=4, delay=0, sleep=lambda _: None)
         self.assertEqual(len(calls), 4)
 
     def test_other_errors_fail_at_once(self) -> None:
@@ -198,7 +218,7 @@ class PaneBusyRetryTests(unittest.TestCase):
             raise sr.SpawnError("herdr agent start failed (1): unknown_agent")
 
         with self.assertRaises(sr.SpawnError):
-            sr.retry_pane_busy(start, attempts=4, delay=0, sleep=lambda _: None)
+            sr.retry_start_race(start, attempts=4, delay=0, sleep=lambda _: None)
         self.assertEqual(len(calls), 1)
 
 
