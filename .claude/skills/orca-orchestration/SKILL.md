@@ -29,6 +29,7 @@ python3 -I <home>/.claude/skills/orca-orchestration/scripts/<script>.py ...
 |---|---|
 | `wstat.py <worker> [chars]` | Pending tool and last text from a worker's transcript. Exit 2 before the first transcript write |
 | `wwatch2.py <minutes> <worker>...` | Block until READY (plan or question), PR, IDLE, STUCK, NOTRANSCRIPT or TIMEOUT. Run it in the background |
+| `../babysit-prs/scripts/watch.py -R <repo> --pr <n>... --agent <id>...` | Durable watcher for PRs (merged, review, label, failed check, conflict) and herdr agents, one line per event, re-arms itself. Use it instead of any hand-written `seq`/`sleep` loop. Flags and rules: the babysit-prs skill, "Loop until clear". Invoke as `python3 -I <home>/.claude/skills/babysit-prs/scripts/watch.py ...` |
 | `wplan.py <worker>` | Print the latest `ExitPlanMode` plan |
 | `fb.sh <handle> "<text>"` | Pick "Tell Claude what to change" (option 3) on the plan menu and submit one short line |
 | `tread.sh <handle> [lines]` | Tail an Orca terminal. Noisy for TUIs; prefer the transcript |

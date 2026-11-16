@@ -202,9 +202,12 @@ A PR needs review if it has no `reviewed` or `ready-to-merge` label (or has
 
    Expect the wait to time out (multi-agent code review legitimately takes
    10–25 min) — that's not a failure, it just means the command moved to
-   background. Poll with `herdr agent get <name>` until `agent_status` is
-   `idle`, then `herdr agent read <name> --source recent-unwrapped --lines
-   150` to see what it posted.
+   background. Do not poll `herdr agent get` by hand, and do not treat
+   `idle` as "finished" (a reviewer waiting on its sub-agents is idle). Watch
+   the PR and the reviewer together with `scripts/watch.py` (see "Loop until
+   clear"): `--pr <n> --agent <name> --until review,label:reviewed`. When it
+   reports `DONE`, run `herdr agent read <name> --source recent-unwrapped
+   --lines 150` to see what it posted.
 
 ### Verify the label transition — do not trust it blindly
 
@@ -293,28 +296,47 @@ unresolved threads before anything else.
 
 ## Loop until clear
 
-**Watch outcomes, not just merge state.** While waiting on a PR, poll for
-*both* merges and failed check conclusions across every open PR, and wake
-on whichever comes first. A watcher that only waits for "PR X merged"
-will silently sit through other PRs' CI failures (e.g. a new pip-audit
-CVE) and through a thread-resolution block on X itself. Example:
+**Watch outcomes, not just merge state.** Never hand-write a `seq`/`sleep`
+poll loop (they miss idle workers, are not re-armed, and read "no checks yet"
+as a failure). Use the durable watcher, `scripts/watch.py` in this skill's
+base directory (stdlib Python, drives `gh` and `herdr`). It covers every open
+PR and the reviewer agents in one process, prints one line per event, and keeps
+watching until every PR reaches a `--until` condition or the timeout:
 
 ```bash
-prev=$(gh pr list --state open --json number --jq '[.[].number]|sort|join(",")')
-while sleep 30; do
-  cur=$(gh pr list --state open --json number --jq '[.[].number]|sort|join(",")')
-  # iterate via command substitution, not ${cur//,/ } — the user's shell is
-  # zsh, which doesn't word-split unquoted vars, so that form silently
-  # checks one bogus "PR number" and never reports a failure
-  fails=$(for n in $(gh pr list --state open --json number --jq '.[].number'); do gh pr view $n --json statusCheckRollup \
-    --jq ".statusCheckRollup[]|select(.conclusion==\"FAILURE\")|\"$n \(.name)\""; done)
-  [ "$cur" != "$prev" ] || [ -n "$fails" ] && { echo "$prev -> $cur"; echo "$fails"; break; }
-done
+python3 -I <home>/.claude/skills/babysit-prs/scripts/watch.py -R <owner/repo> \
+  --pr <n> --pr <m> --agent <reviewer-name> \
+  --until merged,closed,check-failed,dirty --timeout 90 --interval 30 \
+  --state <durable-dir>/watch-<run>.json --exit-on-first-event
 ```
 
-Run it in the background, and cap it with a timeout. If it times out
-with nothing merged, go through the `BLOCKED` diagnosis above rather than
-just waiting again.
+Run it with `run_in_background`; its exit notifies you. A PR is done only when
+it is merged or closed (`--until` never changes that); every other `--until`
+condition just wakes a `--exit-on-first-event` run, and the PR stays watched.
+With that flag it exits 0 after the first event (a failed check, a new review, a
+conflict, an agent going idle). **Exit 0 alone does not mean finished in that
+mode: read the lines**, and only `ALL DONE` means every PR is merged or closed.
+Handle the event, then start the same command again: `--state` makes the restart
+diff against the last snapshot, so nothing that happened in between is lost and
+an already-reported failure is not reported again. Without the flag it keeps
+running, prints every event, and exits 0 only on `ALL DONE`. Other exit codes:
+124 timeout; 3 `gh` or `herdr` missing; 4 `gh` not authenticated; 5 the same
+target failed 5 polls in a row (wrong `--pr` or `-R`); 6 an `--agent` name
+matched nothing. Codes 3-6 print a `FATAL` line, so do not treat them as a
+normal timeout. Conditions: `merged closed review comment label label:NAME
+check-failed dirty push`. Keep the state file somewhere durable, not the
+scratchpad.
+
+Rules it follows, so do not re-implement them: "no checks reported yet",
+queued, in progress and cancelled runs are `pending`, never failure; an
+`UNKNOWN` merge state keeps the last known value; an agent going `idle` is an
+event, not completion. A reviewer that is idle can still be waiting on its own
+sub-agents, so confirm completion from the PR (`--until review` or
+`label:reviewed`), not from the pane. To stop a background watcher use
+`--pidfile <file>` and `kill "$(cat <file>)"`, never `pkill -f`.
+
+If it times out with nothing merged, go through the `BLOCKED` diagnosis above
+rather than just waiting again.
 
 **Keep runner capacity on PRs.** The self-hosted runner only has a couple
 of job slots. While PRs are still queued, cancel every in-flight `CI` run

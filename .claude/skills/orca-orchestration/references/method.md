@@ -38,6 +38,7 @@ Orchestrate the implementation of <story id> subtasks with the orca CLI.
 - **Permission rules** in the orchestrator's settings (`.claude/settings.local.json` of the session cwd), or the auto-mode classifier blocks plan approvals and watchers ("Create Unsafe Agents"):
   - `Bash(orca terminal send:*)`: approvals and answers.
   - `Bash(python3 -I <home>/.claude/skills/orca-orchestration/scripts/*)`: the watchers, literally the invocation you will use.
+  - `Bash(python3 -I <home>/.claude/skills/babysit-prs/scripts/watch.py *)`: the PR and agent watcher, a different skill directory, so the rule above does not cover it.
   - `Bash(gh pr merge:*)`: only if integration merges should run unattended.
 - **Unregistered repo.** `orca repo add --path <repo>` first. Its first Claude session shows a folder-trust prompt: answer Down then Enter (`--text $'\x1b[B'`, then a bare Enter).
 - `git fetch` every repo before branching anything.
@@ -121,6 +122,7 @@ orca terminal send --terminal <h> --text "" --enter --json             # separat
 ## 7. Supervision loop
 
 - **Do not trust `tui-idle`.** It fires when a worker waits on its own subagents.
+- Watch PRs (and any herdr agents) with `babysit-prs/scripts/watch.py`, in the background, never a hand-written polling loop. Workers stay on the transcript-based `wwatch2.py`. For the `run_in_background` pattern use `--exit-on-first-event --state <docs-folder>/watch.json` and restart it after each event. `idle` is an event there, not completion: pass `--until` for what actually finishes a PR (`merged`, `review`, `label:reviewed`, ...).
 - Read state from the transcript: `wstat.py <worktree>` (pending tool, last text); `wwatch2.py <minutes> <worktree>...` in the background (`run_in_background`), one per group of workers.
   - A pending `Bash` gets 15 min before STUCK: almost always a long suite or hook run.
   - A parent waiting on its writer subagent counts the subagent's transcript (`<session>/subagents/*.jsonl`) as activity. Workers delegating implementation to a subagent is expected.
