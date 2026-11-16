@@ -43,6 +43,12 @@ class BriefTests(unittest.TestCase):
         self.assertIn("Run /code-review on PR 1178 (o/r).", text)
         self.assertIn("do not poll them with sleep. Docs only. Post the review", text)
 
+    def test_default_brief_overrides_the_not_needed_skip_but_keeps_closed_draft_stop(self) -> None:
+        text = sr.render_brief(5, "o/r", "")
+        self.assertIn("Run all of steps 1-8", text)
+        self.assertIn("closed or a draft, stop as the skill says", text)
+        self.assertIn("do not stop because it calls the PR docs-only, trivial or not needing review", text)
+
     def test_no_context_leaves_no_double_space(self) -> None:
         text = sr.render_brief(5, "o/r", "")
         self.assertIn("sleep. Post the review", text)

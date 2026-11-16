@@ -118,9 +118,9 @@ python3 -I <this skill's base directory>/scripts/spawn_reviewer.py <PR> \
 
 Run it with `run_in_background`, one per PR, and handle its exit when notified.
 **Max 3 concurrent reviewers**: the script refuses a 4th, so start the next one
-when one exits. Pass `--context` for PR-specific facts, for example "This PR
-needs a full review; do not skip it as simple or docs-only" for a docs PR,
-because `/code-review`'s eligibility check may otherwise skip it. `-R` and the
+when one exits. The default brief already tells the reviewer to run the full
+review even if `/code-review`'s eligibility check calls the PR docs-only or
+trivial; pass `--context` only for PR-specific notes. `-R` and the
 config dir default from the repo and `$CLAUDE_CONFIG_DIR`, so it works from any
 repo. What it does, how it labels (`reviewed`, plus `ready-to-merge` only for a
 clean review of the still-current head) and the exit codes are documented in
