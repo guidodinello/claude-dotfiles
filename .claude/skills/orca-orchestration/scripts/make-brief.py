@@ -99,6 +99,9 @@ def main():
         f"- PR base: `{pr_base}`.\n"
         f"- PR title: `{t.get('title_prefix', '')} <short title>`. Reference only this task's id in the body.\n"
         "- Never `--no-verify`. If a hook fails on something you did not touch, ask instead.\n"
+        "- Never pipe `git commit`, `git push`, `gh api` writes or `gh pr` writes (`create`, `merge`, `edit`, `comment`, "
+        "`review`, `close`) into `tail` or `head`: it hides a hook rejection or CLI error. Run unpiped (optionally "
+        "followed by `; echo exit=$?`), or `set -o pipefail; ...` in the same command.\n"
         "- `git status` before every commit. Never commit `.task-brief.md` or `.orchestrator-answers.md`.",
         read(docs / "brief-rules" / "common.md"),
         read(docs / "brief-rules" / f"{t['repo']}.md"),
