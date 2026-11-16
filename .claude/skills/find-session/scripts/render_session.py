@@ -52,7 +52,10 @@ def projects_dirs(config_dir: str | None) -> list[Path]:
     """--config-dir, else $CLAUDE_CONFIG_DIR, else every default dir that exists."""
     explicit = config_dir or os.environ.get("CLAUDE_CONFIG_DIR")
     if explicit:
-        return [Path(explicit).expanduser() / "projects"]
+        projects = Path(explicit).expanduser() / "projects"
+        if not projects.is_dir():
+            sys.exit(f"no projects dir at {projects}")
+        return [projects]
     found: dict[Path, Path] = {}
     for name in (".claude", ".claude-work"):
         candidate = Path.home() / name / "projects"
@@ -98,6 +101,12 @@ def condense(
                 continue
             if entry.get("isSidechain") and not keep_sidechain:
                 continue
+            if entry.get("type") == "assistant" and isinstance(entry.get("message", {}).get("content"), list):
+                # register tool names before the time filter, so an error inside the window
+                # still names a tool whose call came before it
+                for block in entry["message"]["content"]:
+                    if isinstance(block, dict) and block.get("type") == "tool_use":
+                        tool_names[block.get("id", "")] = block.get("name", "?")
             stamp = entry.get("timestamp") or ""
             if (since or until) and (not stamp or (since and stamp[:19] < since) or (until and stamp[:19] > until)):
                 continue
@@ -133,7 +142,6 @@ def condense(
                     if not isinstance(block, dict):
                         continue
                     if block.get("type") == "tool_use":
-                        tool_names[block.get("id", "")] = block.get("name", "?")
                         if not errors_only:
                             yield f"[{ts}]   CALL {block.get('name')}: {trunc(block.get('input'), limits['call'])}"
                     elif block.get("type") == "text" and block.get("text", "").strip() and not errors_only:

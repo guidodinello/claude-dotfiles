@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -105,14 +106,26 @@ class RenderTest(unittest.TestCase):
         names, count, _ = rs.write_parts(iter([]), out, "none", 1000)
         self.assertEqual((names, count), (["none.txt"], 0))
 
-    def test_projects_dirs_flag_then_env_then_defaults(self):
-        old = os.environ.pop("CLAUDE_CONFIG_DIR", None)
-        self.addCleanup(lambda: os.environ.__setitem__("CLAUDE_CONFIG_DIR", old) if old else None)
-        self.assertEqual(rs.projects_dirs("/x"), [Path("/x/projects")])
-        os.environ["CLAUDE_CONFIG_DIR"] = "/env"
-        self.assertEqual(rs.projects_dirs(None), [Path("/env/projects")])
-        self.assertEqual(rs.projects_dirs("/x"), [Path("/x/projects")])
-        del os.environ["CLAUDE_CONFIG_DIR"]
+    def test_projects_dirs_flag_then_env(self):
+        flag_dir, env_dir = self.tmp / "flag", self.tmp / "env"
+        (flag_dir / "projects").mkdir(parents=True)
+        (env_dir / "projects").mkdir(parents=True)
+        with mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": str(env_dir)}):
+            self.assertEqual(rs.projects_dirs(str(flag_dir)), [flag_dir / "projects"])
+            self.assertEqual(rs.projects_dirs(None), [env_dir / "projects"])
+
+    def test_explicit_config_dir_without_projects_exits_with_clear_message(self):
+        with self.assertRaises(SystemExit) as ctx:
+            rs.projects_dirs(str(self.tmp / "nope"))
+        self.assertIn(f"no projects dir at {self.tmp / 'nope' / 'projects'}", str(ctx.exception))
+        with mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": str(self.tmp / "nope")}):
+            with self.assertRaises(SystemExit):
+                rs.projects_dirs(None)
+
+    def test_errors_only_since_names_tool_registered_before_window(self):
+        lines = self.render(errors_only=True, since="2026-11-01T09:00:02")
+        self.assertEqual(len(lines), 2)
+        self.assertIn("TOOL_ERR (Bash): boom", lines[0])
 
 
 if __name__ == "__main__":

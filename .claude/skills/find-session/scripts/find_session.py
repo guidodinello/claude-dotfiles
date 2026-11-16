@@ -25,6 +25,7 @@ import json
 import math
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -59,7 +60,10 @@ def projects_dirs(config_dir: str | None) -> list[Path]:
     """--config-dir, else $CLAUDE_CONFIG_DIR, else every default dir that exists."""
     explicit = config_dir or os.environ.get("CLAUDE_CONFIG_DIR")
     if explicit:
-        return [Path(explicit).expanduser() / "projects"]
+        projects = Path(explicit).expanduser() / "projects"
+        if not projects.is_dir():
+            sys.exit(f"no projects dir at {projects}")
+        return [projects]
     found: dict[Path, Path] = {}
     for name in (".claude", ".claude-work"):
         candidate = Path.home() / name / "projects"
@@ -73,7 +77,7 @@ def resume_prefix(path: Path) -> str:
     config_dir = path.parent.parent.parent
     if config_dir.resolve() == (Path.home() / ".claude").resolve():
         return ""
-    return f"CLAUDE_CONFIG_DIR={config_dir} "
+    return f"CLAUDE_CONFIG_DIR={shlex.quote(str(config_dir))} "
 
 
 def in_project(path: Path, project: str | None) -> bool:
@@ -190,7 +194,7 @@ def describe(s: Session, score: float, mtime: float, patterns: list[re.Pattern],
     lines += [f"  pr:      {pr}" for pr in s.prs[:5]]
     found = snippets(s.user_texts, patterns, n_snippets) or snippets(s.assistant_texts, patterns, n_snippets)
     lines += [f"  match:   {snip}" for snip in found]
-    lines.append(f"  resume:  cd {s.cwd or '.'} && {resume_prefix(s.path)}claude --resume {s.session_id}")
+    lines.append(f"  resume:  cd {shlex.quote(s.cwd or '.')} && {resume_prefix(s.path)}claude --resume {s.session_id}")
     return "\n".join(lines)
 
 
@@ -221,7 +225,7 @@ def pick(ranked: list[tuple[float, float, Session]], patterns: list[re.Pattern])
         os.chdir(s.cwd)
     prefix = resume_prefix(s.path)
     if prefix:
-        os.environ["CLAUDE_CONFIG_DIR"] = prefix.split("=", 1)[1].strip()
+        os.environ["CLAUDE_CONFIG_DIR"] = str(s.path.parent.parent.parent)
     os.execvp("claude", ["claude", "--resume", choice])
 
 
