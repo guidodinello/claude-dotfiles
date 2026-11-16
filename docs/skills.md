@@ -46,7 +46,7 @@ are `user-invocable-only` since they're expensive/niche but still useful on dema
 | `/async-audit` | Detects and fixes bad sync/async usage in a Python backend: blocking calls in async handlers, fire-and-forget tasks, missing ruff ASYNC rules |
 | `/audit-consolidation-validator` | Validates and repairs a client-facing consolidated audit document against internal audit files |
 | `/audit-fact-checker` | Verifies reported audit findings against the actual codebase to confirm real bugs vs. false positives |
-| `/babysit-prs` | Orchestrates every open PR toward merge: CI runner health, failed-run triage, conflict resolution, opencode review, `address-pr-comments` dispatch, auto-merge. Needs an interactive herdr session |
+| `/babysit-prs` | Orchestrates every open PR toward merge: CI runner health, failed-run triage, conflict resolution, herdr Sonnet `/code-review` (`spawn_reviewer.py`), `address-pr-comments` dispatch, auto-merge. Needs an interactive herdr session |
 | `/backward-trace` | First-principles investigation method for how a mechanism actually works; required pre-step before changing shared or cross-cutting behavior |
 | `/clean-permissions` | Generalizes overly-specific Bash permission rules in settings files |
 | `/client-issue-workflow` | Handles a client-reported bug: acknowledge, investigate, explain neutrally, then fix or present options |
@@ -71,7 +71,7 @@ are `user-invocable-only` since they're expensive/niche but still useful on dema
 | `/meta-skill-db-scalability-audit-improver` | Refreshes provider limits and anti-patterns in the db-scalability-audit skill |
 | `/meta-skill-hipaa-audit-improver` | Refreshes regulatory guidance and enforcement cases in the hipaa-audit skill |
 | `/meta-skill-security-audit-improver` | Refreshes OWASP, CWE Top 25, and NIST guidelines in the security-audit skill |
-| `/opencode-dual-review` | Free second-opinion PR review: two opencode models post untriaged inline-comment reviews, with a Sonnet low-effort fallback |
+| `/opencode-dual-review` | Deprecated, opt-in: free second-opinion PR review: two opencode models post untriaged inline-comment reviews, with a Sonnet medium-effort fallback |
 | `/orca-orchestration` | Lands a story's subtasks through Claude Code implementer sessions in Orca worktrees: plan approval, transcript supervision, review and merge waves, with a per-project docs folder |
 | `/permissions-audit` | Comprehensive authorization audit across roles, permissions, and auth logic |
 | `/qa-check` | Runs type-check, linting, and tests via the quality-checker subagent (stack-agnostic) |
