@@ -45,7 +45,8 @@ class BriefTests(unittest.TestCase):
 
     def test_default_brief_overrides_the_not_needed_skip_but_keeps_closed_draft_stop(self) -> None:
         text = sr.render_brief(5, "o/r", "")
-        self.assertIn("Run all of steps 1-8", text)
+        self.assertIn("Follow the skill exactly, except for one override", text)
+        self.assertIn("run all of steps 1-8", text)
         self.assertIn("closed or a draft, stop as the skill says", text)
         self.assertIn("do not stop because it calls the PR docs-only, trivial or not needing review", text)
 
