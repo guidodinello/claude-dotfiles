@@ -310,15 +310,22 @@ python3 -I <home>/.claude/skills/babysit-prs/scripts/watch.py -R <owner/repo> \
   --state <durable-dir>/watch-<run>.json --exit-on-first-event
 ```
 
-Run it with `run_in_background`; its exit notifies you. With
-`--exit-on-first-event` it exits after the first event (a failed check, a new
-review, a conflict, an agent going idle). Handle it, then start the same command
-again: `--state` makes the restart diff against the last snapshot, so nothing
-that happened in between is lost and an already-reported failure is not
-reported again. Without that flag it keeps running and prints every event.
-Exit 0 means every PR is done, 124 is the timeout. Conditions: `merged closed
-review comment label label:NAME check-failed dirty push`. Keep the state file
-somewhere durable, not the scratchpad.
+Run it with `run_in_background`; its exit notifies you. A PR is done only when
+it is merged or closed (`--until` never changes that); every other `--until`
+condition just wakes a `--exit-on-first-event` run, and the PR stays watched.
+With that flag it exits 0 after the first event (a failed check, a new review, a
+conflict, an agent going idle). **Exit 0 alone does not mean finished in that
+mode: read the lines**, and only `ALL DONE` means every PR is merged or closed.
+Handle the event, then start the same command again: `--state` makes the restart
+diff against the last snapshot, so nothing that happened in between is lost and
+an already-reported failure is not reported again. Without the flag it keeps
+running, prints every event, and exits 0 only on `ALL DONE`. Other exit codes:
+124 timeout; 3 `gh` or `herdr` missing; 4 `gh` not authenticated; 5 the same
+target failed 5 polls in a row (wrong `--pr` or `-R`); 6 an `--agent` name
+matched nothing. Codes 3-6 print a `FATAL` line, so do not treat them as a
+normal timeout. Conditions: `merged closed review comment label label:NAME
+check-failed dirty push`. Keep the state file somewhere durable, not the
+scratchpad.
 
 Rules it follows, so do not re-implement them: "no checks reported yet",
 queued, in progress and cancelled runs are `pending`, never failure; an
