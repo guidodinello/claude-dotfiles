@@ -19,15 +19,17 @@ Composes isolation with any other skill: set up a git worktree, switch the
 session into it, then run the target skill there. The target skill is
 unmodified — it just operates on whatever the current working directory is.
 
-This skill does not clean up after itself. The session stays in the
-worktree when it finishes, since the point is to hand that terminal a
-worktree of its own to keep working in.
+The session stays in the worktree when it finishes, since the point is to
+hand that terminal a worktree of its own to keep working in. Tear it down
+afterwards with `scripts/teardown.py` (see [Teardown](#teardown)).
 
 ## Invocation
 
 ```
-/in-worktree [--pr <n> | --branch <name>] [--name <branch>] [--seed <path>] /<skill> [skill args…]
+/in-worktree [--pr <n> | --branch <name>] [--name <branch>] [--seed <path>] [--deps <dir>]… /<skill> [skill args…]
 ```
+
+- `--deps <dir>` → repeatable. Node dependencies (`node_modules`) are only set up for lockfile directories the task needs: in PR/branch mode, those the branch diff touches; in fresh mode, only those named by `--deps` (e.g. `--deps frontend/web`). A backend-only task therefore gets no `frontend/web/node_modules`. See [Dependencies](#dependencies-lockfile-driven).
 
 - No flags → **fresh mode**: new branch off `origin/<default-branch>` (resolved by `EnterWorktree` itself — see Step 2).
 - `--pr <n>` → **PR mode**: worktree checks out PR `<n>`'s existing head branch.
@@ -139,26 +141,48 @@ Copy **only the one file named by `--seed`** — never the whole directory it li
 
 Make sure dependency trees are usable before any inner skill runs typecheck, lint or tests. Detect them from the lockfiles instead of hard-coding paths: for each tracked lockfile, symlink the dependency directory from `ORIGIN_CWD` when the lockfile is byte-identical there (instant, and an identical lockfile guarantees identical resolved deps), otherwise install fresh.
 
+Two guards keep this cheap on a small disk:
+
+- **Node dependencies are opt-in per lockfile directory.** `NODE_DIRS` is the space-separated list of paths the task touches: the `--deps` values in fresh mode, or the files in `git diff --name-only "origin/<default>...HEAD"` in PR/branch mode. Any other Node lockfile directory is skipped with a log line. `uv.lock` is always set up (uv hardlinks from its cache).
+- **A real install needs free disk.** Below `MIN_FREE_GB` (default 5) the install is skipped with a warning. Never push with `SKIP=` to get past a hook that needs the missing dependencies; free space or set the dependencies up, then push.
+
+Before the loop, set `NODE_DIRS` to a space-separated list of paths: fresh mode → the `--deps` values; PR/branch mode → `NODE_DIRS=$(git diff --name-only "origin/<default>...HEAD")`. A Node lockfile directory is set up when any listed path equals it or lies under it.
+
 ```bash
+NODE_DIRS="${NODE_DIRS:-}"          # e.g. "frontend/web"; empty = no Node deps
+MIN_FREE_GB="${MIN_FREE_GB:-5}"
 while IFS= read -r lock; do
   dir=$(dirname "$lock"); name=$(basename "$lock")
   case "$name" in
-    pnpm-lock.yaml)    dep=node_modules; install="pnpm install" ;;
-    package-lock.json) dep=node_modules; install="npm ci" ;;
-    yarn.lock)         dep=node_modules; install="yarn install --frozen-lockfile" ;;
-    uv.lock)           dep=.venv;        install="uv sync" ;;
+    pnpm-lock.yaml)    dep=node_modules; node=1; install="pnpm install --frozen-lockfile --prefer-offline" ;;
+    package-lock.json) dep=node_modules; node=1; install="npm ci --prefer-offline" ;;
+    yarn.lock)         dep=node_modules; node=1; install="yarn install --frozen-lockfile --prefer-offline" ;;
+    uv.lock)           dep=.venv;        node=0; install="uv sync" ;;
     *) continue ;;  # unknown lockfile: leave it to the inner skill
   esac
+  if [ "$node" = 1 ]; then
+    needs=0
+    for p in $NODE_DIRS; do
+      if [ "$dir" = . ]; then needs=1; else case "$p" in "$dir"|"$dir"/*) needs=1 ;; esac; fi
+    done
+    [ "$needs" = 1 ] || { echo "skipped $dir: task does not touch it (set NODE_DIRS=$dir to set it up)"; continue; }
+  fi
   [ -e "$dir/$dep" ] && continue   # already present
   if cmp -s "${ORIGIN_CWD}/$lock" "$lock" && [ -d "${ORIGIN_CWD}/$dir/$dep" ]; then
     ln -s "${ORIGIN_CWD}/$dir/$dep" "$dir/$dep"
   else
+    free_gb=$(( $(df -Pk "$dir" | awk 'NR==2 {print $4}') / 1048576 ))
+    if [ "$free_gb" -lt "$MIN_FREE_GB" ]; then
+      echo "WARNING: only ${free_gb} GB free (< ${MIN_FREE_GB}); skipped install in $dir"; continue
+    fi
     (cd "$dir" && $install)
   fi
 done < <(git ls-files '*pnpm-lock.yaml' '*package-lock.json' '*yarn.lock' '*uv.lock')
 ```
 
-A symlinked `node_modules` or `.venv` is shared with the origin checkout: don't run an install or `uv sync` inside the worktree for it without first replacing the symlink with a real directory.
+pnpm already hardlinks from its shared store (`pnpm store path`), so `du` on a worktree's `node_modules` overstates its real cost; the expensive part is the install run itself, which is why it is gated above.
+
+A symlinked `node_modules` or `.venv` is shared with the origin checkout: don't run an install or `uv sync` inside the worktree for it without first replacing the symlink with a real directory. Teardown unlinks these symlinks and never touches the origin's directory.
 
 ## Step 3 — Run the inner skill
 
@@ -172,11 +196,21 @@ After the inner skill finishes, report:
 
 - The worktree path and branch the session is now in.
 - That the session has been left inside the worktree (not returned to the original checkout) — this terminal now owns that worktree for further work.
-- The cleanup command for when the user is fully done with this line of work, to run from the main checkout:
+- The cleanup command for when the user is fully done with this line of work, to run from the main checkout (see [Teardown](#teardown)):
 
   ```bash
-  git worktree remove <path> && git branch -d <branch>
+  python3 -I <skill-dir>/scripts/teardown.py <path> --label <herdr-label>
   ```
+
+## Teardown
+
+`scripts/teardown.py WORKTREE [--label LABEL] [--force] [--dry-run]` (stdlib Python, run with `python3 -I`). Run it from the main checkout or the orchestrator, never from inside the worktree or from the herdr workspace being closed. Start with `--dry-run` to see the plan.
+
+**`herdr workspace close` takes a workspace id, not a label.** Closing by label fails silently. The script resolves the id from `herdr workspace list` (`.result.workspaces[]`, fields `workspace_id` and `label`), closes it, then lists again and fails if the id is still there.
+
+Every check runs before any action. It refuses when the target is the main checkout or not a worktree, the cwd is inside it, it has uncommitted changes (without `--force`; untracked dependency symlinks do not count), the label matches zero or several workspaces, or the workspace is the one running the script. Then, in order: close the workspace, unlink dependency symlinks, `git worktree remove --force` + `prune`, and delete the local branch with `git branch -D` only when its PR is **merged** and the PR's head commit equals the local tip (`-d` cannot be used: squash merges make it refuse). An unmerged branch is kept and the reason printed. Remote branches are never deleted. Worktrees at any path are accepted, e.g. sibling `<repo>-wt-*` directories.
+
+Tests: `python3 -I scripts/test_teardown.py`.
 
 ## Notes
 
