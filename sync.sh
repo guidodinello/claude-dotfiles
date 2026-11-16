@@ -36,8 +36,16 @@ LOCAL_KEYS=("autoMode" "enabledPlugins" "outputStyle")
 # hooks, gentle-ai adds engram permissions and secret-file deny rules. Hooks
 # (per event) and these permission lists are unioned with the live file instead
 # of replaced, so a sync never drops an installer's entry. The cost: removing an
-# entry from the base does not remove it from an existing config dir.
+# entry from the base does not remove it from an existing config dir, unless
+# its command is listed in RETIRED_HOOK_COMMANDS below.
 UNION_PERMISSIONS='["allow","deny","ask","additionalDirectories"]'
+
+# Hook commands that were removed from settings.base.json on purpose. To retire
+# a hook, delete it from the base AND add its exact command here: merge_settings
+# strips these from the live file before the union, so the old entry is not
+# kept next to the new one. Keep entries listed (they are harmless once gone).
+#   "rtk hook claude" - its rewrite voids auto-mode verdicts (Issue 389).
+RETIRED_HOOK_COMMANDS=("rtk hook claude")
 
 GREEN='\033[1;32m'; YELLOW='\033[1;33m'; RED='\033[1;31m'; NC='\033[0m'
 log_info() { echo -e "${GREEN}[INFO]${NC}  $*"; }
@@ -114,15 +122,35 @@ merge_settings() {
         rm "${current}"
     fi
 
+    local retired_json
+    # select(length > 0): an empty array prints one blank line, which must not
+    # become [""] and match every hook that has no command.
+    retired_json="$(printf '%s\n' "${RETIRED_HOOK_COMMANDS[@]}" | jq -R 'select(length > 0)' | jq -s .)"
+
     local merged
     merged="$(jq -n \
         --argjson base "$(sed "s|{{CONFIG_DIR}}|${dst}|g" "${base}")" \
         --argjson live "${live_json}" \
         --argjson localKeys "${local_keys_json}" \
+        --argjson retired "${retired_json}" \
         --argjson unionPerms "${UNION_PERMISSIONS}" '
         def union($a; $b): reduce ($b // [])[] as $x (($a // []);
             if any(.[]; . == $x) then . else . + [$x] end);
-        ($live | with_entries(select(.key as $k | $localKeys | index($k)))
+        # Strip retired commands from one event entry. Drop the entry only when
+        # the strip emptied it; entries that were already empty, or are not
+        # shaped like {hooks: [...]}, pass through untouched.
+        def unretire_entry:
+            if type == "object" and (.hooks | type) == "array" then
+                (.hooks | length) as $n
+                | .hooks |= map(select((type == "object" and ((.command // "") | IN($retired[]))) | not))
+                | if $n > 0 and (.hooks | length) == 0 then empty else . end
+            else . end;
+        def unretire:
+            if (.hooks | type) == "object" then
+                .hooks |= with_entries(.value |= (if type == "array" then map(unretire_entry) else . end))
+            else . end;
+        ($live | unretire) as $live
+        | ($live | with_entries(select(.key as $k | $localKeys | index($k)))
                | with_entries(select(.value != null))) as $own
         | ($base * $own)
         | .hooks = (reduce ((($base.hooks // {}) + ($live.hooks // {})) | keys[]) as $ev
