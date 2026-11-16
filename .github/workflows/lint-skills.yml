@@ -6,11 +6,15 @@
 # carries it, on the next push. This is the authoritative side, so this is where
 # the gate belongs.
 #
-# Two failure modes, one job:
+# Three failure modes, one job:
 #   1. Invalid YAML frontmatter -- an unquoted description containing `: `
 #      terminates the scalar and the whole block fails to parse, so Claude Code
 #      silently drops the skill. See #28.
-#   2. markdownlint drift -- .markdownlint.json here mirrors fitted's, because
+#   2. Docs drift -- a skill added or removed without updating docs/skills.md,
+#      or a `/skill-name` reference in the docs that points at a skill that is
+#      gone. Checked by .github/scripts/check-skill-docs.py, which also runs
+#      locally from the repo root.
+#   3. markdownlint drift -- .markdownlint.json here mirrors fitted's, because
 #      fitted lints markdown (diff-scoped, pre-push and CI) and this repo feeds
 #      it. Default markdownlint rules are the wrong baseline, not a stricter
 #      one: they flag MD013 on files fitted considers clean.
@@ -22,12 +26,20 @@ on:
       - '.claude/skills/**'
       - '.markdownlint.json'
       - '.github/workflows/lint-skills.yml'
+      - '.github/scripts/check-skill-docs.py'
+      - 'README.md'
+      - 'CLAUDE.md'
+      - 'docs/**'
   push:
     branches: [main]
     paths:
       - '.claude/skills/**'
       - '.markdownlint.json'
       - '.github/workflows/lint-skills.yml'
+      - '.github/scripts/check-skill-docs.py'
+      - 'README.md'
+      - 'CLAUDE.md'
+      - 'docs/**'
 
 permissions:
   contents: read
@@ -70,6 +82,9 @@ jobs:
           print(f'\nchecked {len(files)} skills, {len(failed)} problem(s)')
           sys.exit(1 if failed else 0)
           PY
+
+      - name: Check docs match the skills directory
+        run: python3 .github/scripts/check-skill-docs.py
 
       - name: markdownlint
         run: |
