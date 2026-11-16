@@ -144,18 +144,23 @@ def label_edit_args(clean: bool, present: set[str]) -> list[str]:
     return args
 
 
-def is_pane_busy(exc: SpawnError) -> bool:
-    """herdr answers agent_pane_busy while the new pane's shell is not ready yet."""
-    return "agent_pane_busy" in str(exc)
+def is_start_race(exc: SpawnError) -> bool:
+    """herdr rejects an agent start while the new pane is not settled yet.
+
+    agent_pane_busy: the pane's shell is not ready. agent_name_not_found: the name
+    "no longer owns the target terminal" right after workspace create.
+    """
+    text = str(exc)
+    return "agent_pane_busy" in text or "agent_name_not_found" in text
 
 
-def retry_pane_busy(fn: Any, attempts: int = 8, delay: float = 2.0, sleep: Any = time.sleep) -> Any:
-    """Call fn, retrying only agent_pane_busy (about attempts * delay seconds in all), then fail."""
+def retry_start_race(fn: Any, attempts: int = 8, delay: float = 2.0, sleep: Any = time.sleep) -> Any:
+    """Call fn, retrying only the start-race errors (about attempts * delay seconds in all), then fail."""
     for attempt in range(attempts):
         try:
             return fn()
         except SpawnError as exc:
-            if not is_pane_busy(exc) or attempt == attempts - 1:
+            if not is_start_race(exc) or attempt == attempts - 1:
                 raise
             sleep(delay)
 
@@ -320,7 +325,7 @@ def spawn(args: argparse.Namespace) -> int:
             "--permission-mode",
             "auto",
         ]
-        retry_pane_busy(lambda: run(start_cmd))  # the new pane's shell may not be ready yet
+        retry_start_race(lambda: run(start_cmd))  # the new pane may not be settled yet
         run(["herdr", "agent", "wait", name, "--until", "idle", "--timeout", "60000"])
         run(["herdr", "agent", "prompt", name, render_brief(pr, repo, args.context)])
         log(f"{name} started, waiting for the review on PR {pr}")
