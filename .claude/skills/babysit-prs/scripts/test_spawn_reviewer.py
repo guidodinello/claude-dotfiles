@@ -153,6 +153,49 @@ class RetryTests(unittest.TestCase):
         self.assertEqual(len(calls), 1)
 
 
+class PaneBusyRetryTests(unittest.TestCase):
+    BUSY = 'herdr agent start failed (1): {"error":{"code":"agent_pane_busy","message":"not an available shell"}}'
+
+    def test_only_agent_pane_busy_is_retryable(self) -> None:
+        self.assertTrue(sr.is_pane_busy(sr.SpawnError(self.BUSY)))
+        self.assertFalse(sr.is_pane_busy(sr.SpawnError("herdr agent start failed (1): unknown_agent")))
+
+    def test_retries_busy_then_succeeds(self) -> None:
+        calls: list[int] = []
+        sleeps: list[float] = []
+
+        def start() -> str:
+            calls.append(1)
+            if len(calls) < 3:
+                raise sr.SpawnError(self.BUSY)
+            return "started"
+
+        self.assertEqual(sr.retry_pane_busy(start, attempts=5, delay=2.0, sleep=sleeps.append), "started")
+        self.assertEqual(sleeps, [2.0, 2.0])
+
+    def test_gives_up_when_it_stays_busy(self) -> None:
+        calls: list[int] = []
+
+        def start() -> None:
+            calls.append(1)
+            raise sr.SpawnError(self.BUSY)
+
+        with self.assertRaises(sr.SpawnError):
+            sr.retry_pane_busy(start, attempts=4, delay=0, sleep=lambda _: None)
+        self.assertEqual(len(calls), 4)
+
+    def test_other_errors_fail_at_once(self) -> None:
+        calls: list[int] = []
+
+        def start() -> None:
+            calls.append(1)
+            raise sr.SpawnError("herdr agent start failed (1): unknown_agent")
+
+        with self.assertRaises(sr.SpawnError):
+            sr.retry_pane_busy(start, attempts=4, delay=0, sleep=lambda _: None)
+        self.assertEqual(len(calls), 1)
+
+
 class CodeReviewContractTests(unittest.TestCase):
     def test_marker_strings_match_the_code_review_skill(self) -> None:
         skill = Path(__file__).resolve().parents[2] / "code-review" / "SKILL.md"

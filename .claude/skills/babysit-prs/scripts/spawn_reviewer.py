@@ -140,6 +140,22 @@ def label_edit_args(clean: bool, present: set[str]) -> list[str]:
     return args
 
 
+def is_pane_busy(exc: SpawnError) -> bool:
+    """herdr answers agent_pane_busy while the new pane's shell is not ready yet."""
+    return "agent_pane_busy" in str(exc)
+
+
+def retry_pane_busy(fn: Any, attempts: int = 8, delay: float = 2.0, sleep: Any = time.sleep) -> Any:
+    """Call fn, retrying only agent_pane_busy (about attempts * delay seconds in all), then fail."""
+    for attempt in range(attempts):
+        try:
+            return fn()
+        except SpawnError as exc:
+            if not is_pane_busy(exc) or attempt == attempts - 1:
+                raise
+            sleep(delay)
+
+
 def with_retry(fn: Any, attempts: int = 3, delay: float = 5.0, sleep: Any = time.sleep) -> Any:
     """Call fn, retrying SpawnError (a transient gh failure) before giving up."""
     for attempt in range(attempts):
@@ -157,7 +173,8 @@ def run(cmd: list[str], cwd: str | None = None, check: bool = True) -> str:
     except FileNotFoundError as exc:
         raise SpawnError(f"{cmd[0]} is not installed", EXIT_MISSING_TOOL) from exc
     if check and proc.returncode != 0:
-        raise SpawnError(f"{' '.join(cmd[:3])} failed ({proc.returncode}): {proc.stderr.strip()}")
+        detail = proc.stderr.strip() or proc.stdout.strip()  # herdr reports errors as JSON on stdout
+        raise SpawnError(f"{' '.join(cmd[:3])} failed ({proc.returncode}): {detail}")
     return proc.stdout
 
 
@@ -282,25 +299,24 @@ def spawn(args: argparse.Namespace) -> int:
         )["result"]
         workspace_id = created["workspace"]["workspace_id"]
         pane = created["root_pane"]["pane_id"]
-        run(
-            [
-                "herdr",
-                "agent",
-                "start",
-                name,
-                "--kind",
-                "claude",
-                "--pane",
-                pane,
-                "--",
-                "--model",
-                "sonnet",
-                "--effort",
-                "medium",
-                "--permission-mode",
-                "auto",
-            ]
-        )
+        start_cmd = [
+            "herdr",
+            "agent",
+            "start",
+            name,
+            "--kind",
+            "claude",
+            "--pane",
+            pane,
+            "--",
+            "--model",
+            "sonnet",
+            "--effort",
+            "medium",
+            "--permission-mode",
+            "auto",
+        ]
+        retry_pane_busy(lambda: run(start_cmd))  # the new pane's shell may not be ready yet
         run(["herdr", "agent", "wait", name, "--until", "idle", "--timeout", "60000"])
         run(["herdr", "agent", "prompt", name, render_brief(pr, repo, args.context)])
         log(f"{name} started, waiting for the review on PR {pr}")
