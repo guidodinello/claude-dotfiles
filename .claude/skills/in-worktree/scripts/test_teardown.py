@@ -41,6 +41,8 @@ def make(**over: Any) -> list[tuple[str, ...]]:
         "self_workspace_id": "wSelf",
         "force": False,
         "merged_prs": [],
+        "in_herdr": False,
+        "head_reachable": True,
     }
     kw.update(over)
     return td.plan(**kw)
@@ -98,6 +100,36 @@ class RefusalTests(unittest.TestCase):
 
     def test_self_workspace(self) -> None:
         self.assertIn("running this script", refused(label="x", workspaces=[{"label": "x", "workspace_id": "wSelf"}]))
+
+
+class FailClosedTests(unittest.TestCase):
+    def test_in_herdr_without_workspace_id_refuses(self) -> None:
+        ws = [{"label": "x", "workspace_id": "w1"}]
+        self.assertIn("HERDR_WORKSPACE_ID", refused(label="x", workspaces=ws, in_herdr=True, self_workspace_id=None))
+
+    def test_outside_herdr_without_workspace_id_is_fine(self) -> None:
+        ws = [{"label": "x", "workspace_id": "w1"}]
+        actions = make(label="x", workspaces=ws, in_herdr=False, self_workspace_id=None)
+        self.assertEqual(actions[0], ("close_workspace", "w1"))
+
+    def test_unreachable_detached_head_refuses(self) -> None:
+        self.assertIn("lose commits", refused(target="/r/main-wt-rev1", head_reachable=False))
+
+    def test_unreachable_detached_head_with_force(self) -> None:
+        self.assertEqual(make(target="/r/main-wt-rev1", head_reachable=False, force=True)[0][0], "remove_worktree")
+
+    def test_reachable_detached_head_is_fine(self) -> None:
+        self.assertEqual(make(target="/r/main-wt-rev1")[0][0], "remove_worktree")
+
+
+class DepSymlinkTests(unittest.TestCase):
+    def test_known_dep_links(self) -> None:
+        for rel in ("backend/.venv", "frontend/web/node_modules", "node_modules"):
+            self.assertTrue(td.is_dep_symlink(rel), rel)
+
+    def test_other_symlinks_are_not_deps(self) -> None:
+        for rel in ("ext_data", "backend/venv", "notes/node_modules_backup"):
+            self.assertFalse(td.is_dep_symlink(rel), rel)
 
 
 class ActionTests(unittest.TestCase):

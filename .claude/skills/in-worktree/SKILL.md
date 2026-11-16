@@ -143,10 +143,10 @@ Make sure dependency trees are usable before any inner skill runs typecheck, lin
 
 Two guards keep this cheap on a small disk:
 
-- **Node dependencies are opt-in per lockfile directory.** `NODE_DIRS` is the space-separated list of paths the task touches: the `--deps` values in fresh mode, or the files in `git diff --name-only "origin/<default>...HEAD"` in PR/branch mode. Any other Node lockfile directory is skipped with a log line. `uv.lock` is always set up (uv hardlinks from its cache).
+- **Node dependencies are opt-in per lockfile directory.** `NODE_DIRS` is the newline-separated list of paths the task touches: the `--deps` values in fresh mode, or the files in `git diff --name-only "origin/<default>...HEAD"` in PR/branch mode. Any other Node lockfile directory is skipped with a log line. `uv.lock` is always set up (uv hardlinks from its cache).
 - **A real install needs free disk.** Below `MIN_FREE_GB` (default 5) the install is skipped with a warning. Never push with `SKIP=` to get past a hook that needs the missing dependencies; free space or set the dependencies up, then push.
 
-Before the loop, set `NODE_DIRS` to a space-separated list of paths: fresh mode → the `--deps` values; PR/branch mode → `NODE_DIRS=$(git diff --name-only "origin/<default>...HEAD")`. A Node lockfile directory is set up when any listed path equals it or lies under it.
+Before the loop, set `NODE_DIRS` to one path per line: fresh mode → the `--deps` values, one per line (e.g. `NODE_DIRS=$(printf '%s\n' frontend/web)`); PR/branch mode → `NODE_DIRS=$(git diff --name-only "origin/<default>...HEAD")`. A Node lockfile directory is set up when any listed path equals it or lies under it. The block is plain POSIX plus `<<<` and `< <(…)`, so it runs unchanged in bash and zsh (zsh does not word-split unquoted variables, so it iterates lines, never `for p in $VAR`).
 
 ```bash
 NODE_DIRS="${NODE_DIRS:-}"          # e.g. "frontend/web"; empty = no Node deps
@@ -162,9 +162,10 @@ while IFS= read -r lock; do
   esac
   if [ "$node" = 1 ]; then
     needs=0
-    for p in $NODE_DIRS; do
+    while IFS= read -r p; do
+      [ -n "$p" ] || continue
       if [ "$dir" = . ]; then needs=1; else case "$p" in "$dir"|"$dir"/*) needs=1 ;; esac; fi
-    done
+    done <<< "$NODE_DIRS"
     [ "$needs" = 1 ] || { echo "skipped $dir: task does not touch it (set NODE_DIRS=$dir to set it up)"; continue; }
   fi
   [ -e "$dir/$dep" ] && continue   # already present
@@ -175,7 +176,7 @@ while IFS= read -r lock; do
     if [ "$free_gb" -lt "$MIN_FREE_GB" ]; then
       echo "WARNING: only ${free_gb} GB free (< ${MIN_FREE_GB}); skipped install in $dir"; continue
     fi
-    (cd "$dir" && $install)
+    (cd "$dir" && eval "$install")   # eval: zsh would not split $install into words
   fi
 done < <(git ls-files '*pnpm-lock.yaml' '*package-lock.json' '*yarn.lock' '*uv.lock')
 ```
@@ -204,13 +205,11 @@ After the inner skill finishes, report:
 
 ## Teardown
 
-`scripts/teardown.py WORKTREE [--label LABEL] [--force] [--dry-run]` (stdlib Python, run with `python3 -I`). Run it from the main checkout or the orchestrator, never from inside the worktree or from the herdr workspace being closed. Start with `--dry-run` to see the plan.
+`scripts/teardown.py WORKTREE [--label LABEL] [--force] [--dry-run]` (stdlib Python, run with `python3 -I`; path relative to this skill's directory). Run it from the main checkout or the orchestrator, never from inside the worktree or from the herdr workspace being closed. Start with `--dry-run` to see the plan.
 
-**`herdr workspace close` takes a workspace id, not a label.** Closing by label fails silently. The script resolves the id from `herdr workspace list` (`.result.workspaces[]`, fields `workspace_id` and `label`), closes it, then lists again and fails if the id is still there.
+**`herdr workspace close` takes a workspace id, not a label.** Closing by label fails silently. The script resolves the id from the label and verifies the close.
 
-Every check runs before any action. It refuses when the target is the main checkout or not a worktree, the cwd is inside it, it has uncommitted changes (without `--force`; untracked dependency symlinks do not count), the label matches zero or several workspaces, or the workspace is the one running the script. Then, in order: close the workspace, unlink dependency symlinks, `git worktree remove --force` + `prune`, and delete the local branch with `git branch -D` only when its PR is **merged** and the PR's head commit equals the local tip (`-d` cannot be used: squash merges make it refuse). An unmerged branch is kept and the reason printed. Remote branches are never deleted. Worktrees at any path are accepted, e.g. sibling `<repo>-wt-*` directories.
-
-Tests: `python3 -I scripts/test_teardown.py`.
+The script's docstring (`python3 -I <skill-dir>/scripts/teardown.py --help`) owns the refusals, the order of actions, `--force` and the exit codes. Two things worth knowing here: the local branch is deleted only when its PR is merged, and `--force` skips the uncommitted-changes check, so use it only when that is intended. Tests: `python3 -I <skill-dir>/scripts/test_teardown.py`.
 
 ## Notes
 
