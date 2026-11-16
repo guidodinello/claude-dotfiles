@@ -56,8 +56,6 @@ opencode v2.1.4's `execute` tool runs model-written JavaScript, and no `permissi
 
 Verified 2026-11-02 with a shell in the same container: every host loopback port, the gateway and `host.docker.internal` were closed, `/home` held nothing, the root was not writable, and `CapEff` was 0. `tool_ran()` still discards any review in which a tool actually ran.
 
-The `babysit-prs` reviewer panes run opencode outside this sandbox; they stay affected until they call this script too.
-
 ## Decision Gates
 
 | Condition | Action |

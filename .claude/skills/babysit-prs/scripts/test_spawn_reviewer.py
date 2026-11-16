@@ -3,6 +3,7 @@
 import os
 import sys
 import unittest
+from pathlib import Path
 from typing import Any
 
 sys.dont_write_bytecode = True
@@ -80,17 +81,86 @@ class VerdictTests(unittest.TestCase):
         self.assertFalse(sr.is_clean(review(1, "### Code review\n\nFound 1 blocking issue(s)."), 0))
 
     def test_label_args_clean(self) -> None:
-        args = sr.label_edit_args(True)
-        self.assertIn("ready-to-merge", args)
-        self.assertEqual(args[args.index("--add-label") + 1], "reviewed")
-        self.assertNotIn("--remove-label ready-to-merge", " ".join(args))
+        args = sr.label_edit_args(True, {"pending-review"})
+        self.assertEqual(
+            args,
+            ["--remove-label", "pending-review", "--add-label", "reviewed", "--add-label", "ready-to-merge"],
+        )
 
     def test_label_args_with_findings_remove_ready_to_merge(self) -> None:
-        args = sr.label_edit_args(False)
+        args = sr.label_edit_args(False, {"pending-review", "ready-to-merge"})
         removed = [args[i + 1] for i, a in enumerate(args) if a == "--remove-label"]
         added = [args[i + 1] for i, a in enumerate(args) if a == "--add-label"]
         self.assertEqual(sorted(removed), ["pending-review", "ready-to-merge"])
         self.assertEqual(added, ["reviewed"])
+
+    def test_label_args_never_remove_a_label_the_pr_lacks(self) -> None:
+        # claude-dotfiles has no pending-review label; gh pr edit --remove-label fails on it
+        for clean in (True, False):
+            args = sr.label_edit_args(clean, set())
+            self.assertNotIn("--remove-label", args)
+            self.assertIn("reviewed", args)
+
+    def test_label_args_remove_only_the_present_one(self) -> None:
+        args = sr.label_edit_args(False, {"ready-to-merge"})
+        self.assertEqual(args, ["--remove-label", "ready-to-merge", "--add-label", "reviewed"])
+
+
+class DecideCleanTests(unittest.TestCase):
+    CLEAN = review(1, "### Code review\n\nNo issues found.")
+
+    def test_clean_when_head_unchanged(self) -> None:
+        self.assertTrue(sr.decide_clean(self.CLEAN, 0, "abc", "abc"))
+
+    def test_head_moved_fails_closed(self) -> None:
+        self.assertFalse(sr.decide_clean(self.CLEAN, 0, "abc", "def"))
+
+    def test_unknown_reviewed_sha_fails_closed(self) -> None:
+        self.assertFalse(sr.decide_clean(self.CLEAN, 0, "", ""))
+
+    def test_findings_stay_unclean_even_if_head_matches(self) -> None:
+        self.assertFalse(sr.decide_clean(self.CLEAN, 2, "abc", "abc"))
+
+
+class RetryTests(unittest.TestCase):
+    def test_retries_then_succeeds(self) -> None:
+        calls: list[int] = []
+
+        def flaky() -> str:
+            calls.append(1)
+            if len(calls) < 3:
+                raise sr.SpawnError("transient")
+            return "ok"
+
+        self.assertEqual(sr.with_retry(flaky, attempts=3, delay=0, sleep=lambda _: None), "ok")
+
+    def test_gives_up_after_the_last_attempt(self) -> None:
+        def always() -> None:
+            raise sr.SpawnError("down")
+
+        with self.assertRaises(sr.SpawnError):
+            sr.with_retry(always, attempts=2, delay=0, sleep=lambda _: None)
+
+    def test_does_not_retry_a_refusal(self) -> None:
+        calls: list[int] = []
+
+        def refuse() -> None:
+            calls.append(1)
+            raise sr.SpawnError("no", sr.EXIT_REFUSED)
+
+        with self.assertRaises(sr.SpawnError):
+            sr.with_retry(refuse, attempts=3, delay=0, sleep=lambda _: None)
+        self.assertEqual(len(calls), 1)
+
+
+class CodeReviewContractTests(unittest.TestCase):
+    def test_marker_strings_match_the_code_review_skill(self) -> None:
+        skill = Path(__file__).resolve().parents[2] / "code-review" / "SKILL.md"
+        if not skill.exists():
+            self.skipTest("code-review skill not next to babysit-prs")
+        text = skill.read_text(encoding="utf-8")
+        self.assertIn(sr.REVIEW_HEADER, text)
+        self.assertIn(sr.CLEAN_MARKER, text)
 
 
 if __name__ == "__main__":

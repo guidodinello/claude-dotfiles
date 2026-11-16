@@ -117,36 +117,28 @@ python3 -I <this skill's base directory>/scripts/spawn_reviewer.py <PR> \
 ```
 
 Run it with `run_in_background`, one per PR, and handle its exit when notified.
-It:
+**Max 3 concurrent reviewers**: the script refuses a 4th, so start the next one
+when one exits. Pass `--context` for PR-specific facts, for example "This PR
+needs a full review; do not skip it as simple or docs-only" for a docs PR,
+because `/code-review`'s eligibility check may otherwise skip it. `-R` and the
+config dir default from the repo and `$CLAUDE_CONFIG_DIR`, so it works from any
+repo. What it does, how it labels (`reviewed`, plus `ready-to-merge` only for a
+clean review of the still-current head) and the exit codes are documented in
+the script's docstring (`spawn_reviewer.py --help`); do not copy them here.
 
-1. Refuses to start unless it is inside herdr, the PR is open, no `rev<PR>`
-   workspace exists yet, and fewer than 3 reviewer workspaces (`rev<N>`) are
-   running. **Max 3 concurrent reviewers**; start the next one when one exits.
-2. Adds a detached worktree of the PR head branch, creates the herdr workspace
-   `rev<PR>` with `CLAUDE_CONFIG_DIR` set, and starts Claude Sonnet (medium
-   effort, auto permission mode) in it.
-3. Sends the full `/code-review` brief (all sub-agents, no fallback, no polling
-   with sleep). `--context` appends PR-specific facts, for example "This PR
-   needs a full review; do not skip it as simple or docs-only" for a docs PR,
-   because the skill's eligibility check may otherwise skip it.
-4. Waits for the review to be **posted** (a new review starting with
-   `### Code review`), not for the pane to go idle: a reviewer waiting on its
-   own sub-agents is idle. It uses `watch.py` as a wake signal.
-5. Lets the reviewer finish its own label swap, then reconciles the labels from
-   the posted review: **clean** (`No issues found`, no inline comments) gives
-   `reviewed` + `ready-to-merge`; anything else gives `reviewed` only and
-   removes a `ready-to-merge` the reviewer set by mistake. Labels are never
-   touched before the review exists.
-6. Closes the workspace and removes the worktree (`--keep` skips this).
+What you must act on:
 
-Defaults come from the repo and environment (`-R` from `origin`,
-`--config-dir` from `$CLAUDE_CONFIG_DIR`, else `~/.claude`), so it works from
-any repo. Exit codes: `0` done, `2` refused (not in herdr, PR not open, limit
-or duplicate), `3` a tool is missing, `124` no review within `--timeout`
-(default 45 min; labels untouched, workspace and worktree kept so you can read
-the reviewer with `herdr agent read rev<PR> --source recent-unwrapped
---lines 150`). Do not poll `herdr agent get` by hand and do not treat `idle`
-as finished.
+- Labels are touched only after the review is posted, never before; do not
+  swap them yourself while it runs.
+- Exit `0`: done, workspace and worktree already removed.
+- Exit `2`: refused (not in herdr, PR not open or a draft, 3 already running, or
+  a `rev<PR>` workspace exists). Nothing was started.
+- Exit `124` (no review in `--timeout`) or `1` (any other failure, including
+  the PR closing mid-review): labels untouched and the `rev<PR>` workspace is
+  **kept** and blocks a re-spawn. Read it with `herdr agent read rev<PR>
+  --source recent-unwrapped --lines 150`, then `herdr workspace close <id>`; a
+  leftover worktree is removed by the next run.
+- Do not poll `herdr agent get` by hand and do not treat `idle` as finished.
 
 `opencode-dual-review` (free opencode models) is deprecated and opt-in only,
 and `scripts/reviewer_leaderboard.py` only matters for it. Do not use either on

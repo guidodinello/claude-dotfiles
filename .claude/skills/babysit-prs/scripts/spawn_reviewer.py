@@ -19,12 +19,14 @@ Reproduces the recipe the orchestrator used to type by hand:
   6. close the workspace and remove the worktree (unless --keep)
 
 Labels, decided from the posted review only:
-  clean (body says "No issues found" and the review has no inline comments)
+  clean (body says "No issues found", the review has no inline comments, and the
+  PR head is still the commit the reviewer's worktree was created from)
       -pending-review +reviewed +ready-to-merge
-  anything else
+  anything else, including a head that moved while the review ran (fail closed)
       -pending-review -ready-to-merge +reviewed
   The second form also corrects a reviewer that marked its own findings
-  ready-to-merge. Nothing is relabelled before the review exists.
+  ready-to-merge. Only labels the PR actually carries are removed (gh pr edit fails on
+  a label the PR lacks). Nothing is relabelled before the review exists.
 
 Defaults, so the script works from any repo: -R is taken from the repo's origin via
 gh, --repo-dir from the cwd's main checkout, --config-dir from $CLAUDE_CONFIG_DIR
@@ -35,10 +37,14 @@ Run it with run_in_background; it prints one `HH:MM:SS text` line per step.
 
 Exit codes
   0    review posted, labels reconciled
-  2    refused: not in herdr, PR not open, workspace limit, or rev<N> already exists
+  2    refused: not in herdr, PR not open or a draft, workspace limit, or rev<N> exists
   3    gh, git, herdr or watch.py missing
   124  no review within --timeout; labels untouched, workspace and worktree kept
-  1    any other failure (a step's stderr is printed)
+  1    any other failure, including the PR being merged or closed mid-review (a step's
+       stderr is printed); labels untouched, workspace and worktree kept
+After 124 or 1 the `rev<N>` workspace is still open and blocks a re-spawn: read it with
+`herdr agent read rev<N>`, then `herdr workspace close <id>`. A leftover worktree is
+removed automatically by the next run.
 """
 
 import argparse
@@ -57,6 +63,7 @@ EXIT_MISSING_TOOL = 3
 EXIT_TIMEOUT = 124
 
 MAX_CONCURRENT = 3
+POLL_FLOOR_S = 10.0
 REVIEW_HEADER = "### Code review"
 WORKSPACE_RE = re.compile(r"^rev\d+$")
 CLEAN_MARKER = "No issues found"
@@ -112,10 +119,36 @@ def is_clean(review: dict[str, Any], inline_comment_count: int) -> bool:
     return inline_comment_count == 0 and CLEAN_MARKER in str(review.get("body") or "")
 
 
-def label_edit_args(clean: bool) -> list[str]:
+def decide_clean(review: dict[str, Any], inline_comments: int, reviewed_sha: str, head_sha: str) -> bool:
+    """Clean only if the review says so AND the PR head is still the commit that was reviewed.
+
+    review["commit_id"] is not usable for this: GitHub defaults it to the head at submission.
+    """
+    return is_clean(review, inline_comments) and bool(reviewed_sha) and reviewed_sha == head_sha
+
+
+def label_edit_args(clean: bool, present: set[str]) -> list[str]:
+    """gh pr edit args; --remove-label fails on a label the PR lacks, so remove only present ones."""
+    args: list[str] = []
+    drop = ["pending-review"] if clean else ["pending-review", "ready-to-merge"]
+    for label in drop:
+        if label in present:
+            args += ["--remove-label", label]
+    args += ["--add-label", "reviewed"]
     if clean:
-        return ["--remove-label", "pending-review", "--add-label", "reviewed", "--add-label", "ready-to-merge"]
-    return ["--remove-label", "pending-review", "--remove-label", "ready-to-merge", "--add-label", "reviewed"]
+        args += ["--add-label", "ready-to-merge"]
+    return args
+
+
+def with_retry(fn: Any, attempts: int = 3, delay: float = 5.0, sleep: Any = time.sleep) -> Any:
+    """Call fn, retrying SpawnError (a transient gh failure) before giving up."""
+    for attempt in range(attempts):
+        try:
+            return fn()
+        except SpawnError as exc:
+            if attempt == attempts - 1 or exc.code in (EXIT_REFUSED, EXIT_MISSING_TOOL):
+                raise
+            sleep(delay)
 
 
 def run(cmd: list[str], cwd: str | None = None, check: bool = True) -> str:
@@ -141,6 +174,10 @@ def main_checkout(cwd: str) -> str:
     return str(Path(common).parent)
 
 
+def fetch_pr(repo: str, pr: int) -> dict[str, Any]:
+    return run_json(["gh", "pr", "view", str(pr), "-R", repo, "--json", "state,isDraft,headRefName,headRefOid,labels"])
+
+
 def fetch_reviews(repo: str, pr: int) -> list[dict[str, Any]]:
     out = run(["gh", "api", f"repos/{repo}/pulls/{pr}/reviews", "--paginate", "--slurp"])
     pages = json.loads(out or "[]")
@@ -156,13 +193,18 @@ def wait_for_review(repo: str, pr: int, baseline: set[int], state_file: Path, ti
     """Poll the PR until a new /code-review review exists. watch.py is a wake signal only."""
     deadline = time.monotonic() + timeout_s
     while True:
-        review = find_new_review(fetch_reviews(repo, pr), baseline)
+        review = find_new_review(with_retry(lambda: fetch_reviews(repo, pr)), baseline)
         if review:
             return review
+        state = with_retry(lambda: fetch_pr(repo, pr))["state"]
+        if state != "OPEN":
+            raise SpawnError(f"PR {pr} became {state} before a review was posted; rev{pr} kept")
         left = deadline - time.monotonic()
         if left <= 0:
             raise SpawnError(f"no review within the timeout; labels untouched, rev{pr} kept", EXIT_TIMEOUT)
-        # exit 124 (watcher timeout) and 0 (an event) both mean "look again"
+        # exit 124 (watcher timeout) and 0 (an event) both mean "look again"; a fast return
+        # (an event that is not a review, or an error) must not turn this into a busy loop.
+        started = time.monotonic()
         subprocess.run(
             [
                 sys.executable,
@@ -184,6 +226,7 @@ def wait_for_review(repo: str, pr: int, baseline: set[int], state_file: Path, ti
             text=True,
             check=False,
         )
+        time.sleep(max(0.0, POLL_FLOOR_S - (time.monotonic() - started)))
 
 
 def spawn(args: argparse.Namespace) -> int:
@@ -194,14 +237,18 @@ def spawn(args: argparse.Namespace) -> int:
     for tool in ("gh", "git", "herdr"):
         if shutil.which(tool) is None:
             raise SpawnError(f"{tool} is not installed", EXIT_MISSING_TOOL)
+    if not WATCH.exists():
+        raise SpawnError(f"watch.py not found next to this script: {WATCH}", EXIT_MISSING_TOOL)
 
     repo_dir = args.repo_dir or main_checkout(os.getcwd())
     repo = args.repo or run(["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"], repo_dir).strip()
     config_dir = args.config_dir or os.environ.get("CLAUDE_CONFIG_DIR") or str(Path.home() / ".claude")
 
-    info = run_json(["gh", "pr", "view", str(pr), "-R", repo, "--json", "state,headRefName"])
+    info = fetch_pr(repo, pr)
     if info["state"] != "OPEN":
         raise SpawnError(f"PR {pr} is {info['state']}, not OPEN", EXIT_REFUSED)
+    if info.get("isDraft"):
+        raise SpawnError(f"PR {pr} is a draft; /code-review skips drafts", EXIT_REFUSED)
     workspaces = run_json(["herdr", "workspace", "list"])["result"]["workspaces"]
     check_capacity(workspaces, pr, args.max_concurrent)
 
@@ -212,8 +259,13 @@ def spawn(args: argparse.Namespace) -> int:
     keep = args.keep
     try:
         run(["git", "fetch", "-q", "origin"], repo_dir)
+        if worktree.exists():  # left by an earlier kept run; no workspace is running (checked above)
+            run(["git", "worktree", "remove", "--force", str(worktree)], repo_dir, check=False)
+            run(["git", "worktree", "prune"], repo_dir, check=False)
+            log(f"removed stale worktree {worktree}")
         run(["git", "worktree", "add", "-q", "--detach", str(worktree), f"origin/{info['headRefName']}"], repo_dir)
-        log(f"worktree {worktree}")
+        reviewed_sha = run(["git", "rev-parse", "HEAD"], str(worktree)).strip()
+        log(f"worktree {worktree} at {reviewed_sha[:7]}")
         created = run_json(
             [
                 "herdr",
@@ -259,12 +311,17 @@ def spawn(args: argparse.Namespace) -> int:
         # before reconciling, or its edit can land after ours. Idle means something now.
         run(["herdr", "agent", "wait", name, "--until", "idle", "--timeout", "300000"], check=False)
 
-        clean = is_clean(review, inline_comment_count(repo, pr, review["id"]))
-        run(["gh", "pr", "edit", str(pr), "-R", repo, *label_edit_args(clean)])
+        now = with_retry(lambda: fetch_pr(repo, pr))
+        comments = with_retry(lambda: inline_comment_count(repo, pr, review["id"]))
+        clean = decide_clean(review, comments, reviewed_sha, now["headRefOid"])
+        if is_clean(review, comments) and not clean:
+            log(f"head moved {reviewed_sha[:7]} -> {now['headRefOid'][:7]} during the review: not ready-to-merge")
+        present = {label["name"] for label in now.get("labels") or []}
+        run(["gh", "pr", "edit", str(pr), "-R", repo, *label_edit_args(clean, present)])
         log(f"labels set: {'reviewed + ready-to-merge' if clean else 'reviewed'} (clean={clean})")
         return 0
-    except SpawnError:
-        keep = True  # failure: leave the workspace and worktree for inspection
+    except BaseException:
+        keep = True  # any failure or Ctrl-C: leave the workspace and worktree, the reviewer may be mid-review
         raise
     finally:
         if not keep:
