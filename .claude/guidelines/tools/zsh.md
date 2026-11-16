@@ -8,8 +8,8 @@ The Bash tool runs zsh, not bash. zsh does not word-split an unquoted variable (
 
 ## Pipelines hide failures
 
-Never pipe `git commit`, `git push`, `gh pr ...` or `gh api` writes into `tail` or `head`. The pipeline's exit status is `tail`'s, so a hook rejection or CLI error looks like success.
+Never pipe `git commit`, `git push`, `gh api` writes or `gh pr` writes (`create`, `merge`, `edit`, `comment`, `review`, `close`) into `tail` or `head`. Read-only `gh pr view` / `gh pr diff` are fine to pipe. The pipeline's exit status is `tail`'s, so a hook rejection or CLI error looks like success.
 
 - Run them unpiped, or
 - put `set -o pipefail` in the same command: `set -o pipefail; git commit ... | tail -5` (shell state does not persist between Bash tool calls), or
-- append `; echo exit=$?`.
+- append `; echo exit=$?` to the unpiped command (after a pipe it reports `tail`'s status, not the command's).
