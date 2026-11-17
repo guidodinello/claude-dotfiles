@@ -46,6 +46,15 @@ UNION_PERMISSIONS='["allow","deny","ask","additionalDirectories"]'
 # kept next to the new one. Keep entries listed (they are harmless once gone).
 #   "rtk hook claude" - its rewrite voids auto-mode verdicts (Issue 389).
 RETIRED_HOOK_COMMANDS=("rtk hook claude")
+# The two inline Bash guards (Docker volumes, wrangler), replaced by
+# hooks/guard-bash.sh: they read .command instead of .tool_input.command and
+# used `grep -P`, so they never fired. One command per line, read literally.
+while IFS= read -r retired_cmd; do
+    RETIRED_HOOK_COMMANDS+=("${retired_cmd}")
+done <<'RETIRED'
+cmd=$(cat | jq -r '.command // ""'); if echo "$cmd" | grep -qP 'docker\s+(compose|stack)\s+.*\bdown\b.*(-v|--volumes)\b|docker\s+volume\s+(rm|remove|prune)\b'; then echo "BLOCKED: destructive Docker volume command. Volumes hold persistent data and removal is irreversible. Ask the user before running this."; exit 2; fi
+cmd=$(cat | jq -r '.command // ""'); if [ -n "$CLOUDFLARE_ENV" ] && echo "$cmd" | grep -qP 'wrangler(\s+|$)'; then echo "BLOCKED: CLOUDFLARE_ENV=$CLOUDFLARE_ENV is set — wrangler may silently target that environment. Unset it and use explicit --env flags instead."; exit 2; fi; if echo "$cmd" | grep -qP 'wrangler(\s+|$)(?=.*d1\s+(?:execute|migrations\s+apply))(?!.*--local)'; then echo "BLOCKED: wrangler d1 execute/migrations apply without --local targets production. Run the command manually with --remote after reviewing."; exit 2; fi
+RETIRED
 
 GREEN='\033[1;32m'; YELLOW='\033[1;33m'; RED='\033[1;31m'; NC='\033[0m'
 log_info() { echo -e "${GREEN}[INFO]${NC}  $*"; }
