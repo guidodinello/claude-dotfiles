@@ -27,18 +27,35 @@ if ! tool="$(jq -er '.tool_name | select(type == "string")' 2>/dev/null <<<"${in
   block "guard-env-files.sh could not read .tool_name from the hook input (is jq installed?). Refusing to run unchecked."
 fi
 
+# Paths to judge, NUL-separated so a newline in a name cannot split one.
+paths=()
 if [[ "${tool}" == "Grep" ]]; then
   # No path means the current directory: nothing to judge here.
   kind="$(jq -r '.tool_input.path | type' <<<"${input}" 2>/dev/null)" || block "guard-env-files.sh could not read .tool_input.path from the hook input."
-  [[ "${kind}" == "null" ]] && exit 0
-  [[ "${kind}" == "string" ]] || block "Grep path is not a string; cannot tell what it searches."
-  path="$(jq -r '.tool_input.path' <<<"${input}")"
-  # Grep over a directory is not a read of an env file.
-  [[ -z "${path}" || -d "${path}" ]] && exit 0
+  if [[ "${kind}" != "null" ]]; then
+    [[ "${kind}" == "string" ]] || block "Grep path is not a string; cannot tell what it searches."
+    grep_path="$(jq -r '.tool_input.path' <<<"${input}")"
+    # Grep over a directory is not a read of an env file.
+    if [[ -n "${grep_path}" && ! -d "${grep_path}" ]]; then
+      paths+=("${grep_path}")
+    fi
+  fi
+  # A glob filter such as `.env*` or `*.env` aims the search at env files.
+  gkind="$(jq -r '.tool_input.glob | type' <<<"${input}" 2>/dev/null)" || block "guard-env-files.sh could not read .tool_input.glob from the hook input."
+  if [[ "${gkind}" != "null" ]]; then
+    [[ "${gkind}" == "string" ]] || block "Grep glob is not a string; cannot tell what it searches."
+    paths+=("$(jq -r '.tool_input.glob' <<<"${input}")")
+  fi
 else
-  if ! path="$(jq -er '(.tool_input.file_path // .tool_input.notebook_path) | select(type == "string" and length > 0)' 2>/dev/null <<<"${input}")"; then
+  # Every path field the call carries is judged, whichever one the tool uses.
+  # The tool schemas name file_path (Read/Edit/Write) or notebook_path
+  # (NotebookEdit); a call with neither, or with a non-string one, is blocked.
+  if ! jq -e '[.tool_input.file_path, .tool_input.notebook_path] | map(select(. != null)) | (length > 0) and all(type == "string" and length > 0)' <<<"${input}" >/dev/null 2>&1; then
     block "guard-env-files.sh could not read a file path from the hook input. Refusing to run unchecked."
   fi
+  while IFS= read -r -d '' one; do
+    paths+=("${one}")
+  done < <(jq -j '[.tool_input.file_path, .tool_input.notebook_path] | map(select(. != null))[] | ., "\u0000"' <<<"${input}")
 fi
 
 # 0 when the basename of $1 is an env file that is not an example. Lowercased
@@ -55,16 +72,31 @@ is_env_file() {
 }
 
 # The path itself, then each hop of a symlink chain: a link named `notes` that
-# points at `.env` reads the env file.
-current="${path}"
-for ((hop = 0; hop < 40; hop++)); do
-  if is_env_file "${current}"; then
-    block "${current##*/} is an env file. Real env files hold secrets and stay off-limits; the example files (.env.example, .env.*.example, .env.sample, .env.template) are allowed. Ask the user to read or change it."
-  fi
-  [[ -L "${current}" ]] || break
-  target="$(readlink "${current}")" || break
-  [[ "${target}" == /* ]] || target="${current%/*}/${target}"
-  current="${target}"
+# points at `.env` reads the env file. A relative link target is resolved
+# against the directory of the link, and a leading `~/` against $HOME. If the
+# chain cannot be followed (readlink fails, or more than 40 hops, which is also
+# what a symlink loop looks like), the call is blocked.
+check_path() {
+  local current="$1" target dir hop tilde='~'
+  for ((hop = 0; hop < 40; hop++)); do
+    [[ "${current}" == "${tilde}/"* ]] && current="${HOME}/${current#"${tilde}/"}"
+    if is_env_file "${current}"; then
+      block "${current##*/} is an env file. Real env files hold secrets and stay off-limits; the example files (.env.example, .env.*.example, .env.sample, .env.template) are allowed. Ask the user to read or change it."
+    fi
+    [[ -L "${current}" ]] || return 0
+    target="$(readlink "${current}")" || block "could not follow the symlink ${current}. Refusing to run unchecked."
+    if [[ "${target}" != /* ]]; then
+      dir="."
+      [[ "${current}" == */* ]] && dir="${current%/*}"
+      target="${dir}/${target}"
+    fi
+    current="${target}"
+  done
+  block "symlink chain from ${1} is longer than 40 hops or loops. Refusing to run unchecked."
+}
+
+for one in "${paths[@]}"; do
+  check_path "${one}"
 done
 
 exit 0

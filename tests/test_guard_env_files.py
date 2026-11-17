@@ -3,6 +3,7 @@
 Every file here is fake: names only, empty contents, in a throwaway directory."""
 
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -36,8 +37,11 @@ NAMES = [
 ]
 
 
-def run_guard(stdin: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["bash", str(GUARD)], input=stdin, capture_output=True, text=True, timeout=30)
+def run_guard(stdin: str, cwd: Path | None = None, home: Path | None = None) -> subprocess.CompletedProcess:
+    env = {**os.environ, **({"HOME": str(home)} if home else {})}
+    return subprocess.run(
+        ["bash", str(GUARD)], input=stdin, capture_output=True, text=True, timeout=30, cwd=cwd, env=env
+    )
 
 
 def hook_input(tool: str, **tool_input) -> str:
@@ -88,6 +92,49 @@ class GuardEnvFilesTest(unittest.TestCase):
         link = self.tmp / "notes"
         link.symlink_to(real.name)  # relative target
         self.assertEqual(run_guard(hook_input("Read", file_path=str(link))).returncode, ALLOW)
+
+    def test_relative_symlink_resolves_against_the_link_directory(self):
+        """A bare relative path (no slash) and a relative target both resolve against the
+        directory the link sits in, not the path text itself."""
+        (self.tmp / ".env.backup").write_text("")
+        (self.tmp / "notes").symlink_to(".env.backup")
+        sub = self.tmp / "sub"
+        sub.mkdir()
+        (sub / "notes").symlink_to("../.env.backup")
+        for path, cwd in (("notes", self.tmp), ("sub/notes", self.tmp), ("notes", sub)):
+            with self.subTest(path=path, cwd=cwd.name):
+                self.assertEqual(run_guard(hook_input("Read", file_path=path), cwd=cwd).returncode, BLOCK)
+
+    def test_tilde_path_is_followed_through_home(self):
+        home = self.tmp / "home"
+        home.mkdir()
+        (home / ".env.backup").write_text("")
+        (home / "notes").symlink_to(home / ".env.backup")
+        self.assertEqual(run_guard(hook_input("Read", file_path="~/notes"), home=home).returncode, BLOCK)
+
+    def test_symlink_loop_and_long_chain_fail_closed(self):
+        (self.tmp / "a").symlink_to("b")
+        (self.tmp / "b").symlink_to("a")
+        self.assertEqual(run_guard(hook_input("Read", file_path=str(self.tmp / "a"))).returncode, BLOCK)
+
+    def test_every_path_field_is_judged(self):
+        """A call carrying both fields is blocked when either one is an env file."""
+        both = lambda f, n: hook_input("Read", file_path=f, notebook_path=n)  # noqa: E731
+        self.assertEqual(run_guard(both("/x/a.txt", "/x/.env")).returncode, BLOCK)
+        self.assertEqual(run_guard(both("/x/.env", "/x/a.ipynb")).returncode, BLOCK)
+        self.assertEqual(run_guard(both("/x/a.txt", "/x/a.ipynb")).returncode, ALLOW)
+        self.assertEqual(run_guard(both("/x/a.txt", 5)).returncode, BLOCK)
+
+    def test_grep_glob_aimed_at_env_files_is_blocked(self):
+        for glob in (".env*", "*.env", ".env.backup", "**/.env.local"):
+            with self.subTest(glob=glob):
+                result = run_guard(hook_input("Grep", pattern="x", path=str(self.tmp), glob=glob))
+                self.assertEqual(result.returncode, BLOCK)
+        for glob in ("*.ts", "!.env*", ".env.example"):
+            with self.subTest(glob=glob):
+                result = run_guard(hook_input("Grep", pattern="x", path=str(self.tmp), glob=glob))
+                self.assertEqual(result.returncode, ALLOW)
+        self.assertEqual(run_guard(hook_input("Grep", pattern="x", glob=5)).returncode, BLOCK)
 
     def test_grep_blocks_an_env_file_path(self):
         for name in (".env", ".env.backup", "prod.env"):
