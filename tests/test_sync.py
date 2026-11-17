@@ -1,6 +1,7 @@
 """Tests for sync.sh, select.sh, add_file.sh and promote.sh, run against a throwaway copy
 of the scripts and a throwaway HOME. Run: python3 -m unittest discover -s tests"""
 
+import fnmatch
 import json
 import os
 import shutil
@@ -227,6 +228,21 @@ class SyncSettingsTest(ScriptCase):
         later = [r for r in deny[first_carve_out:] if r.startswith(("Read(.env", "Edit(.env", "Read(**/.env", "Edit(**/.env"))]
         self.assertEqual(later, [])
         self.assertNotIn("carve-outs", result.stdout + result.stderr)
+
+    def test_base_denies_redirects_into_real_env_files_but_not_examples(self):
+        """The retired `echo` rules covered `> .env.local`; the base's Bash redirect rules
+        must still catch real env files and must not catch the example files. A Bash rule
+        has no `!` carve-out, so this checks the patterns themselves (`*` matches any text)."""
+        base = json.loads((REPO / ".claude" / "settings.base.json").read_text())
+        patterns = [r[len("Bash("):-1] for r in base["permissions"]["deny"] if r.startswith("Bash(")]
+        blocked = lambda cmd: any(fnmatch.fnmatchcase(cmd, p) for p in patterns)  # noqa: E731
+        for name in (".env", "prod.env", ".env.local", ".env.development", ".env.production",
+                     ".env.staging", ".env.test", ".env.development.local", "sub/.env.local"):
+            for op in (">", ">>"):
+                self.assertTrue(blocked(f"echo x {op} {name}"), f"{op} {name} must be denied")
+        for name in (".env.example", ".env.prod.example", ".env.sample", ".env.template"):
+            for op in (">", ">>"):
+                self.assertFalse(blocked(f"echo x {op} {name}"), f"{op} {name} must stay allowed")
 
     def test_warns_when_an_env_rule_shadows_the_carve_outs(self):
         shadow = "Read(**/.env.local)"

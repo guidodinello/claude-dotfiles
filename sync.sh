@@ -41,7 +41,9 @@ UNION_PERMISSIONS='["allow","deny","ask","additionalDirectories"]'
 # `Read(.env*)` / `Edit(.env*)` plus its `!` carve-outs: a `!` rule only carves
 # out of rules listed BEFORE it, and the union puts live extras after base.
 #   - Edit(**/.env), Bash(echo * > *.env*), Bash(echo * >> *.env*): replaced by
-#     Edit(.env*) and the Bash redirect rules.
+#     Edit(.env*) and the base's Bash redirect rules. A broad `*.env.*` redirect
+#     rule would also block `> .env.example` and a Bash rule cannot be carved
+#     out, so base lists the real-file names (.env.local, .env.production, ...).
 #   - Read(.env), Read(.env.*), Edit(.env), Edit(.env.*): added by gentle-ai,
 #     redundant with .env*.
 RETIRED_PERMISSION_RULES=(
