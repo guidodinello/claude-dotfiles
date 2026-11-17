@@ -51,7 +51,7 @@ python3 ~/.claude/skills/find-session/scripts/render_session.py --session <id> -
 python3 ~/.claude/skills/find-session/scripts/render_session.py --session <id> \
     --since 2026-11-07T04:00 --until 2026-11-07 --out <dir>
 python3 ~/.claude/skills/find-session/scripts/render_session.py --repo <repo-path> --count 5 \
-    --exclude <current-session-id> --out <dir>
+    --exclude <current-session-id> --also-prefix ~/orca/workspaces/<repo> --out <dir>
 ```
 
 - The output keeps user turns, assistant text, tool calls, truncated results and tool errors.
@@ -63,6 +63,11 @@ python3 ~/.claude/skills/find-session/scripts/render_session.py --repo <repo-pat
   `--max-chars N` shortens every line kind.
 - `--repo` also picks up the repo's worktree project dirs (`<slug>-wt-*`), where worker and
   reviewer sessions live, and guesses each session's role.
+- `--also-prefix <path>` (repeatable, only with `--repo`) adds project dirs under another path.
+  Orca worker sessions live under `~/orca/workspaces/<repo>/<name>`, which never starts with the
+  repo's own slug, so pass that path to find them; they are labelled `worker`. A path matches a
+  project dir that equals its slug or continues with `-` (slugs turn `/` into `-`, so
+  `.../backend` also matches a repo named `backend-api`).
 - Sessions bigger than `--chunk-bytes` (default 750000) are split into `.partN.txt` files, so a
   sub-agent can read each part whole. The jsonl is streamed, so a 120 MB session renders in
   well under a second with about 20 MB of memory.
