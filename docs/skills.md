@@ -83,10 +83,10 @@ are `user-invocable-only` since they're expensive/niche but still useful on dema
 | `/security-audit` | Application security audit covering OWASP Top 10 vulnerability patterns |
 | `/slite-compare-docs` | Compares two Slite documents to check whether one fully supersedes the other |
 | `/system-integration-map` | Clickable two-level map of a system: every external integration and internal process, each arrow labeled with direction and mechanism and linked to its code, plus traceable flows. Built from code by parallel explorers |
-| `/test-health` | Read-only test-suite audit against T1–T39: proves each harness (network/console guards, random order, retries, merged coverage) covers what it claims, then ranks tests that can't fail and nondeterminism above smells |
+| `/test-health` | Read-only test-suite audit against T1–T40: proves each harness (network/console guards, random order, retries, merged coverage) covers what it claims, then ranks tests that can't fail and nondeterminism above smells |
 | `/ticket-refinement` | Writes and refines subtasks for software tickets (endpoints, components, APIs) |
 | `/type-health` | Audits and improves type coverage: Python backend (Pydantic at IO boundaries), TypeScript frontend (Zod-first), TypeScript backend (NestJS/TypeORM) |
 | `/ui-ux-review` | Evaluates UI/UX quality (flow, visual consistency, layout, copy, interaction) from a screenshot, recording, or component path. Findings only |
 | `/worktree-bootstrap` | Per-repo Orca setup and archive scripts that source a shared helper lib: isolated compose project and ports per worktree, env files copied, deps installed, workspace `CLAUDE.md` and notes linked; with a self-check |
-| `/write-tests` | Writes tests from a research-backed philosophy (T1–T39, shared with `/test-health`): behaviour over implementation, doubles only at real boundaries, deterministic, and each test seen failing once |
+| `/write-tests` | Writes tests from a research-backed philosophy (T1–T40, shared with `/test-health`): behaviour over implementation, doubles only at real boundaries, deterministic, and each test seen failing once |
 | `/writing-react-effects` | Reviews/writes React components to eliminate unnecessary useEffect usage |

@@ -3,7 +3,7 @@ name: test-health
 allowed-tools: Bash Read Agent
 description: >
   Audit an existing automated test suite against a research-backed set of
-  heuristics (T1-T39): first whether the harnesses that keep tests honest
+  heuristics (T1-T40): first whether the harnesses that keep tests honest
   exist and cover what they claim (network and console guards, random-order
   and parallel runs, visible retries, merged coverage), then tests that cannot
   fail, nondeterminism, doubles in the wrong place, and lower-severity smells.
@@ -110,7 +110,7 @@ Never classify from the grep line alone.
 
 For each hit return:
 - file:line
-- heuristic (T1-T39)
+- heuristic (T1-T40)
 - severity from the philosophy file (High/Medium/Low/Info); escalate only
   where that heuristic's text says to (e.g. T4 with an assertion inside the
   branch)

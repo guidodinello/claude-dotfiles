@@ -1,7 +1,7 @@
 # Test Design Philosophy
 
 > **Purpose**: the *why* behind every rule the `/write-tests` and `/test-health`
-> skills apply. Each heuristic T1–T39 states a rule, the reasoning, the
+> skills apply. Each heuristic T1–T40 states a rule, the reasoning, the
 > sources, how an audit can check it, a severity, and where authorities
 > disagree.
 >
@@ -14,7 +14,7 @@
 > carries a verification tag; never print a `[B]` or `[S]` claim as a quote.
 > "Example from this project" lines are real cases from the Fitted repo.
 
-The authoritative sources agree on more than their public disagreements suggest. Beck's Test Desiderata, *Software Engineering at Google*, Fowler and Khorikov all hold that a good test specifies **observable behaviour through the interface a real client uses**, and even the mockist Freeman and Pryce insist a test be "as precise as possible, but not more precise". Such a test is **deterministic and independent of other tests**, it **fails for a useful reason with a diagnosable message**, and it changes only when requirements change. The empirical literature supplies the audit priorities. Luo et al. found **async waits, concurrency and order dependency behind 125 of 161 classified flaky-test fixes**, with **78% of flaky tests flaky from the day they were written**. Inozemtseva and Holmes found coverage **only weakly to moderately correlated with mutation-measured suite effectiveness** once suite size is controlled. Panichella et al. found that an established smell detector **misclassified over 70% of smells**. Together these justify a severity scheme: tests that cannot fail or that give nondeterministic results are high-severity findings, and readability smells are low-severity review prompts. The real disputes are narrower than they look. They are London versus classicist mocking (where mocks belong), pyramid versus trophy versus honeycomb (mostly what "unit" means), naming templates (taste), and retries (how visible they must be). The 39 heuristics below (T1–T39) are grouped into six themes and written so they can be lifted into a test-writing skill and a test-suite audit skill.
+The authoritative sources agree on more than their public disagreements suggest. Beck's Test Desiderata, *Software Engineering at Google*, Fowler and Khorikov all hold that a good test specifies **observable behaviour through the interface a real client uses**, and even the mockist Freeman and Pryce insist a test be "as precise as possible, but not more precise". Such a test is **deterministic and independent of other tests**, it **fails for a useful reason with a diagnosable message**, and it changes only when requirements change. The empirical literature supplies the audit priorities. Luo et al. found **async waits, concurrency and order dependency behind 125 of 161 classified flaky-test fixes**, with **78% of flaky tests flaky from the day they were written**. Inozemtseva and Holmes found coverage **only weakly to moderately correlated with mutation-measured suite effectiveness** once suite size is controlled. Panichella et al. found that an established smell detector **misclassified over 70% of smells**. Together these justify a severity scheme: tests that cannot fail or that give nondeterministic results are high-severity findings, and readability smells are low-severity review prompts. The real disputes are narrower than they look. They are London versus classicist mocking (where mocks belong), pyramid versus trophy versus honeycomb (mostly what "unit" means), naming templates (taste), and retries (how visible they must be). The 40 heuristics below (T1–T40) are grouped into six themes and written so they can be lifted into a test-writing skill and a test-suite audit skill.
 
 ## How to read the heuristics
 
@@ -89,8 +89,9 @@ Unqualified, "isolated" in this report means sense 2. Freeman et al. use "bounda
 | T37 | Use property-based tests where a general property exists | Low | Partial |
 | T38 | Test the generators; reject "doesn't crash" as the only oracle | Medium | Partial |
 | T39 | Make property failures minimal and reproducible | Low | Partial |
+| T40 | Test your declarations, not the tool's enforcement of them | Low | Partial |
 
-## A test is a specification a client could read (T1–T7)
+## A test is a specification a client could read (T1–T7, T40)
 
 North's BDD, Google's unit-testing chapter and Khorikov converge on one operational question: **would a client of this unit, or an external system, notice the difference?** If not, the test must not depend on it. They draw the client boundary differently. For North it is the business reader, for Google it is the team-ownership boundary, and for Khorikov it is the client's goals.
 
@@ -191,6 +192,20 @@ North's BDD, Google's unit-testing chapter and Khorikov converge on one operatio
 **Severity:** Medium.
 
 **Disagreement:** London-school authors argue that classical tests force changes "to multiple tests, especially to test data" when a core class changes ([OOPSLA 2004 §5.5](http://jmock.org/oopsla2004.pdf)) [V].
+
+**T40. Test what your code declares, not that the framework, database or library enforces it.**
+
+**Rule:** Do not re-prove a tool's own guarantees. When your code declares something a tool enforces (a CHECK, UNIQUE or foreign-key constraint, the fields a serializer exposes, an ORM mapping, a validation decorator), test that the declaration is correct, not that the tool enforces it. Use a schema-drift check that compares models to migrations, or assert the declaration read back from the schema, catalog or metadata. Do not provoke a violation to watch the tool reject it. First confirm the drift check compares the kind of declaration in question; where it does not, assert the declaration directly. Your own queries, and your code's handling of a violation (mapping a unique-key error to a conflict response, a retry), are still your behaviour: test them, against the real database when it is a managed dependency (T9).
+
+**Why:** "We should write tests only to our own code." Of the framework's repository methods: "This code is written and maintained by the Spring Data team, and they have ensured that it works. If we don’t trust that their code works, we should not use it." A query the team writes still counts as its own code, "because the most essential part of it was written by us" ([Kainulainen](https://www.petrikainulainen.net/programming/testing/writing-tests-for-data-access-code-dont-test-the-framework/)) [V]. A test that inserts a row violating a CHECK constraint the migration added mostly proves the database enforces CHECK. It passes as long as something rejects that one row, even when the definition is wider or narrower than intended, so it is a weak oracle for the declaration (T31, inference). A drift check tests the declaration itself. Django's `makemigrations --check` "Makes makemigrations exit with a non-zero status when model changes without migrations are detected" ([django-admin](https://docs.djangoproject.com/en/5.2/ref/django-admin/)) [V]. `alembic check` "returns an error code plus a message if it is detected that new operations would be rendered into a new revision" ([Alembic autogenerate](https://alembic.sqlalchemy.org/en/latest/autogenerate.html)) [V]. Drift tools have gaps: Alembic's CHECK detection is off by default, and same-named CHECK constraints "are always presumed to be equivalent, regardless of any difference in their expression text" (same page) [V]. This is the declaration-level version of the write-tests rule that a test of something a type already guarantees tests the type checker.
+
+**Sources:** Kainulainen [V]; Django docs [V]; Alembic docs [V]. Big Nerd Ranch reads "don't test the framework" as advice against redundant tests, and allows exploratory or characterisation tests of the framework ([BNR](https://bignerdranch.com/blog/what-does-dont-test-the-framework-mean/)) [S], so paraphrase it.
+
+**Audit check:** Flag tests whose Act saves a record built to violate a constraint and whose only assertion is the database or framework error (`IntegrityError`, a unique-violation code), with no project code between the Act and the error. Check that CI runs a drift check, and that it covers the constraint kinds the project declares.
+
+**Severity:** Low.
+
+**Disagreement:** Learning and characterisation tests deliberately target a tool's behaviour, to understand it or to pin it across an upgrade [S]. They are a separate, labelled category, not a model for per-constraint tests. The notes found no empirical study of the cost of re-testing framework guarantees.
 
 ## Doubles belong at boundaries the client can observe (T8–T15)
 
@@ -789,6 +804,7 @@ The 1.5% to 0.15% gap is tenfold, and the sources do not say whether it reflects
 | T37 Property kinds | Hughes 2019/2020 | MacIver; fast-check |
 | T38 Test the generators | Hughes 2019/2020 | MacIver |
 | T39 Integrated shrinking, seeds | MacIver (Hypothesis) | fast-check |
+| T40 Don't re-test the framework | Kainulainen 2014 | Django `makemigrations --check`; `alembic check` |
 
 ## Conclusion
 

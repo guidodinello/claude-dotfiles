@@ -18,7 +18,7 @@ Tests are executable specifications. Identify the contract the code promises,
 then encode that contract as tests that can fail when the contract breaks and
 give the same answer every time.
 
-The rules below are numbered T1–T39. Their reasoning, sources and the
+The rules below are numbered T1–T40. Their reasoning, sources and the
 disagreements between authorities are in
 [`references/test-philosophy.md`](references/test-philosophy.md). Read the
 theme for the decision you are making; do not load the whole file for a small
@@ -26,7 +26,7 @@ test.
 
 | Theme | Heuristics | Read it when |
 |-------|------------|--------------|
-| A test is a specification a client could read | T1–T7 | Always, before Step 3 |
+| A test is a specification a client could read | T1–T7, T40 | Always, before Step 3 |
 | Doubles belong at boundaries the client can observe | T8–T15 | The code has a dependency you might replace |
 | Determinism is enforced by tooling | T16–T22 | The test touches time, I/O, async, shared state |
 | Suite shape and UI tests | T23–T27 | Choosing a level, or testing UI |
@@ -79,6 +79,11 @@ interaction checks (T7).
 
 Before writing a test, ask whether a type can enforce the constraint instead.
 A test of something a type already guarantees tests the type checker.
+Likewise, when the code declares something a framework, database or library
+enforces (a CHECK or UNIQUE constraint, a serializer's exposed fields, a
+validation decorator), test that the declaration is right, with a schema-drift
+check or by reading the declaration back, not that the tool enforces it (T40).
+Your own queries and your handling of a violation are still yours to test.
 
 | Constraint | Type-expressible as |
 |------------|--------------------|
