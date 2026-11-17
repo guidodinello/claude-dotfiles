@@ -11,16 +11,16 @@ Provide a code review for the given pull request.
 
 To do this, follow these steps precisely:
 
-1. Use a Haiku agent to check if the pull request (a) is closed, (b) is a draft, or (c) does not need a code review (eg. because it is an automated pull request, or is very simple and obviously ok). The agent must start its answer with a single token, `ELIGIBLE` or `NOT ELIGIBLE`, then give the reason on the same line or after it; proceed only when that first token is `ELIGIBLE`, and read nothing else in the answer as the verdict. If `NOT ELIGIBLE`, do not proceed. Do NOT skip based on a prior review already existing on the PR (including one from you) — multiple independent reviews (eg. from different models/harnesses run in parallel) are expected and each should post its own findings.
-2. Use another Haiku agent to give you a list of file paths to (but not the contents of) any relevant CLAUDE.md files from the codebase: the root CLAUDE.md file (if one exists), as well as any CLAUDE.md files in the directories whose files the pull request modified
+1. Use a Haiku agent to check if the pull request (a) is closed, (b) is a draft, or (c) does not need a code review (eg. because it is an automated pull request, or is very simple and obviously ok). The agent must start its answer with a single token, `ELIGIBLE` or `NOT ELIGIBLE`, then give the reason on the same line or after it; proceed only when that first token is `ELIGIBLE`, and read nothing else in the answer as the verdict. Run this step alone: wait for its answer before launching any other agent. If `NOT ELIGIBLE`, stop here and run no other step. Do NOT skip based on a prior review already existing on the PR (including one from you) — multiple independent reviews (eg. from different models/harnesses run in parallel) are expected and each should post its own findings.
+2. Use another Haiku agent to give you a list of file paths to (but not the contents of) any relevant CLAUDE.md files from the codebase: the root CLAUDE.md file (if one exists), as well as any CLAUDE.md files in the directories whose files the pull request modified. Also list `CLAUDE.local.md` at the repo root (the workspace rules, linked into worktrees by worktree-bootstrap), including when it is a symlink. It is git-excluded, so check the filesystem (`test -e`), not `git ls-files`. Call these the "CLAUDE files" below
 3. Use a Haiku agent to view the pull request, and ask the agent to return a summary of the change
 4. Then, launch 5 parallel Sonnet agents to independently code review the change. The agents should do the following, then return a list of issues and the reason each issue was flagged (eg. CLAUDE.md adherence, bug, historical git context, etc.):
-   a. Agent #1: Audit the changes to make sure they comply with the CLAUDE.md. Note that CLAUDE.md is guidance for Claude as it writes code, so not all instructions will be applicable during code review.
+   a. Agent #1: Audit the changes to make sure they comply with the CLAUDE files (step 2). Note that CLAUDE.md is guidance for Claude as it writes code, so not all instructions will be applicable during code review.
    b. Agent #2: Read the file changes in the pull request, then do a shallow scan for obvious bugs. Avoid reading extra context beyond the changes, focusing just on the changes themselves. Focus on large bugs, and avoid small issues and nitpicks. Ignore likely false positives.
    c. Agent #3: Read the git blame and history of the code modified, to identify any bugs in light of that historical context
    d. Agent #4: Read previous pull requests that touched these files, and check for any comments on those pull requests that may also apply to the current pull request.
    e. Agent #5: Read code comments in the modified files, and make sure the changes in the pull request comply with any guidance in the comments.
-5. For each issue found in #4, launch a parallel Haiku agent that takes the PR, issue description, and list of CLAUDE.md files (from step 2), and returns a score to indicate the agent's level of confidence for whether the issue is real or false positive. To do that, the agent should:
+5. For each issue found in #4, launch a parallel Haiku agent that takes the PR, issue description, and list of CLAUDE files (from step 2), and returns a score to indicate the agent's level of confidence for whether the issue is real or false positive. To do that, the agent should:
    - **Always start by fetching the PR diff** using `gh pr diff <PR_NUMBER> --repo <OWNER>/<REPO>` as the primary source of truth for what code is being reviewed. The code described in the issue may be newly introduced by this PR and therefore not present in the local filesystem yet — absence from local files is NOT evidence of a false positive.
    - Verify whether the specific code pattern described in the issue actually appears in the PR diff. If it does, treat it as confirmed and score accordingly.
    - Only use local file reads to gather additional context (e.g. CLAUDE.md contents, existing patterns, proxy config) — not to verify the existence of new code being added.
@@ -75,7 +75,7 @@ To do this, follow these steps precisely:
 
    d. If a finding cannot be mapped to a specific line (e.g. it spans multiple files with no single anchor), include it in the review `body` instead of as an inline comment.
    e. If there are no verified findings at all, post the "No issues found" review (see below).
-   f. After the review is posted, swap the PR's labels. Which label depends on what the review contains:
+   f. After the review is posted, swap the PR's labels. First list the repo's labels once: `gh label list --repo <OWNER>/<REPO> --limit 200 --json name -q '.[].name'`. Pass `--add-label` / `--remove-label` only for labels in that list, and never create a label. If none of the wanted labels exist, skip the edit. Say which labels were skipped in your final output. Which label depends on what the review contains:
       - **Any finding at all** (blocking or non-blocking, inline or in the body): `gh pr edit <PR_NUMBER> --remove-label "pending-review" --add-label "reviewed"`. The `address-pr-comments` skill then triages the findings and sets `ready-to-merge` itself.
       - **Zero findings** (you posted the "No issues found" review): `gh pr edit <PR_NUMBER> --remove-label "pending-review" --add-label "reviewed" --add-label "ready-to-merge"`. Nobody runs `address-pr-comments` on a PR with no comments, so without `ready-to-merge` the PR would sit at `reviewed` forever.
 
@@ -102,7 +102,7 @@ Notes:
 - Use `gh` to interact with Github (eg. to fetch a pull request, or to create inline comments), rather than web fetch
 - Make a todo list first
 - Wait for sub-agent completion messages; do not poll with sleep or Monitor
-- You must cite and link each bug (eg. if referring to a CLAUDE.md, you must link it)
+- You must cite and link each bug (eg. if referring to a CLAUDE.md, you must link it). `CLAUDE.local.md` is not in the repo, so there is nothing to link: quote the rule and name the file
 - For each inline comment, use this format:
 
 ```

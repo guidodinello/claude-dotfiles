@@ -253,9 +253,17 @@ unexplained unresolved thread) withholds the label: do not add it, report the th
 instead, so the failed resolve is retried by the next run rather than hidden behind a
 `ready-to-merge` PR that the ruleset still blocks.
 
+Add it only if the repo has it. Never create a label in someone else's repo:
+
 ```bash
-gh pr edit [PR#] --add-label "ready-to-merge"
+if gh label list --repo <OWNER>/<REPO> --search ready-to-merge --json name -q '.[].name' | grep -qx ready-to-merge; then
+  gh pr edit [PR#] --add-label "ready-to-merge"
+else
+  echo "skipped: repo has no ready-to-merge label"
+fi
 ```
+
+If the label is missing, skip the edit and the verification below, and say so in Step 8.
 
 Do **not** remove the `reviewed` label. `reviewed` (a review happened) and
 `ready-to-merge` (the merge gate is passed) record separate facts and are
@@ -284,7 +292,7 @@ comment-level outcomes:
 | 4 | lib/y.ts:3 | SKIP | ✓ | open (needs human) |
 
 Unresolved threads: 2 (#3 waiting on author, #4 needs human)
-Label: ready-to-merge ✓ confirmed   (or: withheld — thread #N resolve failed)
+Label: ready-to-merge ✓ confirmed   (or: withheld — thread #N resolve failed, or: skipped — repo has no ready-to-merge label)
 ```
 
 ---
