@@ -1,17 +1,25 @@
-## GitHub Accounts (two accounts on this machine)
+## GitHub Accounts (two accounts, set up differently per machine)
 
-| Account | Purpose | SSH host in remotes | Key |
-|---|---|---|---|
-| `guidodinello` | Personal | `github.com` (default) | `~/.ssh/id_ed25519` |
-| `gdinlightit` | Work | `github.com-work` | `~/.ssh/lightit` |
+| Account | Purpose |
+|---|---|
+| `guidodinello` | Personal |
+| `gdinlightit` | Work |
 
-`~/.ssh/config` is the source of truth for the aliases; check it if this table looks wrong.
+**Which SSH host alias maps to which account differs per machine.** On the work laptop,
+plain `github.com` is the work account. On the personal laptop, plain `github.com` is
+the personal account and the work one is `github.com-work`. This file is synced to
+every machine, so it does not say which alias to use. The machine's own
+`~/.ssh/config` is the source of truth.
 
-- **Personal repos** use plain remotes: `git@github.com:guidodinello/<repo>.git`.
-  `gh repo create ... --source .` already sets that up, so no remote rewrite is needed.
-- **Work repos** need the alias in the remote:
-  `git@github.com-work:<org>/<repo>.git`. A plain `github.com` remote authenticates as
-  the personal account and fails on work repos.
-- **`gh` CLI**: logged in as `guidodinello` only, as of 2026-11-17 (`gh auth status`).
-  To act as the work account, log it in (`gh auth login`) and pass its token per
-  command or per repo: `GH_TOKEN=$(gh auth token -u gdinlightit) gh ...`.
+Before setting or fixing a remote:
+
+1. Read the `Host` entries in `~/.ssh/config` to see which aliases exist.
+2. Confirm the account behind an alias with `ssh -T git@<alias>`. It replies
+   `Hi <account>!`.
+3. Use the alias that answers with the repo owner's account:
+   `git@<alias>:<owner>/<repo>.git`.
+
+The same applies to the `gh` CLI: which accounts are logged in, and which one is
+active, differs per machine. Check with `gh auth status` before any `gh` write. To act
+as a logged-in account that is not the active one, pass its token for that command:
+`GH_TOKEN=$(gh auth token -u <account>) gh ...`.
