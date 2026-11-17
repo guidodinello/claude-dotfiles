@@ -81,6 +81,17 @@ run_example() {
 exclude_count() {
   grep -cxF "$1" "$REPO/.git/info/exclude" || true
 }
+# The log is written by a tee process the shell cannot wait for, so it can
+# trail the marker: poll for up to ~1 s.
+log_has() {
+  local pattern="$1" tries=0
+  while [ "$tries" -lt 10 ]; do
+    grep -q "$pattern" "$WT/.bootstrap.log" 2>/dev/null && return 0
+    sleep 0.1
+    tries=$((tries + 1))
+  done
+  return 1
+}
 
 for round in 1 2; do
   check "run $round exits 0" run_example "$WT"
@@ -88,6 +99,9 @@ for round in 1 2; do
   check "run $round: .my-dev-things -> workspace notes" test "$(readlink "$WT/.my-dev-things")" = "$WS/my-dev-things"
   check "run $round: git status --porcelain is empty" test -z "$(git -C "$WT" status --porcelain)"
   check "run $round: each exclude pattern appears once" test "$(exclude_count /CLAUDE.local.md)/$(exclude_count /.my-dev-things)" = "1/1"
+  check "run $round: status marker reads OK" grep -q '^OK ' "$WT/.bootstrap-status"
+  check "run $round: log has the last step" log_has "bootstrap done"
+  check "run $round: status files are excluded once" test "$(exclude_count /.bootstrap.log)/$(exclude_count /.bootstrap-status)" = "1/1"
 done
 
 if run_example "$REPO" >/dev/null 2>&1; then
@@ -96,6 +110,7 @@ else
   pass "refuses to run on the main checkout"
 fi
 check "main checkout got no links" test ! -e "$REPO/CLAUDE.local.md" -a ! -e "$REPO/.my-dev-things"
+check "main checkout got no status files" test ! -e "$REPO/.bootstrap.log" -a ! -e "$REPO/.bootstrap-status"
 
 echo "--- lib resolution from HOME"
 INSTALLED_HOME="$SCRATCH/home"
@@ -119,6 +134,8 @@ if ORCA_WORKTREE_PATH="$WT" WORKTREE_BOOTSTRAP_LIB="$LIB" bash "$EXAMPLE" >/dev/
 else
   pass "dies when the workspace CLAUDE.md is missing"
 fi
+check "failed run: status marker reads FAILED exit=1" grep -q '^FAILED exit=1 ' "$WT/.bootstrap-status"
+check "failed run: log holds the error" log_has "ERROR: workspace CLAUDE.md not found"
 mv "$WS/CLAUDE.md.off" "$WS/CLAUDE.md"
 
 echo "---"

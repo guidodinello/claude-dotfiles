@@ -43,6 +43,7 @@ per-repo script (project constants, stack-specific steps)
 - **Schedulers and heavy optional services stay off in worktrees.** A worktree runs with credentials copied from the main checkout, so a cron/scheduler service would call external systems unattended. Put such services behind compose profiles in a locally written override.
 - **Nothing tracked is edited.** Local files (compose override, links) are hidden through the common `.git/info/exclude`, never `.gitignore`. A tracked file that local tooling keeps rewriting gets `skip_worktree`, never a commit.
 - **Link the workspace context.** `link_workspace_context` links the workspace `CLAUDE.md` as `CLAUDE.local.md` (Claude Code loads it) and the notes folder under a **dot name** (`.my-dev-things`). A plain-name link was followed by a frontend's `tsc`, whose `include` of `**/*.ts` compiled the notes' scripts; the dot name is skipped by such globs. Inside a worktree, refer to the notes as `.my-dev-things/...`.
+- **Leave a status.** Orca runs the Setup Script in the background, so a failure is invisible. Call `record_bootstrap_status "$REPO_DIR"` right after `require_worktree`: the run is teed to `.bootstrap.log` and `.bootstrap-status` reads `RUNNING`, then `OK` or `FAILED exit=<n>`, both git-excluded. No marker means the script died before that call (lib missing, wrong repo): treat it as failed. The log can trail the marker by a moment.
 - **Stacks with containers or volumes get a teardown script** in Orca's Archive Script field. It always exits 0: cleanup must never block removing a worktree.
 - **Stack-specific logic stays in the per-repo script.** Add to `lib.sh` only small helpers that two or more stacks need, and never change an existing helper's signature: every project sources the same file.
 
@@ -58,6 +59,7 @@ per-repo script (project constants, stack-specific steps)
 | Repo needs no runtime (infra, docs) | Links-only example |
 | A tracked file must change for local runs | `skip_worktree` plus a local rewrite; never commit it |
 | An override file name is already tracked | Stop and adapt; do not overwrite it |
+| New worktree looks broken, or you are about to launch work in one | Read `.bootstrap-status`, then `.bootstrap.log`; re-run the setup script after fixing the cause |
 | `lib.sh` or an example changed | Run the self-check before committing |
 
 ## Procedure: a new project
@@ -72,7 +74,7 @@ per-repo script (project constants, stack-specific steps)
    - Archive Script (stacks with containers only): `bash <workspace>/my-dev-things/setup/teardown-worktree-<repo>.sh`
 7. **Index the scripts** in the notes folder's README, with the paste lines.
 
-Orca behavior to account for: the Archive Script runs only on `orca worktree rm --run-hooks`; the Setup Script can still be running after `orca worktree create` returns, so check its result (env file, `node_modules`, `docker ps`) before launching work in a new worktree.
+Orca behavior to account for: the Archive Script runs only on `orca worktree rm --run-hooks`; the Setup Script can still be running after `orca worktree create` returns, so wait for `.bootstrap-status` to read `OK` before launching work in a new worktree.
 
 ## Changing lib.sh
 
@@ -83,7 +85,7 @@ Orca behavior to account for: the Archive Script runs only on `orca worktree rm 
    bash <dotfiles-worktree>/.claude/skills/worktree-bootstrap/scripts/self-check.sh
    ```
 
-   It runs `bash -n` with `/bin/bash` (3.2 on macOS) and the PATH `bash` over the lib, the examples and itself; unit-checks the env and naming helpers; then builds a throwaway workspace and repo under a temp dir, adds a detached worktree outside the workspace, runs the links-only example twice and verifies both links resolve, `git status --porcelain` is empty, each exclude pattern appears once, and the main checkout is refused. It also loads the lib through an installed-style `$HOME/.claude/skills/worktree-bootstrap/lib.sh` symlink without the override, checks the clear failure when the lib is missing, and checks the run dies without a workspace `CLAUDE.md`. It removes the worktree and the temp dir on exit.
+   It runs `bash -n` with `/bin/bash` (3.2 on macOS) and the PATH `bash` over the lib, the examples and itself; unit-checks the env and naming helpers; then builds a throwaway workspace and repo under a temp dir, adds a detached worktree outside the workspace, runs the links-only example twice and verifies both links resolve, `git status --porcelain` is empty, each exclude pattern appears once, and the main checkout is refused. It also loads the lib through an installed-style `$HOME/.claude/skills/worktree-bootstrap/lib.sh` symlink without the override, checks the clear failure when the lib is missing, and checks the run dies without a workspace `CLAUDE.md`. It also checks the status marker (`OK` after a run, `FAILED exit=1` after the failing one, no status files in the main checkout). `scripts/test_self_check.py` runs it for CI. It removes the worktree and the temp dir on exit.
 3. It reaches projects only once it is in the main dotfiles checkout: after the merge, `git pull` there (the `~/.claude` symlinks point into it), and re-run `./sync.sh` when the change added a file.
 
 ## Lib Reference
@@ -102,6 +104,7 @@ Orca behavior to account for: the Archive Script runs only on `orca worktree rm 
 | `copy_from_main <main> <dir> <path> [--optional]` | Copy without reading, never overwrite |
 | `is_tracked` / `ensure_git_exclude` / `skip_worktree` | Keep local state out of commits |
 | `link_excluded <dir> <target> <name>` / `link_workspace_context <dir> <ws> [notes]` | Excluded symlinks; never over a real or tracked file |
+| `record_bootstrap_status <dir>` | Tee the run to `.bootstrap.log`, write `.bootstrap-status` (`OK` / `FAILED exit=<n>`) |
 | `use_repo_node <dir>` | `.nvmrc` via nvm, corepack prompts off |
 | `wait_for_docker [timeout]` / `wait_for_http <url> [timeout] [code]` | Readiness waits |
 | `log` / `warn` / `die` / `require_cmd` | Output and preconditions |
