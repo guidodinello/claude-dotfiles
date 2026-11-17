@@ -35,7 +35,7 @@ Wired globally from `settings.base.json`. After an Edit/Write to a `.json` file,
 
 ## PreToolUse (Safety Guards)
 
-Both guards live in one script, `.claude/hooks/guard-bash.sh`, registered on the `Bash` matcher. It reads the command from `.tool_input.command` and matches with bash's own `[[ =~ ]]`, so it needs no GNU grep. It fails closed: if the hook input can't be read (no `jq`, or an unexpected shape), the command is blocked.
+The two Bash guards live in one script, `.claude/hooks/guard-bash.sh`, registered on the `Bash` matcher. It reads the command from `.tool_input.command` and matches with bash's own `[[ =~ ]]`, so it needs no GNU grep. It fails closed: if the hook input can't be read (no `jq`, or an unexpected shape), the command is blocked.
 
 ### docker-volume-guard
 
@@ -60,6 +60,16 @@ Only `wrangler d1 execute --local ...` passes through. Each simple command (spli
 A versioned package name (`npx wrangler@3 ...`) and a quoted or backslash-escaped `wrangler` are matched too.
 
 **Additional guard:** If `CLOUDFLARE_ENV` is set in the environment, any `wrangler` command is blocked. This env var can silently select a named environment from wrangler config without an explicit `--env` flag.
+
+### env-file-guard
+
+`.claude/hooks/guard-env-files.sh`, registered on `Read|Edit|Write|NotebookEdit|Grep`. Blocks (exit 2) any file whose basename is an env file, **anywhere on disk**: it starts with `.env` (`.env`, `.env.local`, `.env.backup`, `.envrc`) or ends in `.env` (`prod.env`). The example files stay allowed: `.env.example`, `.env.*.example`, `.env.sample`, `.env.template`. Names are compared lowercased (macOS volumes are case-insensitive), and each hop of a symlink chain is checked (relative targets against the link's directory, a leading `~/` against `$HOME`), so a link named `notes` that points at `.env` is blocked. A loop or a chain over 40 hops is blocked. Every path field in the call (`file_path` and `notebook_path`) is judged. `.envrc` is blocked because the in-project `Read(.env*)` deny already blocks it.
+
+Why a hook next to the deny rules in `settings.base.json`: a bare `Read(.env*)` rule only reaches the current directory, and a `!` carve-out cannot reach a `//` or `~/` anchored rule (the docs read a `!` pattern relative to the current directory). So the base denies the real-file names anchored at `//**/`, which keeps `.env.example` readable, and this hook closes the rest (`.env.backup`, `.env.prod`) by name. The deny rules stay as defense in depth when hooks are off.
+
+It fails closed like `guard-bash.sh`: if `jq` is missing, the input can't be parsed, or there is no usable path, the call is blocked.
+
+**Grep:** Claude Code 2.1.327 exposes no `Grep` or `Glob` tool (searches run through `Bash`), so this branch only matters for versions or SDK sessions that still have the tool; it is covered by unit tests, not a live run. Only a `path` that is itself an env file is blocked. A directory path, or no path, is allowed: the guard can't see inside the search, so a directory search can still read unlisted env files there; Claude Code applies `Read` deny rules to the searched directory on a best-effort basis. A `glob` filter spelled as an env name (`.env*`, `*.env`) is blocked, on a best-effort basis: the text is not expanded, so `.e*` or `{.env,x}` get through, as does a search with no glob at all. `Glob` (names only) is not covered, and Bash `cat` and redirects stay on the deny rules above.
 
 ### Known limitations (pattern-level hooks can't prevent)
 
@@ -86,6 +96,12 @@ These are accepted trade-offs: the guard prevents accidental production SQL duri
         "matcher": "Bash",
         "hooks": [
           { "type": "command", "command": "~/.claude/hooks/guard-bash.sh" }
+        ]
+      },
+      {
+        "matcher": "Read|Edit|Write|NotebookEdit|Grep",
+        "hooks": [
+          { "type": "command", "command": "~/.claude/hooks/guard-env-files.sh" }
         ]
       }
     ]

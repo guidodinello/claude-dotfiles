@@ -257,6 +257,62 @@ class SyncSettingsTest(ScriptCase):
         again = self.sync()
         self.assertIn(shadow, again.stdout + again.stderr)
 
+    ANCHORED_ENV_NAMES = [
+        ".env", "*.env", ".env.local", ".env.*.local",
+        ".env.development", ".env.production", ".env.staging", ".env.test",
+    ]
+    EXAMPLE_NAMES = [".env.example", ".env.prod.example", ".env.sample", ".env.template"]
+
+    def test_base_denies_env_files_outside_the_project(self):
+        """Bare `.env*` rules only reach the project; `!` cannot carve out of a `//` rule,
+        so the base lists real-file names anchored at the filesystem root."""
+        self.sync()
+        deny = self.settings()["permissions"]["deny"]
+        for tool in ("Read", "Edit"):
+            for name in self.ANCHORED_ENV_NAMES:
+                self.assertIn(f"{tool}(//**/{name})", deny)
+
+    def test_anchored_env_rules_match_real_files_and_no_example(self):
+        base = json.loads((REPO / ".claude" / "settings.base.json").read_text())
+        anchored = [r[len("Read(//**/"):-1] for r in base["permissions"]["deny"] if r.startswith("Read(//**/")]
+        self.assertEqual(sorted(anchored), sorted(self.ANCHORED_ENV_NAMES))
+        matches = lambda name: any(fnmatch.fnmatchcase(name, p) for p in anchored)  # noqa: E731
+        for name in (".env", "prod.env", ".env.local", ".env.development.local", ".env.production"):
+            self.assertTrue(matches(name), f"{name} must be denied")
+        for name in self.EXAMPLE_NAMES:
+            self.assertFalse(matches(name), f"{name} must stay readable")
+
+    def test_anchored_rules_come_before_the_carve_outs_and_warn_nothing(self):
+        result = self.sync()
+        deny = self.settings()["permissions"]["deny"]
+        first_carve_out = min(i for i, rule in enumerate(deny) if rule.startswith(("Read(!", "Edit(!")))
+        for rule in deny:
+            if rule.startswith(("Read(//", "Edit(//")):
+                self.assertLess(deny.index(rule), first_carve_out)
+        self.assertNotIn("carve-outs", result.stdout + result.stderr)
+        self.assertNotIn("anchored", result.stdout + result.stderr)
+
+    def test_warns_when_an_anchored_env_glob_cannot_be_carved_out(self):
+        """`!` is read relative to the cwd, so a `//` or `~/` rule that globs after `.env`
+        blocks .env.example for good, wherever it sits in the list."""
+        globs = ["Read(~/**/.env*)", "Edit(//**/.env.*)", "Read(//**/.env*)"]
+        self.write_settings({"permissions": {"deny": globs}})
+        result = self.sync()
+        deny = self.settings()["permissions"]["deny"]
+        output = result.stdout + result.stderr
+        for rule in globs:
+            self.assertIn(rule, deny)  # fail closed: kept
+            self.assertIn(rule, output)
+        self.assertIn("anchored", output)
+        again = self.sync()
+        self.assertIn("anchored", again.stdout + again.stderr)  # still warns when up to date
+
+    def test_no_warning_for_anchored_rules_that_name_real_files(self):
+        self.write_settings({"permissions": {"deny": ["Read(~/**/.env.local)", "Edit(//**/prod.env)"]}})
+        result = self.sync()
+        self.assertNotIn("anchored", result.stdout + result.stderr)
+        self.assertNotIn("carve-outs", result.stdout + result.stderr)
+
     def test_replaced_inline_hooks_do_not_survive_next_to_their_scripts(self):
         """A hook that moved from an inline command to a script must be retired,
         or the union keeps the old command in every existing config dir."""

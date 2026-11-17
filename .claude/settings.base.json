@@ -20,6 +20,22 @@
     "deny": [
       "Read(.env*)",
       "Edit(.env*)",
+      "Read(//**/.env)",
+      "Read(//**/*.env)",
+      "Read(//**/.env.local)",
+      "Read(//**/.env.*.local)",
+      "Read(//**/.env.development)",
+      "Read(//**/.env.production)",
+      "Read(//**/.env.staging)",
+      "Read(//**/.env.test)",
+      "Edit(//**/.env)",
+      "Edit(//**/*.env)",
+      "Edit(//**/.env.local)",
+      "Edit(//**/.env.*.local)",
+      "Edit(//**/.env.development)",
+      "Edit(//**/.env.production)",
+      "Edit(//**/.env.staging)",
+      "Edit(//**/.env.test)",
       "Bash(*>> *.env)",
       "Bash(*> *.env)",
       "Bash(*>> *.env.local)",
@@ -96,6 +112,15 @@
           {
             "type": "command",
             "command": "{{CONFIG_DIR}}/hooks/guard-bash.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Edit|Write|NotebookEdit|Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{{CONFIG_DIR}}/hooks/guard-env-files.sh"
           }
         ]
       }
