@@ -128,3 +128,47 @@ def latest_plan(transcript):
 def subagent_mtime(transcript):
     subs = glob.glob(os.path.join(transcript[: -len(".jsonl")], "subagents", "*.jsonl"))
     return max((os.path.getmtime(x) for x in subs), default=0)
+
+
+GH_PR_CREATE = re.compile(r"\bgh\s+pr\s+create\b")
+PR_URL = re.compile(r"https://github\.com/[\w.-]+/[\w.-]+/pull/\d+")
+
+
+def _result_text(content):
+    """A tool_result's content is a string or a list of text blocks."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "\n".join(b.get("text", "") for b in content if isinstance(b, dict))
+    return ""
+
+
+def own_pr_urls(transcript):
+    """PR URLs printed by the worker's own `gh pr create` calls, in order, no duplicates.
+
+    Reads the main transcript and its subagent transcripts (a writer subagent may open the
+    PR). A URL that merely appears in text, a `gh pr view` result or a `pr-link` row does not
+    count: a reviewer session sharing the worktree can show those.
+    """
+    subs = sorted(glob.glob(os.path.join(transcript[: -len(".jsonl")], "subagents", "*.jsonl")))
+    urls = []
+    for path in [transcript, *subs]:
+        creates = set()
+        for r in rows(path):
+            content = (r.get("message") or {}).get("content")
+            if not isinstance(content, list):
+                continue
+            for b in content:
+                if not isinstance(b, dict):
+                    continue
+                if (
+                    b.get("type") == "tool_use"
+                    and b.get("name") == "Bash"
+                    and GH_PR_CREATE.search((b.get("input") or {}).get("command") or "")
+                ):
+                    creates.add(b.get("id"))
+                elif b.get("type") == "tool_result" and b.get("tool_use_id") in creates:
+                    for url in PR_URL.findall(_result_text(b.get("content"))):
+                        if url not in urls:
+                            urls.append(url)
+    return urls

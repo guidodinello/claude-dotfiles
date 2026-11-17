@@ -28,7 +28,10 @@ python3 -I <home>/.claude/skills/orca-orchestration/scripts/<script>.py ...
 | Script | Use |
 |---|---|
 | `wstat.py <worker> [chars]` | Pending tool and last text from a worker's transcript. Exit 2 before the first transcript write |
-| `wwatch2.py <minutes> <worker>...` | Block until READY (plan or question), PR, IDLE, STUCK, NOTRANSCRIPT or TIMEOUT. Run it in the background |
+| `wlaunch.py create --repo <sel> --name <wt> --base <ref> --branch <branch>` | Create the worktree with its final branch name and no parent; prints `{worktree, branch}` |
+| `wlaunch.py start <worktree> --title <t>` | Needs `.task-brief.md`. Opens Claude Code in plan mode, waits for "plan mode on", sends the one-line prompt; prints `{worktree, handle}` for `ids.json` |
+| `wsend.py <handle> "<text>"` / `--menu <n>` | Send one line (text, then a bare Enter) or a bare menu number. Refuses multi-line or over 400 chars: use the answers file |
+| `wwatch2.py [--follow] <minutes> <worker>...` | Block until READY (plan or question), PR (the worker's own `gh pr create`), IDLE, STUCK, NOTRANSCRIPT, DEAD (no live claude in the worktree; a reviewer session there hides it) or TIMEOUT. One-shot: run it in the background. `--follow`: one line per event, each once; run it under Monitor |
 | `../babysit-prs/scripts/watch.py -R <repo> --pr <n>... --agent <id>...` | Durable watcher for PRs (merged, review, label, failed check, conflict) and herdr agents, one line per event, re-arms itself. Use it instead of any hand-written `seq`/`sleep` loop. Flags and rules: the babysit-prs skill, "Loop until clear". Invoke as `python3 -I <home>/.claude/skills/babysit-prs/scripts/watch.py ...` |
 | `wplan.py <worker>` | Print the latest `ExitPlanMode` plan |
 | `fb.sh <handle> "<text>"` | Pick "Tell Claude what to change" (option 3) on the plan menu and submit one short line |
@@ -41,6 +44,7 @@ python3 -I <home>/.claude/skills/orca-orchestration/scripts/<script>.py ...
 
 - **Never approve a plan you have not read.** Read it with `wplan.py`, check every answer you sent is folded in, then approve. Never script "wait for the menu, then approve".
 - **Long text never goes through the terminal.** `orca terminal send` truncates it. Write answers to `<worktree>/.orchestrator-answers.md` and send a one-line pointer.
+- **Always `--terminal <h>`, never a positional handle**, also for `terminal read` and `terminal close` (Orca answers "Unknown command"). `wsend.py` and `wlaunch.py` already do.
 - **Menus and prompts are typed differently.** A menu choice is the bare option number (no `--enter`). A free-text prompt is the full text without `--enter`, then a separate bare Enter. Read the menu on screen before choosing: the same number means different things on different menus.
 - **Decide or park.** Approve what follows the task, the design, the recorded decisions or what the user already decided. Park and ask the user on a product fork, a security or supply-chain call, legal copy, or an unforced deviation from the task. Log every call made on the user's behalf in the run doc.
 - **Never `--no-verify`**, for workers or yourself. A pre-existing hook failure gets a minimal, separately committed fix, or a question to the user.

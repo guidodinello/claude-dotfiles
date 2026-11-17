@@ -86,26 +86,21 @@ When the profile enables it, a new screen or sizeable UI change (not copy, spaci
 ## 5. Launch one worker
 
 ```bash
-orca worktree create --repo id:<repoId> --name <worktree-name> --no-parent \
-  --base-branch origin/<integration-or-base> --comment "<task id> planning" --json
-git -C <worktree> branch -m <branch>          # Orca names it <user>/<name>
+python3 -I <home>/.claude/skills/orca-orchestration/scripts/wlaunch.py create --repo id:<repoId> \
+  --name <worktree-name> --base origin/<integration-or-base> --branch <branch> --comment "<task id> planning"
 python3 -I <run-dir>/make-brief.py <run-dir> <task-key>
-orca terminal create --worktree id:<repoId>::<worktree> --title <task-id>-claude \
-  --command 'claude --model opusplan --permission-mode plan' --json
-orca terminal wait --terminal <h> --for tui-idle --timeout-ms 120000 --json
-# confirm the TUI really started: the preview shows "plan mode on"
-orca terminal send --terminal <h> --text "<one-line prompt>" --json   # no --enter
-orca terminal send --terminal <h> --text "" --enter --json             # separate bare Enter
+python3 -I <home>/.claude/skills/orca-orchestration/scripts/wlaunch.py start <worktree> --title <task-id>-claude
 ```
 
+`create` prints `{worktree, branch}`, `start` prints `{worktree, handle}`: record both in the run's `ids.json`. `start` fails if `.task-brief.md` is missing, sends the prompt only once the terminal preview shows "plan mode on", presses Enter once if the command is still typed at the shell prompt (slow nvm hook), and otherwise fails with the terminal left open.
+
 - Always pass `--repo`. From a workspace cwd, Orca would otherwise infer the workspace repo.
-- `--agent claude` cannot forward arguments, hence the two-step path.
-- `--wait-submit` rejects an empty `--text`: send the text without `--enter`, then a bare Enter.
-- Before sending the brief, wait for `<worktree>/.bootstrap-status` to read `OK` (Orca runs the Setup Script in the background). `FAILED`, or no file after a few minutes: read `<worktree>/.bootstrap.log`, fix, re-run the setup script. A setup script pasted into Orca before `record_bootstrap_status` existed never writes the file: re-paste the updated script, and until then check the result directly (env file, deps, `docker ps`).
-- Rename the branch **before anything is pushed**, so it never exists remotely under a name without the task id.
-- One-line prompt: *"Read .task-brief.md in this worktree root and follow it exactly: investigate, then write your implementation plan with an explicit Open questions section. Do not implement until the orchestrator approves the plan. When implementation is done, open the PR as the brief specifies."*
+- `--agent claude` cannot forward arguments, hence `terminal create --command` and the wait for plan mode.
+- Before `wlaunch.py start` (it sends the brief prompt), wait for `<worktree>/.bootstrap-status` to read `OK` (Orca runs the Setup Script in the background). `FAILED`, or no file after a few minutes: read `<worktree>/.bootstrap.log`, fix, re-run the setup script. A setup script pasted into Orca before `record_bootstrap_status` existed never writes the file: re-paste the updated script, and until then check the result directly (env file, deps, `docker ps`).
+- `--branch` names the branch at creation (Orca adds no `<user>/` prefix), so it never exists remotely under a name without the task id.
+- The prompt is one line, at most 400 chars. The default (read the brief, plan with Open questions, wait for approval) lives in `wlaunch.py`; `--prompt` overrides it.
+- Later one-liners go through `wsend.py <handle> "<text>"`: text without `--enter`, then a separate bare Enter (`--wait-submit` rejects an empty `--text`).
 - Move the task (and the parent story, if it is the first) to the profile's in-progress status yourself. Tracker automations keyed on branch creation only fire at the worker's first push.
-- Record the worktree, branch and terminal handle in the run's `ids.json`.
 
 ## 6. The brief (`.task-brief.md`)
 
@@ -124,15 +119,17 @@ orca terminal send --terminal <h> --text "" --enter --json             # separat
 
 - **Do not trust `tui-idle`.** It fires when a worker waits on its own subagents.
 - Watch PRs (and any herdr agents) with `babysit-prs/scripts/watch.py`, in the background, never a hand-written polling loop. Workers stay on the transcript-based `wwatch2.py`. For the `run_in_background` pattern use `--exit-on-first-event --state <docs-folder>/watch.json` and restart it after each event. `idle` is an event there, not completion: pass `--until` for what actually finishes a PR (`merged`, `review`, `label:reviewed`, ...).
-- Read state from the transcript: `wstat.py <worktree>` (pending tool, last text); `wwatch2.py <minutes> <worktree>...` in the background (`run_in_background`), one per group of workers.
+- Read state from the transcript: `wstat.py <worktree>` (pending tool, last text); `wwatch2.py <minutes> <worktree>...` in the background (`run_in_background`), one per group of workers. It exits on the first event. For one process that keeps reporting, run `wwatch2.py --follow --pidfile <file> <minutes> <worktree>...` under the Monitor tool (a background Bash only notifies on exit): one flushed line per event, each once, stopped with `kill "$(cat <file>)"`. Monitor caps at 30 min: re-arm on expiry.
+  - PR means the worker's own `gh pr create` printed a URL. A PR URL in a reviewer's text or a `pr-link` row does not count.
+  - DEAD means no live claude process has the worktree as cwd (an Orca restart kills the workers; their transcripts show nothing). Relaunch with `claude --resume`. A reviewer session in the same worktree hides it: check `orca terminal list` when a worker stays silent.
   - A pending `Bash` gets 15 min before STUCK: almost always a long suite or hook run.
   - A parent waiting on its writer subagent counts the subagent's transcript (`<session>/subagents/*.jsonl`) as activity. Workers delegating implementation to a subagent is expected.
   - A plan or question already pending when the watcher starts is reported only after a grace period (`WWATCH_GRACE_SECS`, default 90s), so a watcher started right after an approval does not report the still-pending plan. A new plan is reported at once.
   - Permission prompts do not show in the transcript: a STUCK on an MCP tool usually is one. Read the screen.
 - **Plan ready** (pending `ExitPlanMode`): read it with `wplan.py`.
   - To answer, pick the plan menu's "Tell Claude what to change" option (observed: **3**; read the menu first) with a one-line pointer, or `fb.sh`.
-  - Put the answers in `<worktree>/.orchestrator-answers.md`, then send: "Read .orchestrator-answers.md, fold it into the plan and re-present it". Keep shell-quoted texts free of apostrophes.
-  - When the plan comes back, check it contains the answers (`wplan.py <worktree> | rg <keyword>`), then approve with "Yes, and use auto mode" (observed: **1**), sent as a bare number.
+  - Put the answers in `<worktree>/.orchestrator-answers.md`, then `wsend.py <handle> "Read .orchestrator-answers.md, fold it into the plan and re-present it"`. Keep shell-quoted texts free of apostrophes.
+  - When the plan comes back, check it contains the answers (`wplan.py <worktree> | rg <keyword>`), then approve with "Yes, and use auto mode" (observed: **1**), as `wsend.py <handle> --menu 1`.
 - **Question** (pending `AskUserQuestion`): send the option number, then a follow-up message with any constraints.
 - **Permission prompt** for a tool you allow: read the last screen lines, then send the option that allows it. Never answer with a keyword loop: a plan text that mentions the tool would get the same keystroke, and on the plan menu that number means something else. Tools that prompt on every call need an answer every time.
 - **Network drop** (`ENOTFOUND` on the worker screen): check the API host is reachable, then tell the worker to continue where it left off. The same outage makes review models "fail".
@@ -146,6 +143,7 @@ orca terminal send --terminal <h> --text "" --enter --json             # separat
 1. **Check the PR:** base, title format, tracker link format, attribution policy (workers still append attribution footers; strip them with `gh pr edit --body-file`).
 2. Move the task to the profile's PR status.
 3. **Review** with the profile's review tool and diff-base argument for stacked PRs.
+   - First `gh pr view <n> --json isDraft -q .isDraft`. A stacked PR is often opened as a draft, and the review skill stops on a draft: mark it ready with `gh pr ready <n>` first.
    - Trust a review only if it has a verdict; an empty run is not "no issues".
    - Check the posted reviews (`gh api repos/<owner>/<repo>/pulls/<n>/reviews`) against the tool's output. If a review is void, say so in a PR comment so nobody reads it as approval.
    - If every model returns zero findings on a large PR, say so; do not silently substitute another review.
@@ -166,7 +164,7 @@ orca terminal send --terminal <h> --text "" --enter --json             # separat
 
 ## 10. Cleanup
 
-- Close every terminal you opened (`orca terminal close`), remove each worktree once its PR merged, stop the per-worktree stacks, and delete local branches that merged.
+- Close every terminal you opened (`orca terminal close --terminal <h>`), remove each worktree once its PR merged, stop the per-worktree stacks, and delete local branches that merged.
 - Leave the run doc with the final state and fold lessons into `gotchas.md`.
 
 ## Gotchas (generic, all hit live)
@@ -193,3 +191,7 @@ orca terminal send --terminal <h> --text "" --enter --json             # separat
 | Worker cannot edit a protected file even after the user approves | Its classifier cannot see approvals given to the orchestrator | The orchestrator writes it; the worker commits it |
 | `wstat.py` shows another session's state | The scripts read the newest transcript in the worktree's project dir; a second session there (a tool's reviewer, the user's own) shares it | Check the `file:` line of `wstat.py`; read the right `.jsonl` by hand while the other session is active |
 | Task status flips after an integration merge, and again after a reset | Tracker automation fires on any merge, with a delay | Reset, then sweep all tasks once more before reporting |
+| `Unknown command: terminal send term_...` (also `read`, `close`) | The handle was passed positionally | Always `--terminal <h>`; `wsend.py` and `wlaunch.py` do |
+| `orca terminal create --command` leaves the command typed at the shell prompt, no TUI | The shell's nvm hook is slow when the command arrives | `wlaunch.py start` presses Enter once when it sees the command at the prompt; by hand, send a bare Enter |
+| The review stops with "NOT ELIGIBLE ... is a draft" | A stacked PR was opened as a draft | `gh pr view <n> --json isDraft`, then `gh pr ready <n>` before the review |
+| Worker silent after an Orca restart | Orca killed its process; the transcript ends like an idle turn | `wwatch2.py` reports DEAD (process table); relaunch with `claude --resume` |
