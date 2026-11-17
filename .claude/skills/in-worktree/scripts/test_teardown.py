@@ -1,9 +1,13 @@
 """Unit tests for teardown.py. Run: python3 -I test_teardown.py."""
 
 import os
+import subprocess
 import sys
+import tempfile
 import unittest
+from pathlib import Path
 from typing import Any
+from unittest import mock
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -151,6 +155,91 @@ class ActionTests(unittest.TestCase):
             label="x", workspaces=[{"label": "x", "workspace_id": "w9"}, {"label": "y", "workspace_id": "w2"}]
         )
         self.assertEqual(actions[0], ("close_workspace", "w9"))
+
+
+HOOK = "/r/main/" + td.REPO_HOOK_REL
+
+
+class RepoHookPlanTests(unittest.TestCase):
+    def test_hook_runs_after_workspace_close_and_before_removal(self) -> None:
+        actions = make(
+            label="x",
+            workspaces=[{"label": "x", "workspace_id": "w1"}],
+            dep_symlinks=[WT + "/l"],
+            repo_hook=HOOK,
+        )
+        self.assertEqual(
+            [a[0] for a in actions],
+            ["close_workspace", "repo_teardown_hook", "unlink", "remove_worktree", "prune", "keep_branch"],
+        )
+        self.assertEqual(actions[1], ("repo_teardown_hook", HOOK, WT))
+
+    def test_no_hook_plans_nothing_extra(self) -> None:
+        self.assertNotIn("repo_teardown_hook", [a[0] for a in make()])
+
+    def test_refusals_plan_no_hook(self) -> None:
+        self.assertIn("main checkout", refused(target=MAIN, cwd="/elsewhere", repo_hook=HOOK))
+        self.assertIn("uncommitted", refused(dirty=["a.py"], repo_hook=HOOK))
+
+
+class FindRepoHookTests(unittest.TestCase):
+    def _make_hook(self, root: str) -> str:
+        path = Path(root) / td.REPO_HOOK_REL
+        path.parent.mkdir(parents=True)
+        path.write_text("#!/bin/sh\n")
+        return str(path)
+
+    def test_prefers_the_main_checkout(self) -> None:
+        with tempfile.TemporaryDirectory() as main, tempfile.TemporaryDirectory() as wt:
+            main_hook = self._make_hook(main)
+            self._make_hook(wt)
+            self.assertEqual(td.find_repo_hook(main, wt), main_hook)
+
+    def test_falls_back_to_the_worktree(self) -> None:
+        with tempfile.TemporaryDirectory() as main, tempfile.TemporaryDirectory() as wt:
+            wt_hook = self._make_hook(wt)
+            self.assertEqual(td.find_repo_hook(main, wt), wt_hook)
+
+    def test_none_when_neither_has_one(self) -> None:
+        with tempfile.TemporaryDirectory() as main, tempfile.TemporaryDirectory() as wt:
+            self.assertIsNone(td.find_repo_hook(main, wt))
+
+
+class RunRepoHookTests(unittest.TestCase):
+    def test_runs_bash_with_script_and_worktree(self) -> None:
+        done = subprocess.CompletedProcess([], 0, stdout="ok\n", stderr="")
+        with mock.patch.object(td.subprocess, "run", autospec=True, return_value=done) as run:
+            td.run_repo_hook("/s/teardown-worktree.sh", WT)
+        self.assertEqual(run.call_args.args[0], ["bash", "/s/teardown-worktree.sh", WT])
+
+    def test_nonzero_exit_does_not_raise(self) -> None:
+        failed = subprocess.CompletedProcess([], 1, stdout="", stderr="boom\n")
+        with mock.patch.object(td.subprocess, "run", autospec=True, return_value=failed):
+            td.run_repo_hook("/s/t.sh", WT)
+
+    def test_expected_failures_do_not_raise(self) -> None:
+        for exc in (
+            subprocess.TimeoutExpired("bash", 1),
+            OSError("no bash"),
+            UnicodeDecodeError("utf-8", b"\xe9", 0, 1, "invalid continuation byte"),
+        ):
+            with mock.patch.object(td.subprocess, "run", autospec=True, side_effect=exc):
+                td.run_repo_hook("/s/t.sh", WT)
+
+    def test_non_utf8_hook_output_does_not_raise(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            script = Path(tmp) / "hook.sh"
+            script.write_text("printf 'caf\\xe9\\n'\nexit 0\n")
+            td.run_repo_hook(str(script), WT)
+
+    def test_execute_dispatches_the_hook_before_removal(self) -> None:
+        calls: list[str] = []
+        with (
+            mock.patch.object(td, "run_repo_hook", autospec=True, side_effect=lambda *_: calls.append("hook")),
+            mock.patch.object(td, "run", autospec=True, side_effect=lambda *_a, **_k: calls.append("run") or ""),
+        ):
+            td.execute([("repo_teardown_hook", HOOK, WT), ("remove_worktree", WT)], MAIN)
+        self.assertEqual(calls, ["hook", "run"])
 
 
 class BranchDecisionTests(unittest.TestCase):
