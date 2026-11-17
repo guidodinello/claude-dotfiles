@@ -298,6 +298,43 @@ link_workspace_context() {
   link_excluded "$dir" "$ws/$notes" ".$notes"
 }
 
+# --- bootstrap status -------------------------------------------------------
+
+BOOTSTRAP_STATUS_FILE=""
+
+_bootstrap_finish() {
+  local rc="$1" state="OK"
+  [ "$rc" -eq 0 ] || state="FAILED exit=$rc"
+  printf '%s %s\n' "$state" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$BOOTSTRAP_STATUS_FILE"
+}
+
+# Usage: record_bootstrap_status <worktree>
+# Orca runs the Setup Script in the background, so nobody sees it fail. Call
+# this right after require_worktree: it tees the rest of the run to
+# <worktree>/.bootstrap.log and keeps <worktree>/.bootstrap-status at
+# "RUNNING <utc>", then "OK <utc>" or "FAILED exit=<n> <utc>" from an EXIT
+# trap. Bash keeps one EXIT trap, so this replaces any set earlier and a later
+# `trap ... EXIT` replaces this one (the marker would stay RUNNING): set no
+# EXIT trap after this call. Both files are git-excluded.
+# No marker means the script never got this far. The log can trail the marker
+# by a moment: bash 3.2 cannot wait for the tee process.
+record_bootstrap_status() {
+  local dir="$1" name
+  # Both writes follow symlinks, so a branch that tracks or plants one of these
+  # names could redirect them. Refuse tracked paths, drop planted links.
+  for name in .bootstrap.log .bootstrap-status; do
+    ! is_tracked "$dir" "$name" || die "$name is tracked in this repo; refusing to write the bootstrap status over it"
+    [ ! -L "$dir/$name" ] || rm -f "$dir/$name"
+  done
+  BOOTSTRAP_STATUS_FILE="$dir/.bootstrap-status"
+  ensure_git_exclude "$dir" "/.bootstrap.log"
+  ensure_git_exclude "$dir" "/.bootstrap-status"
+  printf 'RUNNING %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$BOOTSTRAP_STATUS_FILE"
+  exec > >(tee "$dir/.bootstrap.log") 2>&1
+  trap '_bootstrap_finish $?' EXIT
+  log "bootstrap started $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+
 # --- runtimes and services --------------------------------------------------
 
 # Activates the repo's .nvmrc Node through nvm. nvm.sh is not safe under

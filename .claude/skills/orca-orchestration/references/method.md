@@ -96,6 +96,7 @@ python3 -I <home>/.claude/skills/orca-orchestration/scripts/wlaunch.py start <wo
 
 - Always pass `--repo`. From a workspace cwd, Orca would otherwise infer the workspace repo.
 - `--agent claude` cannot forward arguments, hence `terminal create --command` and the wait for plan mode.
+- Before `wlaunch.py start` (it sends the brief prompt), wait for `<worktree>/.bootstrap-status` to read `OK` (Orca runs the Setup Script in the background). `FAILED`, or no file after a few minutes: read `<worktree>/.bootstrap.log`, fix, re-run the setup script. A setup script pasted into Orca before `record_bootstrap_status` existed never writes the file: re-paste the updated script, and until then check the result directly (env file, deps, `docker ps`).
 - `--branch` names the branch at creation (Orca adds no `<user>/` prefix), so it never exists remotely under a name without the task id.
 - The prompt is one line, at most 400 chars. The default (read the brief, plan with Open questions, wait for approval) lives in `wlaunch.py`; `--prompt` overrides it.
 - Later one-liners go through `wsend.py <handle> "<text>"`: text without `--enter`, then a separate bare Enter (`--wait-submit` rejects an empty `--text`).

@@ -1,6 +1,7 @@
 """Tests for sync.sh, select.sh, add_file.sh and promote.sh, run against a throwaway copy
 of the scripts and a throwaway HOME. Run: python3 -m unittest discover -s tests"""
 
+import fnmatch
 import json
 import os
 import shutil
@@ -149,6 +150,13 @@ class SyncSettingsTest(ScriptCase):
         base = json.loads((self.src / "settings.base.json").read_text())
         self.assertEqual(settings["model"], base["model"])
 
+    def test_hides_commit_and_pr_attribution(self):
+        self.write_settings({"attribution": {"commit": "Co-Authored-By: x", "pr": "footer"}})
+        self.sync()
+        self.assertEqual(
+            self.settings()["attribution"], {"commit": "", "pr": "", "sessionUrl": False}
+        )
+
     def test_keeps_installer_hooks_and_permissions(self):
         installer_hook = {"matcher": "*", "hooks": [{"type": "command", "command": "installer-hook"}]}
         self.write_settings(
@@ -184,6 +192,70 @@ class SyncSettingsTest(ScriptCase):
         commands = [h["command"] for e in entries for h in e["hooks"]]
         self.assertNotIn("rtk hook claude", commands)
         self.assertIn({"matcher": "Edit", "hooks": [kept]}, entries)
+
+    # Today's live env rules: base's own plus the extras gentle-ai adds, which
+    # land after base's `!` carve-outs and would re-block .env.example.
+    RETIRED_ENV_RULES = [
+        "Edit(**/.env)",
+        "Bash(echo * > *.env*)",
+        "Bash(echo * >> *.env*)",
+        "Read(.env)",
+        "Read(.env.*)",
+        "Edit(.env)",
+        "Edit(.env.*)",
+    ]
+
+    def test_drops_retired_permission_rules(self):
+        self.write_settings(
+            {"permissions": {"deny": [*self.RETIRED_ENV_RULES, "Read(.ssh/*)"], "allow": ["Bash(x:*)"]}}
+        )
+        self.sync()
+        permissions = self.settings()["permissions"]
+        for rule in self.RETIRED_ENV_RULES:
+            self.assertNotIn(rule, permissions["deny"])
+        self.assertIn("Read(.ssh/*)", permissions["deny"])
+        self.assertIn("Bash(x:*)", permissions["allow"])
+
+    def test_retired_env_rules_leave_the_carve_outs_effective(self):
+        base = json.loads((self.src / "settings.base.json").read_text())
+        self.write_settings({"permissions": {"deny": [*base["permissions"]["deny"], *self.RETIRED_ENV_RULES]}})
+        result = self.sync()
+        deny = self.settings()["permissions"]["deny"]
+        for tool in ("Read", "Edit"):
+            self.assertIn(f"{tool}(.env*)", deny)
+            self.assertIn(f"{tool}(!.env.example)", deny)
+        first_carve_out = min(i for i, rule in enumerate(deny) if rule.startswith(("Read(!", "Edit(!")))
+        later = [r for r in deny[first_carve_out:] if r.startswith(("Read(.env", "Edit(.env", "Read(**/.env", "Edit(**/.env"))]
+        self.assertEqual(later, [])
+        self.assertNotIn("carve-outs", result.stdout + result.stderr)
+
+    def test_base_denies_redirects_into_real_env_files_but_not_examples(self):
+        """The retired `echo` rules covered `> .env.local`; the base's Bash redirect rules
+        must still catch real env files and must not catch the example files. A Bash rule
+        has no `!` carve-out, so this checks the patterns themselves (`*` matches any text)."""
+        base = json.loads((REPO / ".claude" / "settings.base.json").read_text())
+        patterns = [r[len("Bash("):-1] for r in base["permissions"]["deny"] if r.startswith("Bash(")]
+        blocked = lambda cmd: any(fnmatch.fnmatchcase(cmd, p) for p in patterns)  # noqa: E731
+        for name in (".env", "prod.env", ".env.local", ".env.development", ".env.production",
+                     ".env.staging", ".env.test", ".env.development.local", "sub/.env.local"):
+            for op in (">", ">>"):
+                self.assertTrue(blocked(f"echo x {op} {name}"), f"{op} {name} must be denied")
+        for name in (".env.example", ".env.prod.example", ".env.sample", ".env.template"):
+            for op in (">", ">>"):
+                self.assertFalse(blocked(f"echo x {op} {name}"), f"{op} {name} must stay allowed")
+
+    def test_warns_when_an_env_rule_shadows_the_carve_outs(self):
+        shadow = "Read(**/.env.local)"
+        self.write_settings({"permissions": {"deny": [shadow]}})
+        result = self.sync()
+        self.assertIn(shadow, self.settings()["permissions"]["deny"])  # fail closed: kept
+        output = result.stdout + result.stderr
+        self.assertIn("WARN", output)
+        self.assertIn(shadow, output)
+        self.assertIn("RETIRED_PERMISSION_RULES", output)
+        # Still warns when the file is already up to date.
+        again = self.sync()
+        self.assertIn(shadow, again.stdout + again.stderr)
 
     def test_replaced_inline_hooks_do_not_survive_next_to_their_scripts(self):
         """A hook that moved from an inline command to a script must be retired,

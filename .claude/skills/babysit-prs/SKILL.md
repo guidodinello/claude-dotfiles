@@ -193,6 +193,12 @@ landed on this branch yet.
 run `address-pr-comments` on it anyway — its nothing-to-address path still
 adds `ready-to-merge`.
 
+In a repo without a `ready-to-merge` label, `address-pr-comments` skips the edit
+and reports `skipped — repo has no ready-to-merge label`. That PR will never get
+the label: don't re-dispatch it. If the report shows no thread left open, treat
+the PR as `ready-to-merge` for Step 5. If the report says `label lookup failed`
+instead, that is transient: dispatch it again next pass.
+
 ## Step 5 — Auto-merge
 
 Once a PR is CLEAN (not DIRTY), CI is green, and it's genuinely

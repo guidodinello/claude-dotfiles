@@ -235,7 +235,7 @@ the error). An unresolved thread with no such reason: resolve it or fix the caus
 do not report the run as done. Review summaries are not threads and are not covered by
 this check.
 
-## Step 7 — Update PR labels (mandatory — do not skip)
+## Step 7 — Update PR labels (mandatory — always run; only the edit is skipped, when the repo lacks the label)
 
 **This step is not optional cleanup.** The skill is not finished until it has
 run. Skipping it silently blocks the PR pipeline downstream: nothing else
@@ -245,7 +245,8 @@ signal that the review was actually addressed, and the PR will sit at
 
 Run this even when Step 1 found no threads or summaries to address — adding the
 label is the process signal that the implementer acknowledged the review,
-independent of whether any fixes were needed.
+independent of whether any fixes were needed. The only allowed skip is the label
+edit itself, when the repo has no `ready-to-merge` label (below).
 
 **Gate: add the label only if Step 6c found no unresolved thread other than
 `waiting on author` and `needs human`.** A `resolve failed` thread (or any
@@ -253,9 +254,21 @@ unexplained unresolved thread) withholds the label: do not add it, report the th
 instead, so the failed resolve is retried by the next run rather than hidden behind a
 `ready-to-merge` PR that the ruleset still blocks.
 
+Add it only if the repo has it. Never create a label in someone else's repo:
+
 ```bash
-gh pr edit [PR#] --add-label "ready-to-merge"
+if ! labels=$(gh label list --repo <OWNER>/<REPO> --limit 200 --json name -q '.[].name'); then
+  echo "label lookup failed: report it, do not treat it as a missing label"
+elif printf '%s\n' "$labels" | grep -qx ready-to-merge; then
+  gh pr edit [PR#] --add-label "ready-to-merge"
+else
+  echo "skipped: repo has no ready-to-merge label"
+fi
 ```
+
+If the label is missing, skip the edit and the verification below, and say so in
+Step 8. If the lookup failed, do the same but report `label lookup failed` (a
+transient error, not a missing label), so the next run retries.
 
 Do **not** remove the `reviewed` label. `reviewed` (a review happened) and
 `ready-to-merge` (the merge gate is passed) record separate facts and are
@@ -284,7 +297,7 @@ comment-level outcomes:
 | 4 | lib/y.ts:3 | SKIP | ✓ | open (needs human) |
 
 Unresolved threads: 2 (#3 waiting on author, #4 needs human)
-Label: ready-to-merge ✓ confirmed   (or: withheld — thread #N resolve failed)
+Label: ready-to-merge ✓ confirmed   (or: withheld — thread #N resolve failed, or: skipped — repo has no ready-to-merge label, or: label lookup failed)
 ```
 
 ---
@@ -297,4 +310,4 @@ Apply the `receiving-code-review` principle throughout:
 - **Push back technically** — if a suggestion breaks things or is YAGNI, say so clearly.
 - **Never blind-implement** — an external reviewer may lack full context.
 - **Actions over words** — the code change and the reply are the acknowledgment.
-- **The label update is part of the job, not a footnote** — a review addressed but not marked `ready-to-merge` is indistinguishable, to everything downstream, from a review nobody looked at.
+- **The label update is part of the job, not a footnote** — a review addressed but not marked `ready-to-merge` is indistinguishable, to everything downstream, from a review nobody looked at. Where the repo has no such label, the equivalent is saying so in the Step 8 summary.
