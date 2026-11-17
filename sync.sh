@@ -19,13 +19,6 @@ CLAUDE_SRC="${DOTFILES_DIR}/.claude"
 OPENCODE_SRC="${DOTFILES_DIR}/.config/opencode"
 OPENCODE_DST="${HOME}/.config/opencode"
 
-# Never symlinked into a config dir.
-#   settings.json       - generated below, per config dir
-#   settings.base.json  - source for that merge, not a file Claude Code reads
-#   settings.local.json - project-scoped; Claude Code reads it from a project's
-#                         .claude/, not from a user config dir
-SKIP_FILES=("settings.json" "settings.base.json" "settings.local.json")
-
 # Keys owned by the config dir, not the repo. Claude Code and installers write
 # these at runtime (learned auto-mode environment, plugin toggles, the output
 # style gentle-ai sets); a sync must not clobber them, and they must not leak
@@ -48,53 +41,41 @@ UNION_PERMISSIONS='["allow","deny","ask","additionalDirectories"]'
 RETIRED_HOOK_COMMANDS=("rtk hook claude")
 # The two inline Bash guards (Docker volumes, wrangler), replaced by
 # hooks/guard-bash.sh: they read .command instead of .tool_input.command and
-# used `grep -P`, so they never fired. One command per line, read literally.
+# used `grep -P`, so they never fired. And the inline JSON lint, replaced by
+# hooks/json-lint.sh: it read $CLAUDE_FILE_PATH, which Claude Code does not
+# set. One command per line, read literally.
 while IFS= read -r retired_cmd; do
     RETIRED_HOOK_COMMANDS+=("${retired_cmd}")
 done <<'RETIRED'
 cmd=$(cat | jq -r '.command // ""'); if echo "$cmd" | grep -qP 'docker\s+(compose|stack)\s+.*\bdown\b.*(-v|--volumes)\b|docker\s+volume\s+(rm|remove|prune)\b'; then echo "BLOCKED: destructive Docker volume command. Volumes hold persistent data and removal is irreversible. Ask the user before running this."; exit 2; fi
 cmd=$(cat | jq -r '.command // ""'); if [ -n "$CLOUDFLARE_ENV" ] && echo "$cmd" | grep -qP 'wrangler(\s+|$)'; then echo "BLOCKED: CLOUDFLARE_ENV=$CLOUDFLARE_ENV is set — wrangler may silently target that environment. Unset it and use explicit --env flags instead."; exit 2; fi; if echo "$cmd" | grep -qP 'wrangler(\s+|$)(?=.*d1\s+(?:execute|migrations\s+apply))(?!.*--local)'; then echo "BLOCKED: wrangler d1 execute/migrations apply without --local targets production. Run the command manually with --remote after reviewing."; exit 2; fi
+if [[ $CLAUDE_FILE_PATH == *.json ]]; then jq . "$CLAUDE_FILE_PATH" > /dev/null || echo "Warning: $CLAUDE_FILE_PATH is not valid JSON"; fi
 RETIRED
 
-GREEN='\033[1;32m'; YELLOW='\033[1;33m'; RED='\033[1;31m'; NC='\033[0m'
-log_info() { echo -e "${GREEN}[INFO]${NC}  $*"; }
-log_warn() { echo -e "${YELLOW}[WARN]${NC}  $*"; }
-log_err()  { echo -e "${RED}[ERR ]${NC}  $*"; }
+# shellcheck source=lib/link.sh
+source "${DOTFILES_DIR}/lib/link.sh"
 
 command -v jq >/dev/null 2>&1 || { log_err "jq is required but not installed."; exit 1; }
 
-symlink_tree() {
-    local src="$1" dst="$2" label="$3" apply_skips="$4"
+# How many timestamped settings.json backups to keep per config dir.
+KEEP_SETTINGS_BACKUPS=3
 
-    if [ ! -d "${src}" ]; then
-        log_warn "No ${label}/ directory found - skipping."
-        return
-    fi
+# Each changed merge leaves a settings.json.bak-YYYYMMDD-HHMMSS behind. Keep
+# the newest KEEP_SETTINGS_BACKUPS and delete older ones. Only that exact name
+# shape is touched: backups made by hand or by other tools (.bak,
+# .bak-engram, ...) are not ours to delete.
+prune_settings_backups() {
+    local dst="$1" d='[0-9]' backups=() f
+    while IFS= read -r f; do
+        backups+=("${f}")
+    done < <(find "${dst}" -maxdepth 1 -type f \
+        -name "settings.json.bak-${d}${d}${d}${d}${d}${d}${d}${d}-${d}${d}${d}${d}${d}${d}" | sort)
 
-    while IFS= read -r -d '' file; do
-        rel="${file#"${src}"/}"
-
-        if [ "${apply_skips}" = "skip" ]; then
-            local skip=""
-            for s in "${SKIP_FILES[@]}"; do
-                [ "${rel}" = "${s}" ] && skip="yes" && break
-            done
-            [ -n "${skip}" ] && continue
-        fi
-
-        target="${dst}/${rel}"
-        mkdir -p "$(dirname "${target}")"
-
-        if [ -L "${target}" ]; then
-            continue
-        elif [ -f "${target}" ]; then
-            log_warn "Backing up existing file: ${label}/${rel} -> ${target}.bak"
-            mv "${target}" "${target}.bak"
-        fi
-
-        ln -s "${file}" "${target}"
-        log_info "Linked: ${label}/${rel}"
-    done < <(find "${src}" -type f -print0)
+    local excess=$(( ${#backups[@]} - KEEP_SETTINGS_BACKUPS )) i
+    for (( i = 0; i < excess; i++ )); do
+        rm "${backups[i]}"
+        log_info "Removed old backup: $(display_path "${backups[i]}")"
+    done
 }
 
 # Merge settings.base.json into <dst>/settings.json, preserving LOCAL_KEYS from
@@ -181,37 +162,35 @@ merge_settings() {
 
     printf '%s\n' "${merged}" > "${current}"
     log_info "Merged settings.json (preserved: ${LOCAL_KEYS[*]})"
+    prune_settings_backups "${dst}"
 }
 
-# With an explicit target, sync only that dir. Otherwise sync every
-# CLAUDE_CONFIG_DIR profile on this machine: the default ~/.claude plus any
-# alternate profile dirs already set up (e.g. the `claude-work` alias's
-# CLAUDE_CONFIG_DIR=~/.claude-work). Alternates are only synced if the
-# directory already exists, so this never creates a profile the user hasn't
-# set up on this machine.
+# With an explicit target, sync only that dir. Otherwise sync every config dir
+# on this machine (see config_dirs in lib/link.sh).
 CLAUDE_DSTS=()
 if [ -n "${1:-}" ]; then
     mkdir -p "$1"
     CLAUDE_DSTS+=("$(cd "$1" && pwd)")
 else
     mkdir -p "${HOME}/.claude"
-    CLAUDE_DSTS+=("${HOME}/.claude")
-    for alt in "${HOME}"/.claude-*; do
-        [ -d "${alt}" ] && CLAUDE_DSTS+=("${alt}")
-    done
+    while IFS= read -r dir; do
+        CLAUDE_DSTS+=("${dir}")
+    done < <(config_dirs)
 fi
 
 for CLAUDE_DST in "${CLAUDE_DSTS[@]}"; do
     log_info "Target config dir: ${CLAUDE_DST}"
-    symlink_tree "${CLAUDE_SRC}" "${CLAUDE_DST}" "$(basename "${CLAUDE_DST}")" "skip"
+    prune_dangling "${CLAUDE_SRC}" "${CLAUDE_DST}"
+    link_under "${CLAUDE_SRC}" "${CLAUDE_SRC}" "${CLAUDE_DST}" "skip"
     merge_settings "${CLAUDE_DST}"
     find "${CLAUDE_DST}/hooks" -type f -name "*.sh" -exec chmod +x {} \; 2>/dev/null || true
 done
 
 # opencode lives at a fixed path, not per profile; sync it once, on runs
 # that include the default ~/.claude.
-if [ "${CLAUDE_DSTS[0]}" = "${HOME}/.claude" ]; then
-    symlink_tree "${OPENCODE_SRC}" "${OPENCODE_DST}" ".config/opencode" "no-skip"
+if [ "${CLAUDE_DSTS[0]}" = "${HOME}/.claude" ] && [ -d "${OPENCODE_SRC}" ]; then
+    prune_dangling "${OPENCODE_SRC}" "${OPENCODE_DST}"
+    link_under "${OPENCODE_SRC}" "${OPENCODE_SRC}" "${OPENCODE_DST}"
 fi
 
 log_info "Done! Claude Code tools are ready in: ${CLAUDE_DSTS[*]}"

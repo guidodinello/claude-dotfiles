@@ -19,6 +19,8 @@ add_file.sh          # absorb a file already in ~/.claude/ into this repo
 promote.sh           # a project → this repo (adopt a file globally)
 push-guidelines.sh   # this repo → projects that keep committed guideline copies
 project-init         # scaffold per-project LSP/plugin settings by stack
+lib/link.sh          # shared by the scripts above: config dirs, symlink + backup, prune
+tests/               # tests for the scripts and hooks (see Tests)
 ```
 
 Root-level scripts are run from the checkout (`./sync.sh`) — they are not
@@ -30,7 +32,7 @@ symlinked into `~`.
 |---|---|---|
 | [Skills](docs/skills.md) | Slash-command skills | `/address-pr-comments`, `/code-health`, `/security-audit`, `/db-migration-planner`, etc. |
 | [Agents](docs/agents.md) | Subagents | audit-finding-verifier, quality-checker, slite-sync, stats-analyzer |
-| [Hooks](docs/hooks.md) | Safety guards + auto-format + status line | Docker volume guard, Wrangler production guard, auto-format.sh, statusline.sh |
+| [Hooks](docs/hooks.md) | Safety guards + JSON lint + status line | guard-bash.sh (Docker volumes, Wrangler production), json-lint.sh, statusline.sh. auto-format.sh is opt-in per project |
 | [Rules & guidelines](docs/guidelines.md) | Reusable coding conventions | **Rules** (path-scoped, auto-load): python, php, docker, ci, database. **Guidelines** (always-on): reasoning-discipline, debugging-patterns, react-native, tools/* |
 
 Path-scoped rules in `~/.claude/rules/` apply to **every project on the machine with no
@@ -64,6 +66,11 @@ bash sync.sh
 
 `sync.sh` symlinks every file under `.claude/` into `~/.claude/`, backing up any pre-existing files as `.bak`. Safe to re-run any time — e.g. after `git pull` — to pick up new or updated skills/agents/hooks.
 
+Each run also cleans up after itself:
+
+- **Dangling links are pruned.** A symlink in a config dir that points into this repo at a file that no longer exists (deleted or moved here) is removed. Links pointing anywhere else are left alone.
+- **Old settings backups are trimmed.** A run that changes `settings.json` saves the previous one as `settings.json.bak-<timestamp>`; only the newest 3 of those are kept. Backups with any other name (`.bak`, `.bak-engram`, ...) are never deleted.
+
 **Install only what you need:**
 
 ```bash
@@ -81,7 +88,7 @@ bash select.sh
 ./add_file.sh ~/.claude/skills/my-skill        # directories work too
 ```
 
-Moves the file/directory into the repo and creates file-level symlinks back. The live `~/.claude/` and the repo stay in sync.
+Moves the file/directory into the repo and creates file-level symlinks back, in `~/.claude/` and in every `~/.claude-*` profile. The live config dirs and the repo stay in sync.
 
 ### Promote a skill from a project to global
 
@@ -90,7 +97,7 @@ Moves the file/directory into the repo and creates file-level symlinks back. The
 ./promote.sh ~/.claude/agents/my-agent.md      # also works for ~/.claude/ sources
 ```
 
-Moves the item into this repo and creates symlinks in `~/.claude/` so it's immediately available globally. If the source was project-local, the original path is left in place with a message telling you it's safe to remove.
+Moves the item into this repo and creates symlinks in `~/.claude/` (and every `~/.claude-*` profile) so it's immediately available globally. If the source was project-local, the original path is left in place with a message telling you it's safe to remove.
 
 Add `--delete-original` to skip the reminder (the `mv` already removed it):
 
@@ -157,6 +164,15 @@ cd ~/claude-dotfiles
 The project directory defaults to the current directory if omitted. It deep-merges
 into any existing settings without clobbering. Stack templates live in
 `templates/claude-settings/`. See [Plugins, LSP & MCP guide](docs/plugins-lsp-mcp-guide.md#per-project-lsp-the-scheme) for the full scheme.
+
+## Tests
+
+```bash
+python3 -m unittest discover -s tests          # sync.sh, select.sh, add_file.sh, promote.sh, guard-bash.sh
+shellcheck -x -S warning $(git ls-files '*.sh') project-init
+```
+
+The script tests run against a throwaway copy of the scripts and a throwaway `HOME`, so they never touch the real `~/.claude`. Skill scripts keep their own `test_*.py` next to them; run those from their directory (`python3 -m unittest discover -p 'test_*.py'`). CI runs all three on every PR (`.github/workflows/tests.yml`).
 
 ## Credits
 

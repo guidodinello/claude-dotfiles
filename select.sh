@@ -8,14 +8,11 @@ DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_SRC="${DOTFILES_DIR}/.claude"
 CLAUDE_DST="${HOME}/.claude"
 
-GREEN='\033[1;32m'
-YELLOW='\033[1;33m'
+# shellcheck source=lib/link.sh
+source "${DOTFILES_DIR}/lib/link.sh"
+
 CYAN='\033[1;36m'
 BOLD='\033[1m'
-NC='\033[0m'
-
-log_info() { echo -e "${GREEN}[INFO]${NC}  $*"; }
-log_warn() { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 header()   { echo -e "\n${BOLD}${CYAN}=== $* ===${NC}"; }
 
 if [ ! -d "${CLAUDE_SRC}" ]; then
@@ -33,7 +30,7 @@ declare -a CANDIDATES
 collect_dirs() {
     local category="$1"
     local base="${CLAUDE_SRC}/${category}"
-    [ -d "${base}" ] || return
+    [ -d "${base}" ] || return 0
     for entry in "${base}"/*/; do
         [ -d "${entry}" ] && CANDIDATES+=("${category}/$(basename "${entry}")")
     done
@@ -42,7 +39,7 @@ collect_dirs() {
 collect_files() {
     local category="$1"
     local base="${CLAUDE_SRC}/${category}"
-    [ -d "${base}" ] || return
+    [ -d "${base}" ] || return 0
     while IFS= read -r -d '' f; do
         rel="${f#"${CLAUDE_SRC}"/}"
         CANDIDATES+=("${rel}")
@@ -57,13 +54,15 @@ collect_flat() {
         # skip anything already handled as a dir-based category
         local top
         top="$(echo "${rel}" | cut -d/ -f1)"
-        case "${top}" in skills|agents|hooks|guidelines|scripts) continue ;; esac
+        case "${top}" in skills|agents|rules|hooks|guidelines|scripts) continue ;; esac
+        is_skipped "${rel}" && continue
         CANDIDATES+=("${rel}")
     done < <(find "${base}" -maxdepth 1 -type f -print0 | sort -z)
 }
 
 collect_dirs  "skills"
 collect_files "agents"
+collect_files "rules"
 collect_files "hooks"
 collect_files "guidelines"
 collect_files "scripts"
@@ -126,38 +125,12 @@ fi
 # ---------------------------------------------------------------------------
 # Symlink selected items
 # ---------------------------------------------------------------------------
-link_file() {
-    local src="$1"
-    local rel="${src#"${CLAUDE_SRC}"/}"
-    local target="${CLAUDE_DST}/${rel}"
-    local target_dir
-    target_dir="$(dirname "${target}")"
-
-    mkdir -p "${target_dir}"
-
-    if [ -L "${target}" ]; then
-        log_warn "Already a symlink, skipping: ~/.claude/${rel}"
-        return
-    elif [ -f "${target}" ]; then
-        log_warn "Backing up existing file: ~/.claude/${rel} → ${target}.bak"
-        mv "${target}" "${target}.bak"
-    fi
-
-    ln -s "${src}" "${target}"
-    log_info "Linked: ~/.claude/${rel}"
-}
-
 header "Linking selected items"
 
 for item in "${SELECTED[@]}"; do
     src="${CLAUDE_SRC}/${item}"
-    if [ -d "${src}" ]; then
-        # Link all files inside the directory
-        while IFS= read -r -d '' f; do
-            link_file "${f}"
-        done < <(find "${src}" -type f -print0)
-    elif [ -f "${src}" ]; then
-        link_file "${src}"
+    if [ -e "${src}" ]; then
+        link_under "${CLAUDE_SRC}" "${src}" "${CLAUDE_DST}"
     else
         log_warn "Not found, skipping: ${item}"
     fi
