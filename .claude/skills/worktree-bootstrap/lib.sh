@@ -313,7 +313,9 @@ _bootstrap_finish() {
 # this right after require_worktree: it tees the rest of the run to
 # <worktree>/.bootstrap.log and keeps <worktree>/.bootstrap-status at
 # "RUNNING <utc>", then "OK <utc>" or "FAILED exit=<n> <utc>" from an EXIT
-# trap (it replaces any EXIT trap set earlier). Both files are git-excluded.
+# trap. Bash keeps one EXIT trap, so this replaces any set earlier and a later
+# `trap ... EXIT` replaces this one (the marker would stay RUNNING): set no
+# EXIT trap after this call. Both files are git-excluded.
 # No marker means the script never got this far. The log can trail the marker
 # by a moment: bash 3.2 cannot wait for the tee process.
 record_bootstrap_status() {
