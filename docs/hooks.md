@@ -69,7 +69,7 @@ Why a hook next to the deny rules in `settings.base.json`: a bare `Read(.env*)` 
 
 It fails closed like `guard-bash.sh`: if `jq` is missing, the input can't be parsed, or there is no usable path, the call is blocked.
 
-**Grep:** Claude Code 2.1.327 exposes no `Grep` or `Glob` tool (searches run through `Bash`), so this branch only matters for versions or SDK sessions that still have the tool; it is covered by unit tests, not a live run. Only a `path` that is itself an env file is blocked. A directory path, or no path, is allowed: the guard can't see inside the search, so a directory search can still read unlisted env files there; Claude Code applies `Read` deny rules to the searched directory on a best-effort basis. A `glob` filter aimed at env files (`.env*`, `*.env`) is blocked. `Glob` (names only) is not covered, and Bash `cat` and redirects stay on the deny rules above.
+**Grep:** Claude Code 2.1.327 exposes no `Grep` or `Glob` tool (searches run through `Bash`), so this branch only matters for versions or SDK sessions that still have the tool; it is covered by unit tests, not a live run. Only a `path` that is itself an env file is blocked. A directory path, or no path, is allowed: the guard can't see inside the search, so a directory search can still read unlisted env files there; Claude Code applies `Read` deny rules to the searched directory on a best-effort basis. A `glob` filter spelled as an env name (`.env*`, `*.env`) is blocked, on a best-effort basis: the text is not expanded, so `.e*` or `{.env,x}` get through, as does a search with no glob at all. `Glob` (names only) is not covered, and Bash `cat` and redirects stay on the deny rules above.
 
 ### Known limitations (pattern-level hooks can't prevent)
 

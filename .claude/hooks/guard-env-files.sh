@@ -40,7 +40,10 @@ if [[ "${tool}" == "Grep" ]]; then
       paths+=("${grep_path}")
     fi
   fi
-  # A glob filter such as `.env*` or `*.env` aims the search at env files.
+  # Best effort only: a glob whose text is an env name (`.env*`, `*.env`) is
+  # blocked, but a glob can spell the same files in ways this does not parse
+  # (`.e*`, `.[e]nv`, `{.env,x}`), and a directory search with no glob reads them
+  # anyway. It is not a guarantee, only a catch for the obvious form.
   gkind="$(jq -r '.tool_input.glob | type' <<<"${input}" 2>/dev/null)" || block "guard-env-files.sh could not read .tool_input.glob from the hook input."
   if [[ "${gkind}" != "null" ]]; then
     [[ "${gkind}" == "string" ]] || block "Grep glob is not a string; cannot tell what it searches."
