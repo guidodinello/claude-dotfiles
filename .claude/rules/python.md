@@ -255,29 +255,34 @@ impossible to tell where a name came from without reading the source.
 ## Logging
 
 **Never use `print()` for status, progress, or diagnostic output.** Use the
-stdlib `logging` module with a two-handler setup (stdout + rotating file).
+shared [`logger`](https://github.com/guidodinello/logger) package (console +
+optional rotating file, stdlib only) instead of writing a setup per project.
+Its README is the reference for the API; don't copy its code into a project.
+
+```toml
+# pyproject.toml
+[project]
+dependencies = ["logger"]
+
+[tool.uv.sources]
+# uv.lock pins the exact commit; upgrade with `uv lock --upgrade-package logger`.
+logger = { git = "https://github.com/guidodinello/logger", branch = "main" }
+```
 
 ```python
-import logging
 import sys
-from pathlib import Path
+from logger import get_logger, init_logging
 
-def get_logger(name: str, log_file: Path | None = None) -> logging.Logger:
-    logger = logging.getLogger(name)
-    if logger.handlers:
-        return logger
-    fmt = logging.Formatter("%(asctime)s %(levelname)-8s %(name)s — %(message)s")
-    sh = logging.StreamHandler(sys.stdout)
-    sh.setFormatter(fmt)
-    logger.addHandler(sh)
-    if log_file is not None:
-        log_file.parent.mkdir(parents=True, exist_ok=True)
-        fh = logging.FileHandler(log_file)
-        fh.setFormatter(fmt)
-        logger.addHandler(fh)
-    logger.setLevel(logging.INFO)
-    return logger
+log = get_logger(__name__)
+
+def main() -> None:
+    init_logging()                    # once, at startup
+    # In a CLI whose stdout is its output (a table, --json for another program):
+    # init_logging(stream=sys.stderr)  so log lines never end up in that output.
 ```
+
+Name the module-level logger `log`, not `logger`: a variable called `logger`
+shadows the package name in the same file.
 
 Put contextual fields in the `extra=` dict — never interpolated into the
 message string. This keeps the message constant (so a structured backend can
@@ -285,13 +290,13 @@ index by field) and, like `%`-style formatting, defers construction of the
 field values' string form until the record is actually emitted:
 
 ```python
-logger.info("processed items", extra={"count": count, "elapsed": elapsed})  # good
-logger.info(f"processed {count} items in {elapsed:.2f}s")                   # bad — always evaluated, not indexable
+log.info("processed items", extra={"count": count, "elapsed": elapsed})  # good
+log.info(f"processed {count} items in {elapsed:.2f}s")                   # bad — always evaluated, not indexable
 ```
 
-Two caveats: the plain-text formatter above prints only `%(message)s`, so
-`extra` fields are invisible unless the handler uses a structured (JSON)
-formatter or the format string names them. And `extra` keys must not collide
+Two caveats: `logger`'s formats print the level, logger name and message but
+no `extra` fields, so those are invisible unless a handler uses a structured
+(JSON) formatter or a format string that names them. And `extra` keys must not collide
 with `LogRecord` attributes (`name`, `message`, `args`, `module`, ...) — that
 raises `KeyError`.
 
