@@ -97,7 +97,7 @@ python3 -I <home>/.claude/skills/orca-orchestration/scripts/wlaunch.py start <wo
 - Always pass `--repo`. From a workspace cwd, Orca would otherwise infer the workspace repo.
 - `--agent claude` cannot forward arguments, hence `terminal create --command` and the wait for plan mode.
 - `--branch` names the branch at creation (Orca adds no `<user>/` prefix), so it never exists remotely under a name without the task id.
-- The prompt is one line, at most 400 chars (`--prompt` overrides the default): *"Read .task-brief.md in this worktree root and follow it exactly: investigate, then write your implementation plan with an explicit Open questions section. Do not implement until the orchestrator approves the plan. When implementation is done, open the PR as the brief specifies (or report back if the brief says there is no PR)."*
+- The prompt is one line, at most 400 chars. The default (read the brief, plan with Open questions, wait for approval) lives in `wlaunch.py`; `--prompt` overrides it.
 - Later one-liners go through `wsend.py <handle> "<text>"`: text without `--enter`, then a separate bare Enter (`--wait-submit` rejects an empty `--text`).
 - Move the task (and the parent story, if it is the first) to the profile's in-progress status yourself. Tracker automations keyed on branch creation only fire at the worker's first push.
 

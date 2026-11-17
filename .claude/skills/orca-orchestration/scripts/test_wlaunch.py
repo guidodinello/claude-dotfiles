@@ -50,6 +50,12 @@ class Create(unittest.TestCase):
             )
 
 
+    def test_no_comment_flag_when_the_comment_is_empty(self):
+        with fake_orca.FakeOrca() as fake:
+            run("create", "--repo", "id:r1", "--name", "t1", "--base", "origin/main", "--branch", "feat/t1")
+            self.assertNotIn("--comment", fake.calls()[0])
+
+
 class Start(unittest.TestCase):
     def setUp(self):
         self.wt = tempfile.TemporaryDirectory()

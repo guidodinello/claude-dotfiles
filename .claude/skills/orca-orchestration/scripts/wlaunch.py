@@ -45,10 +45,10 @@ PLAN_POLL_SECS = float(os.environ.get("WLAUNCH_PLAN_POLL_SECS", 2))
 
 
 def create(repo, name, base, branch, comment):
-    result = _orca.orca(
-        "worktree", "create", "--repo", repo, "--name", name, "--no-parent",
-        "--base-branch", base, "--branch", branch, "--comment", comment,
-    )
+    args = ["worktree", "create", "--repo", repo, "--name", name, "--no-parent", "--base-branch", base, "--branch", branch]
+    if comment:
+        args += ["--comment", comment]
+    result = _orca.orca(*args)
     return {"worktree": result["worktree"]["path"], "branch": branch}
 
 
