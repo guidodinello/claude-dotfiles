@@ -138,6 +138,26 @@ check "failed run: status marker reads FAILED exit=1" grep -q '^FAILED exit=1 ' 
 check "failed run: log holds the error" log_has "ERROR: workspace CLAUDE.md not found"
 mv "$WS/CLAUDE.md.off" "$WS/CLAUDE.md"
 
+echo "--- status files never write through a symlink or over a tracked file"
+VICTIM="$SCRATCH/victim.txt"
+echo "untouched" >"$VICTIM"
+ln -sfn "$VICTIM" "$WT/.bootstrap-status"
+ln -sfn "$VICTIM" "$WT/.bootstrap.log"
+check "run with planted symlinks exits 0" run_example "$WT"
+check "planted symlinks: target file untouched" test "$(cat "$VICTIM")" = "untouched"
+check "planted symlinks: marker is a regular file reading OK" test ! -L "$WT/.bootstrap-status" && grep -q '^OK ' "$WT/.bootstrap-status"
+rm -f "$WT/.bootstrap-status" "$WT/.bootstrap.log"
+echo "tracked" >"$WT/.bootstrap-status"
+git -C "$WT" add -f .bootstrap-status
+if run_example "$WT" >/dev/null 2>&1; then
+  fail "dies when .bootstrap-status is tracked"
+else
+  pass "dies when .bootstrap-status is tracked"
+fi
+check "tracked status file left unchanged" test "$(cat "$WT/.bootstrap-status")" = "tracked"
+git -C "$WT" rm -q --cached -f .bootstrap-status
+rm -f "$WT/.bootstrap-status"
+
 echo "---"
 if [ "$failures" -eq 0 ]; then
   echo "self-check passed"

@@ -317,7 +317,13 @@ _bootstrap_finish() {
 # No marker means the script never got this far. The log can trail the marker
 # by a moment: bash 3.2 cannot wait for the tee process.
 record_bootstrap_status() {
-  local dir="$1"
+  local dir="$1" name
+  # Both writes follow symlinks, so a branch that tracks or plants one of these
+  # names could redirect them. Refuse tracked paths, drop planted links.
+  for name in .bootstrap.log .bootstrap-status; do
+    ! is_tracked "$dir" "$name" || die "$name is tracked in this repo; refusing to write the bootstrap status over it"
+    [ ! -L "$dir/$name" ] || rm -f "$dir/$name"
+  done
   BOOTSTRAP_STATUS_FILE="$dir/.bootstrap-status"
   ensure_git_exclude "$dir" "/.bootstrap.log"
   ensure_git_exclude "$dir" "/.bootstrap-status"
