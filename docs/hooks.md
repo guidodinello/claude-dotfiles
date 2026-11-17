@@ -53,7 +53,8 @@ Blocks `wrangler d1 execute` and `wrangler d1 migrations apply` commands unless 
 Only `wrangler d1 execute --local ...` passes through. Each simple command (split on `;`, `&`, `|`, parentheses, backticks and newlines, outside quotes) is judged on its own, and three cases are blocked rather than guessed at:
 
 - `--local` that is not a standalone flag, or that only appears inside a quoted string. Put `--local` before any quoted argument.
-- `--remote` anywhere in the same command, even next to `--local`.
+- `--remote`, `--no-local` or `--local=...` anywhere in the same command, quoted or not, even next to `--local`.
+- A `wrangler d1` write that only appears inside quoted text, such as `sh -c "wrangler d1 execute ..."`.
 - A command longer than 4000 characters that contains a `wrangler d1` write. Use `--file` for long SQL.
 
 A versioned package name (`npx wrangler@3 ...`) and a quoted or backslash-escaped `wrangler` are matched too.
@@ -64,6 +65,7 @@ A versioned package name (`npx wrangler@3 ...`) and a quoted or backslash-escape
 
 | Bypass | How |
 |---|---|
+| Shell expansion | `$W d1 execute`, `wrangler d1 $SUB`, `eval`, a script file: the text the guard sees is not the command that runs |
 | `--env` flag | Selecting an environment via `--env` is allowed (intentional by design — the user prefers explicit flags) |
 | `--config` / `-c` | Points wrangler at a different config file with arbitrary DB IDs |
 | `--cwd` | Changes config auto-discovery path |

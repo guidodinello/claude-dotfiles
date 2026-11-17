@@ -54,14 +54,21 @@ fi
 #   bare: the segment with quoted text dropped, so --local inside a quoted
 #         string (an SQL literal, an echo) does not count as the flag
 wrangler_d1="${wrangler_tok}${sp}(.*${sp})?d1${sp}+(execute|migrations${sp}+apply)(${sp}|\$)"
+# The same invocation followed by a standalone --local, all of it unquoted.
+wrangler_d1_local="${wrangler_d1}(.*${sp})?--local(${sp}|\$)"
+not_local="${sp}(--remote|--no-local|--local=)"
 check_segment() {
-  local full="$1" bare=" $2 "
+  local full=" $1 " bare="$2"
   [[ "${full}" =~ ${wrangler_d1} ]] || return 0
-  if [[ "${bare}" =~ ${sp}--remote(=|${sp}) ]]; then
-    block "wrangler d1 execute/migrations apply with --remote targets production. Run the command manually after reviewing."
+  # Looked for in full, so quoting the flag does not hide it.
+  if [[ "${full}" =~ ${not_local} ]]; then
+    block "wrangler d1 execute/migrations apply with --remote, --no-local or --local=... may target production. Run the command manually after reviewing."
   fi
-  if ! [[ "${bare}" =~ ${sp}--local${sp} ]]; then
-    block "wrangler d1 execute/migrations apply without a standalone --local flag targets production. Put --local before any quoted argument, or run the command manually with --remote after reviewing."
+  # Matched against bare: a wrangler call that only exists inside quoted text
+  # (sh -c '...', eval) or a --local that is quoted or sits before wrangler
+  # does not count.
+  if ! [[ "${bare}" =~ ${wrangler_d1_local} ]]; then
+    block "wrangler d1 execute/migrations apply without an unquoted, standalone --local after it targets production. Write it as: wrangler d1 execute <db> --local ... (flag before any quoted argument), or run it manually with --remote after reviewing."
   fi
 }
 
