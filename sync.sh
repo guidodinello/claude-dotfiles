@@ -30,8 +30,29 @@ LOCAL_KEYS=("autoMode" "enabledPlugins" "outputStyle")
 # (per event) and these permission lists are unioned with the live file instead
 # of replaced, so a sync never drops an installer's entry. The cost: removing an
 # entry from the base does not remove it from an existing config dir, unless
-# its command is listed in RETIRED_HOOK_COMMANDS below.
+# its command is listed in RETIRED_HOOK_COMMANDS (hooks) or
+# RETIRED_PERMISSION_RULES (permission rules) below.
 UNION_PERMISSIONS='["allow","deny","ask","additionalDirectories"]'
+
+# Permission rules that must leave the live file. Same mechanism as the retired
+# hooks: merge_settings strips these from every UNION_PERMISSIONS list before the
+# union. Entries are exact rule strings. Keep them listed once retired.
+# All of these re-deny .env.example (or cannot be carved out of) next to base's
+# `Read(.env*)` / `Edit(.env*)` plus its `!` carve-outs: a `!` rule only carves
+# out of rules listed BEFORE it, and the union puts live extras after base.
+#   - Edit(**/.env), Bash(echo * > *.env*), Bash(echo * >> *.env*): replaced by
+#     Edit(.env*) and the Bash redirect rules.
+#   - Read(.env), Read(.env.*), Edit(.env), Edit(.env.*): added by gentle-ai,
+#     redundant with .env*.
+RETIRED_PERMISSION_RULES=(
+    'Edit(**/.env)'
+    'Bash(echo * > *.env*)'
+    'Bash(echo * >> *.env*)'
+    'Read(.env)'
+    'Read(.env.*)'
+    'Edit(.env)'
+    'Edit(.env.*)'
+)
 
 # Hook commands that were removed from settings.base.json on purpose. To retire
 # a hook, delete it from the base AND add its exact command here: merge_settings
@@ -78,6 +99,26 @@ prune_settings_backups() {
     done
 }
 
+# A `Read(!.env.example)` carve-out only carves out of deny rules listed BEFORE
+# it. The union puts live-only entries after base's, so an installer's env deny
+# can land after the carve-outs and re-block .env.example. Fail closed but loud:
+# keep the rule and warn, naming it, so it can be added to
+# RETIRED_PERMISSION_RULES. Takes the merged settings JSON; runs on every sync.
+warn_shadowed_carve_outs() {
+    local rule
+    while IFS= read -r rule; do
+        [ -n "${rule}" ] || continue
+        log_warn "Deny rule ${rule} is listed after the .env.example carve-outs, so .env.example stays blocked until it is added to RETIRED_PERMISSION_RULES in sync.sh."
+    done < <(jq -r '
+        (.permissions.deny // []) as $deny
+        | ([$deny | to_entries[] | select(.value | test("^(Read|Edit)\\(!")) | .key] | min) as $first
+        | if $first == null then empty
+          else $deny | to_entries[]
+               | select(.key > $first and (.value | test("^(Read|Edit)\\((\\*\\*/)?\\.env")))
+               | .value
+          end' <<<"$1")
+}
+
 # Merge settings.base.json into <dst>/settings.json, preserving LOCAL_KEYS from
 # whatever is already there. {{CONFIG_DIR}} resolves to the destination dir so
 # each config dir points at its own symlinked scripts.
@@ -116,6 +157,8 @@ merge_settings() {
     # select(length > 0): an empty array prints one blank line, which must not
     # become [""] and match every hook that has no command.
     retired_json="$(printf '%s\n' "${RETIRED_HOOK_COMMANDS[@]}" | jq -R 'select(length > 0)' | jq -s .)"
+    local retired_perms_json
+    retired_perms_json="$(printf '%s\n' "${RETIRED_PERMISSION_RULES[@]}" | jq -R 'select(length > 0)' | jq -s .)"
 
     local merged
     merged="$(jq -n \
@@ -123,9 +166,18 @@ merge_settings() {
         --argjson live "${live_json}" \
         --argjson localKeys "${local_keys_json}" \
         --argjson retired "${retired_json}" \
+        --argjson retiredPerms "${retired_perms_json}" \
         --argjson unionPerms "${UNION_PERMISSIONS}" '
         def union($a; $b): reduce ($b // [])[] as $x (($a // []);
             if any(.[]; . == $x) then . else . + [$x] end);
+        # Strip retired permission rules from the live lists before the union.
+        def unretire_perms:
+            if (.permissions | type) == "object" then
+                .permissions |= with_entries(
+                    if ((.key as $k | $unionPerms | index($k)) != null) and (.value | type) == "array"
+                    then .value |= map(select(IN($retiredPerms[]) | not))
+                    else . end)
+            else . end;
         # Strip retired commands from one event entry. Drop the entry only when
         # the strip emptied it; entries that were already empty, or are not
         # shaped like {hooks: [...]}, pass through untouched.
@@ -139,7 +191,7 @@ merge_settings() {
             if (.hooks | type) == "object" then
                 .hooks |= with_entries(.value |= (if type == "array" then map(unretire_entry) else . end))
             else . end;
-        ($live | unretire) as $live
+        ($live | unretire | unretire_perms) as $live
         | ($live | with_entries(select(.key as $k | $localKeys | index($k)))
                | with_entries(select(.value != null))) as $own
         | ($base * $own)
@@ -149,6 +201,8 @@ merge_settings() {
             (union($base.permissions[$p]; $live.permissions[$p])) as $u
             | if ($u | length) > 0 then .permissions[$p] = $u else . end)
         | if .hooks == {} then del(.hooks) else . end')"
+
+    warn_shadowed_carve_outs "${merged}"
 
     if [ -f "${current}" ] && [ "$(jq -S . <<<"${merged}")" = "$(jq -S . "${current}")" ]; then
         log_info "settings.json already up to date"
