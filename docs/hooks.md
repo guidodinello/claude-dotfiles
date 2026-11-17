@@ -53,7 +53,7 @@ Blocks `wrangler d1 execute` and `wrangler d1 migrations apply` commands unless 
 Only `wrangler d1 execute --local ...` passes through. Each simple command (split on `;`, `&`, `|`, parentheses, backticks and newlines, outside quotes) is judged on its own, and three cases are blocked rather than guessed at:
 
 - `--local` that is not a standalone flag, or that only appears inside a quoted string. Put `--local` before any quoted argument.
-- `--remote`, `--no-local` or `--local=...` anywhere in the same command, quoted or not, even next to `--local`.
+- `--remote`, `--no-local`, `--local=...` or `--local false` anywhere in the same command, quoted or not, even next to `--local`.
 - A `wrangler d1` write that only appears inside quoted text, such as `sh -c "wrangler d1 execute ..."`.
 - A command longer than 4000 characters that contains a `wrangler d1` write. Use `--file` for long SQL.
 

@@ -56,13 +56,15 @@ fi
 wrangler_d1="${wrangler_tok}${sp}(.*${sp})?d1${sp}+(execute|migrations${sp}+apply)(${sp}|\$)"
 # The same invocation followed by a standalone --local, all of it unquoted.
 wrangler_d1_local="${wrangler_d1}(.*${sp})?--local(${sp}|\$)"
-not_local="${sp}(--remote|--no-local|--local=)"
+# --local false: wrangler's option parser (yargs) reads a true/false word after
+# a boolean flag as its value.
+not_local="${sp}(--remote|--no-local|--local=|--local${sp}+(false|0|no|off)${sp})"
 check_segment() {
   local full=" $1 " bare="$2"
   [[ "${full}" =~ ${wrangler_d1} ]] || return 0
   # Looked for in full, so quoting the flag does not hide it.
   if [[ "${full}" =~ ${not_local} ]]; then
-    block "wrangler d1 execute/migrations apply with --remote, --no-local or --local=... may target production. Run the command manually after reviewing."
+    block "wrangler d1 execute/migrations apply with --remote, --no-local, --local=... or --local false may target production. Run the command manually after reviewing."
   fi
   # Matched against bare: a wrangler call that only exists inside quoted text
   # (sh -c '...', eval) or a --local that is quoted or sits before wrangler
