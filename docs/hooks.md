@@ -50,7 +50,13 @@ Blocks `wrangler d1 execute` and `wrangler d1 migrations apply` commands unless 
 - `wrangler d1 execute ... --remote` (explicit)
 - `wrangler d1 migrations apply ...` (applies migrations to remote)
 
-Only `wrangler d1 execute --local ...` passes through.
+Only `wrangler d1 execute --local ...` passes through. Each simple command (split on `;`, `&`, `|`, parentheses, backticks and newlines, outside quotes) is judged on its own, and three cases are blocked rather than guessed at:
+
+- `--local` that is not a standalone flag, or that only appears inside a quoted string. Put `--local` before any quoted argument.
+- `--remote` anywhere in the same command, even next to `--local`.
+- A command longer than 4000 characters that contains a `wrangler d1` write. Use `--file` for long SQL.
+
+A versioned package name (`npx wrangler@3 ...`) and a quoted or backslash-escaped `wrangler` are matched too.
 
 **Additional guard:** If `CLOUDFLARE_ENV` is set in the environment, any `wrangler` command is blocked. This env var can silently select a named environment from wrangler config without an explicit `--env` flag.
 
