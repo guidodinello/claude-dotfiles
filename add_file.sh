@@ -9,6 +9,9 @@ set -e
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_DST="${HOME}/.claude"
 
+# shellcheck source=lib/link.sh
+source "${DOTFILES_DIR}/lib/link.sh"
+
 file_path="${1}"
 
 if [ -z "${file_path}" ]; then
@@ -41,18 +44,10 @@ dst="${DOTFILES_DIR}/.claude/${rel}"
 mkdir -p "$(dirname "${dst}")"
 mv "${file_path}" "${dst}"
 
-# Create file-level symlinks (consistent with sync.sh approach)
-if [ -d "${dst}" ]; then
-    while IFS= read -r -d '' f; do
-        f_rel="${f#"${DOTFILES_DIR}/.claude/"}"
-        link="${CLAUDE_DST}/${f_rel}"
-        mkdir -p "$(dirname "${link}")"
-        ln -s "${f}" "${link}"
-        echo "Added: ~/.claude/${f_rel} → repo (.claude/${f_rel})"
-    done < <(find "${dst}" -type f -print0)
-else
-    ln -s "${dst}" "${file_path}"
-    echo "Added: ~/.claude/${rel} → repo (.claude/${rel})"
-fi
+# Link it back, and into every other config dir on this machine, the same
+# way sync.sh would on its next run.
+while IFS= read -r dir; do
+    link_under "${DOTFILES_DIR}/.claude" "${dst}" "${dir}"
+done < <(config_dirs)
 
 echo "Remember to: git add .claude/${rel} && git commit"

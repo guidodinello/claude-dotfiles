@@ -12,12 +12,8 @@ DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GLOBAL_CLAUDE="${HOME}/.claude"
 DELETE_ORIGINAL=false
 
-GREEN='\033[1;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
-
-log_info() { echo -e "${GREEN}[INFO]${NC}  $*"; }
-log_warn() { echo -e "${YELLOW}[WARN]${NC}  $*"; }
+# shellcheck source=lib/link.sh
+source "${DOTFILES_DIR}/lib/link.sh"
 
 if [[ "${1}" == "--delete-original" ]]; then
     DELETE_ORIGINAL=true
@@ -61,7 +57,6 @@ claude_root="${src%%/.claude/*}/.claude"
 rel="${src#"${claude_root}"/}"
 
 repo_dst="${DOTFILES_DIR}/.claude/${rel}"
-global_link="${GLOBAL_CLAUDE}/${rel}"
 is_from_global=false
 [[ "${claude_root}" == "${GLOBAL_CLAUDE}" ]] && is_from_global=true
 
@@ -77,34 +72,11 @@ mkdir -p "$(dirname "${repo_dst}")"
 mv "${src}" "${repo_dst}"
 log_info "Moved to repo: .claude/${rel}"
 
-# Create file-level global symlinks (consistent with sync.sh approach)
-_link_item() {
-    local item="${1}"
-    local item_rel="${item#"${DOTFILES_DIR}/.claude/"}"
-    local link="${GLOBAL_CLAUDE}/${item_rel}"
-
-    mkdir -p "$(dirname "${link}")"
-
-    if [[ -L "${link}" ]]; then
-        log_warn "Already a symlink, skipping: ~/.claude/${item_rel}"
-    elif [[ -e "${link}" ]]; then
-        log_warn "Backing up existing file: ~/.claude/${item_rel} → ${link}.bak"
-        mv "${link}" "${link}.bak"
-        ln -s "${item}" "${link}"
-        log_info "Linked: ~/.claude/${item_rel}"
-    else
-        ln -s "${item}" "${link}"
-        log_info "Linked: ~/.claude/${item_rel}"
-    fi
-}
-
-if [[ -d "${repo_dst}" ]]; then
-    while IFS= read -r -d '' file; do
-        _link_item "${file}"
-    done < <(find "${repo_dst}" -type f -print0)
-else
-    _link_item "${repo_dst}"
-fi
+# Link it into every config dir on this machine, the same way sync.sh would
+# on its next run.
+while IFS= read -r dir; do
+    link_under "${DOTFILES_DIR}/.claude" "${repo_dst}" "${dir}"
+done < <(config_dirs)
 
 # Report on original project location
 if ! $is_from_global; then
