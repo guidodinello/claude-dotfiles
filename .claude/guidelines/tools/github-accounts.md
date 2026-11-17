@@ -1,20 +1,17 @@
 ## GitHub Accounts (two accounts on this machine)
 
-| Account | Purpose | SSH alias |
-|---|---|---|
-| `guidodinello` | Personal | `github.com-personal` |
-| `gdinlightit` | Work | `github.com` (default) |
+| Account | Purpose | SSH host in remotes | Key |
+|---|---|---|---|
+| `guidodinello` | Personal | `github.com` (default) | `~/.ssh/id_ed25519` |
+| `gdinlightit` | Work | `github.com-work` | `~/.ssh/lightit` |
 
-The `gh` CLI defaults to the work account. For personal repos, **direnv** handles the switch automatically — a `.envrc` in the project root sets `GH_TOKEN` to the personal account token on entry.
+`~/.ssh/config` is the source of truth for the aliases; check it if this table looks wrong.
 
-To set this up for a personal repo:
-
-1. `brew install direnv`
-2. Add `eval "$(direnv hook zsh)"` to `~/.zshrc`
-3. Create `.envrc` in the project root:
-
-   ```sh
-   export GH_TOKEN=$(gh auth token -u guidodinello)
-   ```
-
-4. Run `direnv allow` inside the project directory
+- **Personal repos** use plain remotes: `git@github.com:guidodinello/<repo>.git`.
+  `gh repo create ... --source .` already sets that up, so no remote rewrite is needed.
+- **Work repos** need the alias in the remote:
+  `git@github.com-work:<org>/<repo>.git`. A plain `github.com` remote authenticates as
+  the personal account and fails on work repos.
+- **`gh` CLI**: logged in as `guidodinello` only, as of 2026-11-17 (`gh auth status`).
+  To act as the work account, log it in (`gh auth login`) and pass its token per
+  command or per repo: `GH_TOKEN=$(gh auth token -u gdinlightit) gh ...`.
