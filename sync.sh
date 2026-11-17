@@ -101,10 +101,17 @@ prune_settings_backups() {
     done
 }
 
-# A `Read(!.env.example)` carve-out only carves out of deny rules listed BEFORE
-# it. The union puts live-only entries after base's, so an installer's env deny
-# can land after the carve-outs and re-block .env.example. Fail closed but loud:
-# keep the rule and warn, naming it, so it can be added to
+# A `Read(!.env.example)` carve-out only carves out of relative deny rules listed
+# BEFORE it. Two ways an env deny can re-block .env.example for good:
+#   - A relative rule (`.env*`, `**/.env.local`) listed after the carve-outs: the
+#     union puts live-only entries after base's, so an installer's env deny can
+#     land there.
+#   - An anchored rule (`//` or `~/`) that globs after `.env` (`.env*`, `.env.*`),
+#     at ANY position: Claude Code reads a `!` pattern relative to the current
+#     directory even when `~/` or `//` follows it, so no carve-out reaches it.
+#     Anchored rules that list real-file names (`//**/.env.local`) match no
+#     example file and are fine.
+# Fail closed but loud: keep the rule and warn, naming it, so it can be added to
 # RETIRED_PERMISSION_RULES. Takes the merged settings JSON; runs on every sync.
 warn_shadowed_carve_outs() {
     local rule
@@ -119,6 +126,12 @@ warn_shadowed_carve_outs() {
                | select(.key > $first and (.value | test("^(Read|Edit)\\((\\*\\*/)?\\.env")))
                | .value
           end' <<<"$1")
+    while IFS= read -r rule; do
+        [ -n "${rule}" ] || continue
+        log_warn "Deny rule ${rule} is anchored (// or ~/) and globs after .env, so no carve-out can reach it and .env.example stays blocked everywhere. Narrow it to real-file names or add it to RETIRED_PERMISSION_RULES in sync.sh."
+    done < <(jq -r '
+        (.permissions.deny // [])[]
+        | select(test("^(Read|Edit)\\((~/|//)[^)]*\\.env(\\*|\\.\\*)\\)$"))' <<<"$1")
 }
 
 # Merge settings.base.json into <dst>/settings.json, preserving LOCAL_KEYS from
