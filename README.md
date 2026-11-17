@@ -32,7 +32,7 @@ symlinked into `~`.
 |---|---|---|
 | [Skills](docs/skills.md) | Slash-command skills | `/address-pr-comments`, `/code-health`, `/security-audit`, `/db-migration-planner`, etc. |
 | [Agents](docs/agents.md) | Subagents | audit-finding-verifier, quality-checker, slite-sync, stats-analyzer |
-| [Hooks](docs/hooks.md) | Safety guards + auto-format + status line | Docker volume guard, Wrangler production guard, auto-format.sh, statusline.sh |
+| [Hooks](docs/hooks.md) | Safety guards + JSON lint + status line | guard-bash.sh (Docker volumes, Wrangler production), json-lint.sh, statusline.sh. auto-format.sh is opt-in per project |
 | [Rules & guidelines](docs/guidelines.md) | Reusable coding conventions | **Rules** (path-scoped, auto-load): python, php, docker, ci, database. **Guidelines** (always-on): reasoning-discipline, debugging-patterns, react-native, tools/* |
 
 Path-scoped rules in `~/.claude/rules/` apply to **every project on the machine with no

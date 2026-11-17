@@ -6,11 +6,11 @@ Lifecycle hooks that modify Claude Code behavior at specific points during a ses
 
 ## PostToolUse
 
-### auto-format.sh
+### auto-format.sh (opt-in, per project)
 
 Auto-formats files after Edit/Write operations. Detects the project stack automatically via local binaries (`node_modules/.bin`, `vendor/bin`). Supports ESLint/Prettier (JS/TS/CSS) and PHP-CS-Fixer/Pint. Always exits 0 so formatter failures never block Claude.
 
-Wire it globally:
+`sync.sh` puts the script in every config dir but **does not wire it**, on purpose: run globally, it would apply each project's `eslint --fix` or formatter to every file Claude edits, changing lines outside the edit and widening diffs in repos that don't expect it. A project that wants it opts in from its own `.claude/settings.json` (or `settings.local.json` in a team repo):
 
 ```json
 {
@@ -25,11 +25,11 @@ Wire it globally:
 }
 ```
 
-Override per-project by creating `.claude/hooks/auto-format.sh` in the project root.
+A project that needs different formatting rules creates its own `.claude/hooks/auto-format.sh`; the shared script hands over to it.
 
-### json-lint
+### json-lint.sh
 
-Inlined PostToolUse hook that validates any edited `.json` file has valid syntax via `jq .`.
+Wired globally from `settings.base.json`. After an Edit/Write to a `.json` file, checks that it still parses (`jq empty`) and, if not, exits 2 so the error reaches Claude. The edit has already happened; nothing is blocked. Skips JSON-with-comments files (`tsconfig*.json`, `jsconfig*.json`, `devcontainer.json`, anything under `.vscode/`).
 
 ---
 

@@ -1,8 +1,11 @@
 #!/bin/bash
 # ~/.claude/hooks/auto-format.sh
 #
-# Global auto-formatter hook for PostToolUse (Edit|Write).
+# Auto-formatter hook for PostToolUse (Edit|Write).
 # Zero Claude tokens — runs as a pure side effect.
+#
+# Opt-in per project: sync.sh installs this file but settings.base.json does
+# not wire it. See docs/hooks.md for why and how a project enables it.
 #
 # Resolution order:
 #   1. Project-local override: $PROJECT_ROOT/.claude/hooks/auto-format.sh

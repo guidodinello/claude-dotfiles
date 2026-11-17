@@ -86,7 +86,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if [[ $CLAUDE_FILE_PATH == *.json ]]; then jq . \"$CLAUDE_FILE_PATH\" > /dev/null || echo \"Warning: $CLAUDE_FILE_PATH is not valid JSON\"; fi"
+            "command": "{{CONFIG_DIR}}/hooks/json-lint.sh"
           }
         ]
       }

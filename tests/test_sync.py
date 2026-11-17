@@ -185,6 +185,28 @@ class SyncSettingsTest(ScriptCase):
         self.assertNotIn("rtk hook claude", commands)
         self.assertIn({"matcher": "Edit", "hooks": [kept]}, entries)
 
+    def test_replaced_inline_hooks_do_not_survive_next_to_their_scripts(self):
+        """A hook that moved from an inline command to a script must be retired,
+        or the union keeps the old command in every existing config dir."""
+        base = json.loads((REPO / ".claude" / "settings.base.json").read_text())
+        old_json_lint = (
+            'if [[ $CLAUDE_FILE_PATH == *.json ]]; then jq . "$CLAUDE_FILE_PATH" > /dev/null '
+            '|| echo "Warning: $CLAUDE_FILE_PATH is not valid JSON"; fi'
+        )
+        self.write_settings(
+            {
+                "hooks": {
+                    "PostToolUse": [
+                        {"matcher": "Edit|Write", "hooks": [{"type": "command", "command": old_json_lint}]}
+                    ]
+                }
+            }
+        )
+        self.sync()
+        commands = [h["command"] for e in self.settings()["hooks"]["PostToolUse"] for h in e["hooks"]]
+        self.assertEqual(commands, [f"{self.cfg}/hooks/json-lint.sh"])
+        self.assertEqual(len(base["hooks"]["PostToolUse"]), 1)
+
     def test_second_run_changes_nothing(self):
         self.write_settings({"model": "old"})
         self.sync()
