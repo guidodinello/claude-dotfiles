@@ -419,7 +419,6 @@ review_slot() {
   local model_used_file="$OUT_DIR/model_${slot_name}.txt"
 
   local candidates=("$primary_model" "${FALLBACKS[@]}")
-  local attempted=0
 
   for model in "${candidates[@]}"; do
     if grep -qx "$model" "$USED_MODELS_FILE" 2>/dev/null; then
@@ -427,7 +426,6 @@ review_slot() {
     fi
 
     for attempt in $(seq 1 "$ATTEMPTS_PER_MODEL"); do
-      attempted=1
       local remaining=$(( REVIEW_BUDGET_SECS - (SECONDS - REVIEW_START) ))
       if (( remaining < 30 )); then
         echo "[$slot_name] review budget (${REVIEW_BUDGET_SECS}s) spent, stopping" >&2

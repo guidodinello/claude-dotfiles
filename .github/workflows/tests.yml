@@ -1,0 +1,45 @@
+# Lints every shell script and runs the tests.
+#
+# Why: sync.sh rewrites the live settings.json of every config dir, and
+# guard-bash.sh is a safety control. Both were once broken with nothing to
+# notice it (the guards never fired for months, see #91). The skill script
+# tests existed but ran nowhere.
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: shellcheck
+        run: git ls-files -z '*.sh' project-init | xargs -0 shellcheck -x -S warning
+
+      - name: Script and hook tests
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Skill script tests
+        run: |
+          # Each skill's tests import the scripts next to them, so they run
+          # from their own directory.
+          dirs="$(git ls-files | grep -E '^\.claude/skills/.+/test_[^/]+\.py$' | xargs -n1 dirname | sort -u)"
+          if [ -z "${dirs}" ]; then
+            echo 'No skill tests found -- has the layout changed?'
+            exit 1
+          fi
+          status=0
+          for dir in ${dirs}; do
+            echo "::group::${dir}"
+            (cd "${dir}" && python3 -m unittest discover -p 'test_*.py') || status=1
+            echo "::endgroup::"
+          done
+          exit "${status}"
