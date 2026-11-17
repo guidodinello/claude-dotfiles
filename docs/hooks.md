@@ -35,6 +35,8 @@ Inlined PostToolUse hook that validates any edited `.json` file has valid syntax
 
 ## PreToolUse (Safety Guards)
 
+Both guards live in one script, `.claude/hooks/guard-bash.sh`, registered on the `Bash` matcher. It reads the command from `.tool_input.command` and matches with bash's own `[[ =~ ]]`, so it needs no GNU grep. It fails closed: if the hook input can't be read (no `jq`, or an unexpected shape), the command is blocked.
+
 ### docker-volume-guard
 
 Blocks `docker compose down -v`/`--volumes` and `docker volume rm`/`remove`/`prune`. These commands destroy persistent data volumes, and the impact is irreversible. The hook exits 2 (block), showing a message asking the user to confirm manually.
@@ -52,7 +54,7 @@ Only `wrangler d1 execute --local ...` passes through.
 
 **Additional guard:** If `CLOUDFLARE_ENV` is set in the environment, any `wrangler` command is blocked. This env var can silently select a named environment from wrangler config without an explicit `--env` flag.
 
-### Known limitations (grep-level hooks can't prevent)
+### Known limitations (pattern-level hooks can't prevent)
 
 | Bypass | How |
 |---|---|
@@ -66,6 +68,8 @@ These are accepted trade-offs: the guard prevents accidental production SQL duri
 
 ### Wiring example
 
+`sync.sh` writes this from `settings.base.json`, resolving the path per config dir:
+
 ```json
 {
   "hooks": {
@@ -73,8 +77,7 @@ These are accepted trade-offs: the guard prevents accidental production SQL duri
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "cmd=$(cat | jq -r '.command // \"\"'); if echo \"$cmd\" | grep -qP 'docker\\s+(compose|stack)\\s+.*\\bdown\\b.*(-v|--volumes)\\b|docker\\s+volume\\s+(rm|remove|prune)\\b'; then echo \"BLOCKED: destructive Docker volume command. Volumes hold persistent data and removal is irreversible. Ask the user before running this.\"; exit 2; fi" },
-          { "type": "command", "command": "cmd=$(cat | jq -r '.command // \"\"'); if [ -n \"$CLOUDFLARE_ENV\" ] && echo \"$cmd\" | grep -qP 'wrangler(\\s+|$)'; then echo \"BLOCKED: CLOUDFLARE_ENV=$CLOUDFLARE_ENV is set — wrangler may silently target that environment. Unset it and use explicit --env flags instead.\"; exit 2; fi; if echo \"$cmd\" | grep -qP 'wrangler(\\s+|$)(?=.*d1\\s+(?:execute|migrations\\s+apply))(?!.*--local)'; then echo \"BLOCKED: wrangler d1 execute/migrations apply without --local targets production. Run the command manually with --remote after reviewing.\"; exit 2; fi" }
+          { "type": "command", "command": "~/.claude/hooks/guard-bash.sh" }
         ]
       }
     ]
