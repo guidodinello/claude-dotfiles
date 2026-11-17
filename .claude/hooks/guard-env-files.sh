@@ -84,7 +84,7 @@ check_path() {
   for ((hop = 0; hop < 40; hop++)); do
     [[ "${current}" == "${tilde}/"* ]] && current="${HOME}/${current#"${tilde}/"}"
     if is_env_file "${current}"; then
-      block "${current##*/} is an env file. Real env files hold secrets and stay off-limits; the example files (.env.example, .env.*.example, .env.sample, .env.template) are allowed. Ask the user to read or change it."
+      block "${current##*/} is an env file. Real env files hold secrets and stay off-limits; the example files listed in the header of guard-env-files.sh are allowed. Ask the user to read or change it."
     fi
     [[ -L "${current}" ]] || return 0
     target="$(readlink "${current}")" || block "could not follow the symlink ${current}. Refusing to run unchecked."
