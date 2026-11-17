@@ -279,6 +279,14 @@ def get_logger(name: str, log_file: Path | None = None) -> logging.Logger:
     return logger
 ```
 
+> **Prefer the shared [`logger`](https://github.com/guidodinello/logger) package
+> when the project can depend on it.** It is this same setup, packaged:
+> `init_logging()` once at startup, `get_logger(__name__)` per module. Add it as
+> a git source (`logger = { git = "https://github.com/guidodinello/logger", branch = "main" }`
+> under `[tool.uv.sources]`) and see its README for the API. In a CLI whose
+> stdout is its output (a table, `--json` for another program), call
+> `init_logging(stream=sys.stderr)` so log lines never end up in that output.
+
 Put contextual fields in the `extra=` dict — never interpolated into the
 message string. This keeps the message constant (so a structured backend can
 index by field) and, like `%`-style formatting, defers construction of the
