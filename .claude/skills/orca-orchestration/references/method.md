@@ -163,7 +163,7 @@ python3 -I <home>/.claude/skills/orca-orchestration/scripts/wlaunch.py start <wo
 
 ## 10. Cleanup
 
-- Close every terminal you opened (`orca terminal close`), remove each worktree once its PR merged, stop the per-worktree stacks, and delete local branches that merged.
+- Close every terminal you opened (`orca terminal close --terminal <h>`), remove each worktree once its PR merged, stop the per-worktree stacks, and delete local branches that merged.
 - Leave the run doc with the final state and fold lessons into `gotchas.md`.
 
 ## Gotchas (generic, all hit live)

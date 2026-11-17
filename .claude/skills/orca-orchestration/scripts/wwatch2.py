@@ -3,7 +3,7 @@
 
 usage: wwatch2.py [--follow] [--pidfile FILE] <max-minutes> <worktree-path | transcript-dir-name>...
 
-Default (one-shot): prints one event and exits. Run it with run_in_background and restart
+Default (one-shot): prints the events of the first poll that has any (usually one) and exits. Run it with run_in_background and restart
 it after each event.
 --follow: keeps watching and prints one flushed line per event, each reported once. Run it
 under the Monitor tool (every stdout line is a notification; a background Bash only
@@ -22,7 +22,8 @@ Events, one line each:
   TIMEOUT                   max-minutes passed
 
 Dedup under --follow: READY once per pending tool id; PR once per URL; IDLE and STUCK once
-until the transcript is written again or a new tool is pending; NOTRANSCRIPT and DEAD once.
+until the transcript is written again or a new tool is pending; NOTRANSCRIPT once; DEAD once
+per death (a worker seen alive again can die again).
 
 A plan or question that is already pending when the watcher starts is reported only
 after WWATCH_GRACE_SECS: a watcher started right after sending an approval would
@@ -40,6 +41,7 @@ import atexit
 import importlib.util
 import os
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -127,7 +129,9 @@ def live_cwds():
         )
     except (OSError, subprocess.TimeoutExpired):
         return None
-    return {os.path.realpath(line[1:]) for line in lsof.stdout.splitlines() if line.startswith("n")}
+    cwds = {os.path.realpath(line[1:]) for line in lsof.stdout.splitlines() if line.startswith("n")}
+    # Live claude processes always have a cwd: no answer at all means lsof failed, not that they are gone.
+    return cwds or None
 
 
 def worker_cwd(worker, project):
@@ -144,6 +148,8 @@ def detect(w, project, snap, mem, elapsed, alive, limits):
     events = []
     started = snap is not None or elapsed > limits.idle
     mem.dead_polls = mem.dead_polls + 1 if alive is False and started else 0
+    if alive is True:
+        mem.dead_reported = False  # relaunched (claude --resume): a second death is a new event
     if mem.dead_polls >= DEAD_POLLS and not mem.dead_reported:
         mem.dead_reported = True
         events.append((f"DEAD {w} no live claude process in its worktree", ""))
@@ -197,16 +203,12 @@ def run(
                 cwds[w] = worker_cwd(w, projects[w])
             alive = None if live is None or cwds[w] is None else cwds[w] in live
             batch += detect(w, projects[w], snap_fn(projects[w]), mems[w], elapsed, alive, limits)
-        if batch and not follow:
-            line, tail = batch[0]
-            out(line)
-            if tail:
-                out(tail)
-            return 0
         for line, tail in batch:
             out(line)
             if tail:
                 out(tail)
+        if batch and not follow:
+            return 0
         if follow and all(m.dead_reported for m in mems.values()):
             return 0
         sleep(poll)
@@ -222,6 +224,9 @@ def main(argv=None):
     ap.add_argument("workers", nargs="+")
     args = ap.parse_args(argv)
     if args.pidfile:
+        # atexit does not run on the default SIGTERM: turn it into a normal exit so kill removes the pidfile.
+        # Installed before the file exists, so a pidfile on disk means the handler is already in place.
+        signal.signal(signal.SIGTERM, lambda *_: sys.exit(128 + signal.SIGTERM))
         with open(args.pidfile, "w", encoding="utf-8") as fh:
             fh.write(str(os.getpid()))
         atexit.register(lambda: os.path.exists(args.pidfile) and os.remove(args.pidfile))

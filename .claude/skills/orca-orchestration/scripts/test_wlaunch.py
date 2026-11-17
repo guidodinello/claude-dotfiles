@@ -118,6 +118,22 @@ class Start(unittest.TestCase):
             self.assertIn("after pressing Enter", err)
             self.assertEqual(1, len(sends(fake)))
 
+    def test_command_only_in_scrollback_is_not_at_the_prompt(self):
+        # the command already ran and something else (a dialog) is on screen: no blind Enter
+        self.brief()
+        scrollback = f"{TYPED}\nDo you trust the files in this folder? (y/n)"
+        with fake_orca.FakeOrca(previews=(scrollback, scrollback)) as fake:
+            code, _, err = self.start()
+            self.assertEqual(1, code)
+            self.assertIn("not at the prompt", err)
+            self.assertEqual([], sends(fake))
+
+    def test_command_at_prompt_looks_only_at_the_last_non_empty_line(self):
+        cmd = wlaunch.DEFAULT_COMMAND
+        self.assertTrue(wlaunch.command_at_prompt(f"banner\n❯ {cmd}\n\n", cmd))
+        self.assertFalse(wlaunch.command_at_prompt(f"❯ {cmd}\nplan mode on", cmd))
+        self.assertFalse(wlaunch.command_at_prompt("", cmd))
+
     def test_no_plan_mode_and_no_command_at_the_prompt_fails_without_sending_anything(self):
         self.brief()
         with fake_orca.FakeOrca(previews=("$ ", "$ ")) as fake:

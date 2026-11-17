@@ -3,10 +3,13 @@ Run: python3 -m unittest discover -p 'test_*.py' (from this directory)."""
 
 import json
 import os
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
+from unittest import mock
 
 sys.dont_write_bytecode = True
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -101,6 +104,13 @@ class Dead(unittest.TestCase):
             detect(snap(), mem, alive=False)
         self.assertEqual([], detect(snap(), mem, alive=False))
 
+    def test_a_relaunched_worker_can_die_again(self):
+        mem = wwatch2.Memory()
+        events = []
+        for alive in (False, False, True, False, False):
+            events += detect(snap(), mem, alive=alive)
+        self.assertEqual(2, len(events))
+
     def test_unknown_liveness_never_counts(self):
         mem = wwatch2.Memory()
         for _ in range(5):
@@ -111,6 +121,35 @@ class Dead(unittest.TestCase):
         for _ in range(5):
             self.assertEqual([], detect(None, mem, elapsed=10, alive=False))
         self.assertEqual("NOTRANSCRIPT w proj", detect(None, mem, elapsed=200, alive=False)[-1])
+
+
+def completed(cmd, stdout="", code=0):
+    return subprocess.CompletedProcess(cmd, code, stdout, "")
+
+
+class LiveCwds(unittest.TestCase):
+    def probe(self, ps_out, lsof_out, lsof_code=0):
+        def fake(cmd, **_kw):
+            if cmd[0] == "ps":
+                return completed(cmd, ps_out)
+            return completed(cmd, lsof_out, lsof_code)
+
+        with mock.patch.object(wwatch2.subprocess, "run", side_effect=fake):
+            return wwatch2.live_cwds()
+
+    def test_returns_the_cwds_of_the_claude_processes(self):
+        out = self.probe("101 claude --x\n102 vim a\n", "p101\nn/tmp/a\n", lsof_code=1)
+        self.assertEqual({os.path.realpath("/tmp/a")}, out)
+
+    def test_lsof_with_no_answer_is_unknown_not_everyone_dead(self):
+        self.assertIsNone(self.probe("101 claude --x\n", "", lsof_code=1))
+
+    def test_no_claude_process_at_all_is_an_empty_set(self):
+        self.assertEqual(set(), self.probe("102 vim a\n", ""))
+
+    def test_a_failing_ps_is_unknown(self):
+        with mock.patch.object(wwatch2.subprocess, "run", side_effect=lambda cmd, **_k: completed(cmd, "", 1)):
+            self.assertIsNone(wwatch2.live_cwds())
 
 
 class ClaudePids(unittest.TestCase):
@@ -158,6 +197,11 @@ class Run(unittest.TestCase):
     def test_one_shot_prints_the_first_event_and_returns(self):
         self.go([snap(), snap(pending=PLAN), snap(pending=PLAN), snap(prs=[URL])], follow=False)
         self.assertEqual(["READY w ExitPlanMode"], self.lines)
+
+    def test_one_shot_prints_every_event_of_the_poll_so_none_is_lost(self):
+        # READY and PR in the same poll: a restarted watcher would baseline the PR and never report it
+        self.go([snap(), snap(pending=PLAN, prs=[URL])], follow=False)
+        self.assertEqual(["READY w ExitPlanMode", f"PR w ['{URL}']"], self.lines)
 
     def test_one_shot_times_out(self):
         self.go([snap()], follow=False, minutes=1)
@@ -270,6 +314,24 @@ class Cli(unittest.TestCase):
             pidfile = os.path.join(config, "w.pid")
             proc = self.run_cli("--pidfile", pidfile, "1", wt, config=config)
             self.assertTrue(proc.stdout.startswith("NOTRANSCRIPT"), proc.stderr)
+            self.assertFalse(os.path.exists(pidfile))
+
+    def test_sigterm_removes_the_pidfile(self):
+        with tempfile.TemporaryDirectory() as config, tempfile.TemporaryDirectory() as wt:
+            pidfile = os.path.join(config, "w.pid")
+            full = {**os.environ, "CLAUDE_CONFIG_DIR": config, "WWATCH_POLL_SECS": "0.2"}
+            proc = subprocess.Popen(
+                [sys.executable, "-I", os.path.join(HERE, "wwatch2.py"), "--follow", "--pidfile", pidfile, "1", wt],
+                env=full, stdout=subprocess.DEVNULL,
+            )
+            self.addCleanup(proc.kill)
+            deadline = time.monotonic() + 10
+            while not os.path.exists(pidfile) and time.monotonic() < deadline:
+                time.sleep(0.05)
+            self.assertTrue(os.path.exists(pidfile))
+            with open(pidfile, encoding="utf-8") as fh:
+                os.kill(int(fh.read()), signal.SIGTERM)
+            proc.wait(timeout=10)
             self.assertFalse(os.path.exists(pidfile))
 
     def test_missing_arguments_print_usage(self):

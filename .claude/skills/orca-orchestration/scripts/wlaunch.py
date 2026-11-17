@@ -56,6 +56,12 @@ def preview(handle):
     return _orca.orca("terminal", "show", "--terminal", handle)["terminal"].get("preview") or ""
 
 
+def command_at_prompt(text, command):
+    """True when the command is on the last non-empty line: still typed, not run or scrolled up."""
+    lines = [line for line in text.splitlines() if line.strip()]
+    return bool(lines) and " ".join(command.split()[:2]) in lines[-1]
+
+
 def wait_for_plan_mode(handle):
     deadline = time.monotonic() + PLAN_WAIT_SECS
     while True:
@@ -76,8 +82,7 @@ def start(worktree, title, prompt, command):
     handle = result["terminal"]["handle"]
     _orca.orca("terminal", "wait", "--terminal", handle, "--for", "tui-idle", "--timeout-ms", str(IDLE_TIMEOUT_MS))
     if not wait_for_plan_mode(handle):
-        typed = " ".join(command.split()[:2])
-        if typed not in preview(handle):
+        if not command_at_prompt(preview(handle), command):
             raise RuntimeError(f"no '{PLAN_MODE_MARKER}' on {handle} and the command is not at the prompt")
         _orca.orca("terminal", "send", "--terminal", handle, "--text", "", "--enter")
         if not wait_for_plan_mode(handle):
