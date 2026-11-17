@@ -27,9 +27,14 @@ Actions, in order:
   1. herdr workspace close <id>   (verified by listing again)
   1b. the repo's teardown hook, when it has one: `bash <repo>/.claude/skills/in-worktree/scripts/
      teardown-worktree.sh WORKTREE`, looked up in the main checkout first, then in the worktree.
-     It runs after the agent is stopped and before the worktree goes (fitted: `compose down -v`
-     of the worktree's test stack, Issue 405). It never blocks removal: a non-zero exit, a
-     timeout or an OS error is logged and the rest continues. No hook, no action
+     It runs before the worktree goes, and after step 1 when --label is given (fitted:
+     `compose down -v` of the worktree's test stack, Issue 405). Without --label nothing
+     closes the workspace, so the agent may still be running: stop it first. It stays before
+     the removal because the hook may be the worktree's own copy, which removal deletes. It
+     never blocks removal: a non-zero exit, a timeout or an OS error is logged and the rest
+     continues. If the removal then fails, the repo's setup script recreates what the hook
+     removed (fitted: re-run `bootstrap-worktree.sh WORKTREE`, which is idempotent). No hook,
+     no action
   2. unlink untracked node_modules/.venv symlinks (symlinks only, never a real directory).
      A gitignored one (frontend/web/node_modules) is not listed by git status; it is removed
      by step 3, which unlinks symlinks without following them, so the main checkout's

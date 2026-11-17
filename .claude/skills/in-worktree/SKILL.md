@@ -223,7 +223,7 @@ After the inner skill finishes, report:
 
 **`herdr workspace close` takes a workspace id, not a label.** Closing by label fails silently. The script resolves the id from the label and verifies the close.
 
-If the repo has a `scripts/teardown-worktree.sh` (looked up in the main checkout, then in the worktree), `teardown.py` runs it after closing the workspace and before removing the worktree, and logs "skipping" when there is none. A failing hook never blocks the removal, so check its logged output: a hook that could not clean up warns and leaves the resources behind, and has to be re-run by hand.
+If the repo has a `scripts/teardown-worktree.sh` (looked up in the main checkout, then in the worktree), `teardown.py` runs it before removing the worktree, and logs "skipping" when there is none. With `--label` it runs after the workspace is closed; without it nothing closes the workspace, so stop the agent first. It stays before the removal because the hook may be the worktree's own copy, which the removal deletes. If the removal then fails, re-run the repo's setup script (`bootstrap-worktree.sh <worktree>`, idempotent) to recreate what the hook removed. A failing hook never blocks the removal, so check its logged output: a hook that could not clean up warns and leaves the resources behind, and has to be re-run by hand.
 
 The script's docstring (`python3 -I <skill-dir>/scripts/teardown.py --help`) owns the refusals, the order of actions, `--force` and the exit codes. Two things worth knowing here: the local branch is deleted only when its PR is merged, and `--force` skips the uncommitted-changes check, so use it only when that is intended. Tests: `python3 -I <skill-dir>/scripts/test_teardown.py`.
 
