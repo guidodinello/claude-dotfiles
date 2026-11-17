@@ -27,14 +27,17 @@ Actions, in order:
   1. herdr workspace close <id>   (verified by listing again)
   1b. the repo's teardown hook, when it has one: `bash <repo>/.claude/skills/in-worktree/scripts/
      teardown-worktree.sh WORKTREE`, looked up in the main checkout first, then in the worktree.
-     It runs before the worktree goes, and after step 1 when --label is given (fitted:
-     `compose down -v` of the worktree's test stack, Issue 405). Without --label nothing
-     closes the workspace, so the agent may still be running: stop it first. It stays before
-     the removal because the hook may be the worktree's own copy, which removal deletes. It
-     never blocks removal: a non-zero exit, a timeout or an OS error is logged and the rest
-     continues. If the removal then fails, the repo's setup script recreates what the hook
-     removed (fitted: re-run `bootstrap-worktree.sh WORKTREE`, which is idempotent). No hook,
-     no action
+     It runs before the worktree goes, and after step 1 when --label is given (for example
+     `compose down -v` of the worktree's test stack). Without --label nothing closes the
+     workspace, so the agent may still be running: stop it first. It stays before the removal
+     because the hook may be the worktree's own copy, which removal deletes. It never blocks
+     removal: a non-zero exit, a timeout, an OS error or undecodable output is logged and the
+     rest continues. If the removal then fails, the repo's setup script recreates what the
+     hook removed (re-run its idempotent `bootstrap-worktree.sh WORKTREE`). The hook must be
+     idempotent too: the rerun below runs it again. The worktree's own copy is the fallback so
+     that a branch which adds or changes the hook is covered before it merges; it is code from
+     a worktree of this same repo, which the agent working in it already ran with your
+     privileges, so run this script only on worktrees of repos you trust. No hook, no action
   2. unlink untracked node_modules/.venv symlinks (symlinks only, never a real directory).
      A gitignored one (frontend/web/node_modules) is not listed by git status; it is removed
      by step 3, which unlinks symlinks without following them, so the main checkout's
@@ -48,7 +51,8 @@ Actions, in order:
 "no workspace with that label" refusal. It does not skip the other refusals.
 
 If step 3 fails after step 1 closed the workspace, rerun without --label (a rerun with
---label is refused because the workspace is gone).
+--label is refused because the workspace is gone). The rerun runs the repo teardown hook
+(step 1b) again.
 
 Exit codes: 0 done, 2 refused, 3 tool missing, 1 any other failure.
 """
@@ -273,10 +277,11 @@ def run_repo_hook(script: str, worktree: str) -> None:
             ["bash", script, worktree],
             capture_output=True,
             text=True,
+            errors="replace",  # a hook printing non-UTF-8 bytes must not crash the teardown
             check=False,
             timeout=REPO_HOOK_TIMEOUT_SECONDS,
         )
-    except (OSError, subprocess.SubprocessError) as exc:
+    except (OSError, subprocess.SubprocessError, ValueError) as exc:
         log(f"WARNING repo teardown hook {script} did not run to completion: {exc}")
         return
     for line in (proc.stdout + proc.stderr).splitlines():

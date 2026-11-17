@@ -217,10 +217,20 @@ class RunRepoHookTests(unittest.TestCase):
         with mock.patch.object(td.subprocess, "run", autospec=True, return_value=failed):
             td.run_repo_hook("/s/t.sh", WT)
 
-    def test_timeout_and_os_error_do_not_raise(self) -> None:
-        for exc in (subprocess.TimeoutExpired("bash", 1), OSError("no bash")):
+    def test_expected_failures_do_not_raise(self) -> None:
+        for exc in (
+            subprocess.TimeoutExpired("bash", 1),
+            OSError("no bash"),
+            UnicodeDecodeError("utf-8", b"\xe9", 0, 1, "invalid continuation byte"),
+        ):
             with mock.patch.object(td.subprocess, "run", autospec=True, side_effect=exc):
                 td.run_repo_hook("/s/t.sh", WT)
+
+    def test_non_utf8_hook_output_does_not_raise(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            script = Path(tmp) / "hook.sh"
+            script.write_text("printf 'caf\\xe9\\n'\nexit 0\n")
+            td.run_repo_hook(str(script), WT)
 
     def test_execute_dispatches_the_hook_before_removal(self) -> None:
         calls: list[str] = []

@@ -185,9 +185,9 @@ pnpm already hardlinks from its shared store (`pnpm store path`), so `du` on a w
 
 A symlinked `node_modules` or `.venv` is shared with the origin checkout: don't run an install or `uv sync` inside the worktree for it without first replacing the symlink with a real directory. Teardown unlinks these symlinks and never touches the origin's directory.
 
-### Per-repo setup hook (`scripts/bootstrap-worktree.sh`)
+### Per-repo setup hook (`.claude/skills/in-worktree/scripts/bootstrap-worktree.sh`)
 
-A repo that needs more than dependencies in a fresh worktree (a test database, ports of its own) ships `.claude/skills/in-worktree/scripts/bootstrap-worktree.sh` and its counterpart `teardown-worktree.sh`. If the repo has the setup script, run it with the **absolute** worktree path once the worktree exists, and before any agent starts in it:
+A repo that needs more than dependencies in a fresh worktree (a test database, ports of its own) ships `.claude/skills/in-worktree/scripts/bootstrap-worktree.sh` and its counterpart `.claude/skills/in-worktree/scripts/teardown-worktree.sh`. If the repo has the setup script, run it with the **absolute** worktree path once the worktree exists, and before any agent starts in it:
 
 ```bash
 git worktree add … <abs-worktree>                                   # 1. create (or EnterWorktree)
@@ -195,7 +195,7 @@ bash <repo>/.claude/skills/in-worktree/scripts/bootstrap-worktree.sh <abs-worktr
 herdr workspace create --cwd <abs-worktree> …; herdr agent start …  # 3. start the agent
 ```
 
-herdr has no "Setup Script" field (Orca does), so the order above is the caller's job: the spawning orchestrator, or this skill in Step 2. Stop and report if the script fails; do not start the agent on a half-set-up worktree. The script must be idempotent and must refuse the main checkout.
+herdr has no "Setup Script" field (Orca does), so the order above is the caller's job: the spawning orchestrator, or this skill in Step 2. Stop and report if the script fails; do not start the agent on a half-set-up worktree. The setup script must be idempotent and must refuse the main checkout. The teardown script must be idempotent too: rerunning `teardown.py` after a failed removal runs it again.
 
 The matching teardown runs from `teardown.py`, before it removes the worktree (see [Teardown](#teardown)). What the pair sets up, and how to use it, is documented in the script headers and the repo's own docs.
 
@@ -223,7 +223,7 @@ After the inner skill finishes, report:
 
 **`herdr workspace close` takes a workspace id, not a label.** Closing by label fails silently. The script resolves the id from the label and verifies the close.
 
-If the repo has a `scripts/teardown-worktree.sh` (looked up in the main checkout, then in the worktree), `teardown.py` runs it before removing the worktree, and logs "skipping" when there is none. With `--label` it runs after the workspace is closed; without it nothing closes the workspace, so stop the agent first. It stays before the removal because the hook may be the worktree's own copy, which the removal deletes. If the removal then fails, re-run the repo's setup script (`bootstrap-worktree.sh <worktree>`, idempotent) to recreate what the hook removed. A failing hook never blocks the removal, so check its logged output: a hook that could not clean up warns and leaves the resources behind, and has to be re-run by hand.
+If the repo ships `.claude/skills/in-worktree/scripts/teardown-worktree.sh`, `teardown.py` runs it before removing the worktree; the lookup, the position in the action order, the no-`--label` caveat and the recovery if the removal fails are owned by the docstring (step 1b). Read the hook's logged output: a hook that could not clean up leaves the resources behind and has to be re-run by hand.
 
 The script's docstring (`python3 -I <skill-dir>/scripts/teardown.py --help`) owns the refusals, the order of actions, `--force` and the exit codes. Two things worth knowing here: the local branch is deleted only when its PR is merged, and `--force` skips the uncommitted-changes check, so use it only when that is intended. Tests: `python3 -I <skill-dir>/scripts/test_teardown.py`.
 
