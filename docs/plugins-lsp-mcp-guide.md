@@ -241,8 +241,9 @@ env vars, etc.). Two real options if a machine needs to diverge from the committ
    by merging `settings.base.json` with the keys Claude Code writes at runtime. Edits to
    `LOCAL_KEYS` (`autoMode`, `enabledPlugins`, `outputStyle`) survive a re-sync, and so do
    entries added to `hooks` and to the `permissions` lists (both are unioned with the live
-   file). Any other key, such as `env`, is rebuilt from `settings.base.json` on the next
-   `./sync.sh`, so put those in the base instead.
+   file; to remove one on purpose, list it in `RETIRED_HOOK_COMMANDS` or
+   `RETIRED_PERMISSION_RULES` in `sync.sh`). Any other key, such as `env`, is rebuilt from
+   `settings.base.json` on the next `./sync.sh`, so put those in the base instead.
 2. **Don't persist it — use the session-scoped skill picker / `claude plugin enable --scope
    local` for that one session.** Appropriate when the divergence is truly one-off rather than
    a standing per-machine preference.
