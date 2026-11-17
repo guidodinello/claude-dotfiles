@@ -11,6 +11,10 @@ pass 100 MB. A reader needs the conversation: user turns, assistant text, tool c
 - `--repo <path>`: render the newest `--count` sessions of a repo AND its sibling worktrees
   (project dirs `<slug>`, `<slug>-wt-*`, ...), because worker and reviewer sessions run in
   worktrees. It skips `--exclude` ids (pass the current session) and sub-agent sidechains.
+  Worktrees outside the repo's path (Orca puts them under `~/orca/workspaces/<repo>/<name>`)
+  have project dirs that never start with the repo's slug: add `--also-prefix <path>` (repeatable,
+  OR-ed, slug-normalized) to include them; they are labelled `worker`. A prefix matches a project
+  dir that equals it or continues with `-`.
 
 Each session becomes one .txt in `--out`. A session longer than `--chunk-bytes` is split into
 parts so that a sub-agent can read each part whole. A manifest lists session id, role guess
@@ -31,7 +35,7 @@ Usage:
   render_session.py --session 2dcf6838 --out /tmp/x [--errors-only]
   render_session.py --session ~/.claude/projects/<dir>/<id>.jsonl --out /tmp/x --since 2026-11-01T09:00
   render_session.py --repo ~/projects/app --out /tmp/retro --count 5 --exclude <current-id> \\
-      [--since 2026-11-01] [--chunk-bytes 750000] [--config-dir ~/.claude-work]
+      [--also-prefix ~/orca/workspaces/app] [--since 2026-11-01] [--chunk-bytes 750000] [--config-dir ~/.claude-work]
 """
 
 from __future__ import annotations
@@ -178,13 +182,25 @@ def write_parts(lines: Iterator[str], out: Path, tag: str, limit: int) -> tuple[
     return names, count, total
 
 
-def role_guess(project_dir: str, base_slug: str) -> str:
-    if not base_slug:
+def path_slug(path: str) -> str:
+    """Claude Code's project dir name for a path: separators and dots become dashes."""
+    return str(Path(path).expanduser().resolve()).replace("/", "-").replace(".", "-")
+
+
+def matched_prefix(name: str, prefixes: list[str]) -> str | None:
+    """The longest prefix that names `name` itself or a dash-separated extension of it."""
+    hits = [p for p in prefixes if name == p or name.startswith(p + "-")]
+    return max(hits, key=len, default=None)
+
+
+def role_guess(project_dir: str, prefix: str, extra: bool = False) -> str:
+    """`extra`: the prefix came from --also-prefix, where any non-empty suffix is a worktree dir."""
+    if not prefix:
         return "-"
-    suffix = project_dir[len(base_slug) :]
+    suffix = project_dir[len(prefix) :]
     if suffix.startswith("-wt-rev"):
         return "reviewer"
-    if suffix.startswith("-wt-"):
+    if suffix.startswith("-wt-") or (extra and suffix):
         return "worker"
     return "main checkout"
 
@@ -194,6 +210,13 @@ def main() -> int:
     mode = ap.add_mutually_exclusive_group(required=True)
     mode.add_argument("--session", help="render one session: id or id prefix (any project), or a .jsonl path")
     mode.add_argument("--repo", help="render the newest sessions of this repo and its worktrees")
+    ap.add_argument(
+        "--also-prefix",
+        action="append",
+        default=[],
+        metavar="PATH",
+        help="with --repo: also include project dirs under this path (repeatable), e.g. ~/orca/workspaces/<repo>",
+    )
     ap.add_argument("--out", required=True, help="output dir (use the session scratchpad)")
     ap.add_argument("--count", type=int, default=5)
     ap.add_argument("--since", help="only records at/after this UTC time (YYYY-MM-DD or ISO datetime)")
@@ -207,35 +230,39 @@ def main() -> int:
         help="Claude config dir holding projects/ (default: $CLAUDE_CONFIG_DIR, else ~/.claude and ~/.claude-work)",
     )
     args = ap.parse_args()
+    if args.also_prefix and not args.repo:
+        ap.error("--also-prefix only applies with --repo")
 
     since_dt = parse_bound(args.since, end_of_day=False) if args.since else None
     until_dt = parse_bound(args.until, end_of_day=True) if args.until else None
     since = since_dt.strftime(TS_FORMAT) if since_dt else None
     until = until_dt.strftime(TS_FORMAT) if until_dt else None
 
-    candidates: list[tuple[float, Path]] = []
+    candidates: list[tuple[float, Path, str]] = []
     base_slug = ""
     if args.session and Path(args.session).expanduser().is_file():
         path = Path(args.session).expanduser()
-        candidates = [(path.stat().st_mtime, path)]
+        candidates = [(path.stat().st_mtime, path, "")]
     else:
         dirs = projects_dirs(args.config_dir)
         if not dirs:
             print("no projects dir found (try --config-dir)", file=sys.stderr)
             return 1
         if args.session:
-            candidates = [(f.stat().st_mtime, f) for d in dirs for f in d.glob(f"*/{args.session}*.jsonl")]
+            candidates = [(f.stat().st_mtime, f, "") for d in dirs for f in d.glob(f"*/{args.session}*.jsonl")]
         else:
-            base_slug = str(Path(args.repo).expanduser().resolve()).replace("/", "-").replace(".", "-")
+            base_slug = path_slug(args.repo)
+            prefixes = [base_slug, *(path_slug(p) for p in args.also_prefix)]
             for d in dirs:
                 for pdir in d.iterdir():
-                    if not pdir.is_dir() or not pdir.name.startswith(base_slug):
+                    prefix = matched_prefix(pdir.name, prefixes) if pdir.is_dir() else None
+                    if prefix is None:
                         continue
                     for f in pdir.glob("*.jsonl"):
                         mtime = f.stat().st_mtime
                         if f.stem in args.exclude or (since_dt and mtime < since_dt.timestamp()):
                             continue
-                        candidates.append((mtime, f))
+                        candidates.append((mtime, f, prefix))
     candidates.sort(reverse=True)
     picked = candidates[: args.count]
     if not picked:
@@ -246,14 +273,14 @@ def main() -> int:
     out.mkdir(parents=True, exist_ok=True)
     print("times are UTC")
     print(f"{'session':10} {'role':13} {'raw MB':>7} {'lines':>7} {'cond KB':>8}  files  (project dir)")
-    for _, f in picked:
-        label = f.parent.name[len(base_slug) :].lstrip("-") if base_slug else ""
+    for _, f, prefix in picked:
+        label = f.parent.name[len(prefix) :].lstrip("-") if prefix else ""
         tag = f"{label or 'main'}_{f.stem[:8]}" if base_slug else f.stem[:8]
         lines = condense(f, errors_only=args.errors_only, since=since, until=until, max_chars=args.max_chars)
         names, count, total = write_parts(lines, out, tag, args.chunk_bytes)
         raw_mb = f.stat().st_size / 1_048_576
         print(
-            f"{f.stem[:8]:10} {role_guess(f.parent.name, base_slug):13} {raw_mb:7.1f} {count:7} {total // 1024:8}  "
+            f"{f.stem[:8]:10} {role_guess(f.parent.name, prefix, prefix != base_slug):13} {raw_mb:7.1f} {count:7} {total // 1024:8}  "
             f"{', '.join(names)}  ({f.parent.name})"
         )
     print(f"\nwritten to {out}")

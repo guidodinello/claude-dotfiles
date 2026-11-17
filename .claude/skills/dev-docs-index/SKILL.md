@@ -145,13 +145,18 @@ raw/             as-downloaded transcripts, never edited (either my-dev-things/r
 
 Run it when the user pastes a meeting transcript or summary.
 
+Before writing an item as open, asking a recall question or calling something a gap, look
+it up: the tracker, the pending list, the raw transcript, later meeting notes. Ask only
+what the lookup cannot answer.
+
 1. Save the transcript as-is, date first in the file name, into the raw folder the
    work-guide README links to. Never clean it up: corrections go in the summary.
 2. Write `meetings/YYYY-MM-DD-<meeting>.md`: decisions, the user's pending items (owner
    and next step), what others owe the user. Cite the raw transcript at the top. Mark
    every point the transcription garbled as **(unclear)**.
-3. Recall check: ask the user about each **(unclear)** point, one at a time, without
-   showing the transcript snippet first. The user answers from memory, then update the
+3. Recall check: ask the user only about **(unclear)** decisions, owners and action
+   items, never operational detail, one at a time, without showing the transcript
+   snippet first. The user answers from memory, then update the
    summary with the answer. Show the snippet only if asked. The point is twofold: more
    accurate notes, and making the user recall the meeting. The notes are personal, so
    never suggest asking the other participants.

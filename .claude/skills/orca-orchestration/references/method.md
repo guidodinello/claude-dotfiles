@@ -101,6 +101,7 @@ orca terminal send --terminal <h> --text "" --enter --json             # separat
 - Always pass `--repo`. From a workspace cwd, Orca would otherwise infer the workspace repo.
 - `--agent claude` cannot forward arguments, hence the two-step path.
 - `--wait-submit` rejects an empty `--text`: send the text without `--enter`, then a bare Enter.
+- Before sending the brief, wait for `<worktree>/.bootstrap-status` to read `OK` (Orca runs the Setup Script in the background). `FAILED`, or no file after a few minutes: read `<worktree>/.bootstrap.log`, fix, re-run the setup script. A setup script pasted into Orca before `record_bootstrap_status` existed never writes the file: re-paste the updated script, and until then check the result directly (env file, deps, `docker ps`).
 - Rename the branch **before anything is pushed**, so it never exists remotely under a name without the task id.
 - One-line prompt: *"Read .task-brief.md in this worktree root and follow it exactly: investigate, then write your implementation plan with an explicit Open questions section. Do not implement until the orchestrator approves the plan. When implementation is done, open the PR as the brief specifies."*
 - Move the task (and the parent story, if it is the first) to the profile's in-progress status yourself. Tracker automations keyed on branch creation only fire at the worker's first push.

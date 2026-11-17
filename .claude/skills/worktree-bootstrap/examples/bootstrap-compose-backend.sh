@@ -32,6 +32,7 @@ LIB="${WORKTREE_BOOTSTRAP_LIB:-$HOME/.claude/skills/worktree-bootstrap/lib.sh}"
 
 REPO_DIR="$(worktree_dir)"
 require_worktree "$REPO_DIR" "$REPO_NAME"
+record_bootstrap_status "$REPO_DIR"
 MAIN_CHECKOUT="$(main_checkout "$REPO_DIR")"
 cd "$REPO_DIR"
 

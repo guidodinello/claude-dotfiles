@@ -1,5 +1,7 @@
 """Unit tests for render_session.py. Run: python3 -m unittest test_render_session (from this directory)."""
 
+import contextlib
+import io
 import json
 import os
 import sys
@@ -126,6 +128,63 @@ class RenderTest(unittest.TestCase):
         lines = self.render(errors_only=True, since="2026-11-01T09:00:02")
         self.assertEqual(len(lines), 2)
         self.assertIn("TOOL_ERR (Bash): boom", lines[0])
+
+    def test_path_slug_matches_claude_project_dir_names(self):
+        self.assertEqual(rs.path_slug("/a/b.c/d"), "-a-b-c-d")
+        self.assertEqual(rs.path_slug("~/orca"), rs.path_slug(str(Path.home() / "orca")))
+
+    def test_matched_prefix_takes_longest_and_respects_the_dash_boundary(self):
+        prefixes = ["-r", "-r-wt"]
+        self.assertEqual(rs.matched_prefix("-r", prefixes), "-r")
+        self.assertEqual(rs.matched_prefix("-r-wt-x", prefixes), "-r-wt")
+        self.assertEqual(rs.matched_prefix("-r-other", prefixes), "-r")
+        self.assertIsNone(rs.matched_prefix("-rx", prefixes))
+        self.assertIsNone(rs.matched_prefix("-other", prefixes))
+
+    def test_role_guess(self):
+        self.assertEqual(rs.role_guess("-r", ""), "-")
+        self.assertEqual(rs.role_guess("-r", "-r"), "main checkout")
+        self.assertEqual(rs.role_guess("-r-wt-a", "-r"), "worker")
+        self.assertEqual(rs.role_guess("-r-wt-rev-a", "-r"), "reviewer")
+        self.assertEqual(rs.role_guess("-o-r-feat", "-o-r", extra=True), "worker")
+        self.assertEqual(rs.role_guess("-o-r", "-o-r", extra=True), "main checkout")
+
+    def run_repo_mode(self, *extra_args):
+        repo, orca = self.tmp / "repo", self.tmp / "orca" / "repo"
+        projects = self.tmp / "cfg" / "projects"
+        stamp = "2026-11-02T10:00:00.000Z"
+        for dirname, sid in [
+            (rs.path_slug(str(repo)), "main0001"),
+            (rs.path_slug(str(repo)) + "-wt-a", "wt000001"),
+            (rs.path_slug(str(orca)) + "-feat", "orca0001"),
+            (rs.path_slug(str(repo)) + "2", "other001"),
+        ]:
+            self.write(projects / dirname / f"{sid}.jsonl", [rec("user", stamp, "hello")])
+        argv = ["render_session.py", "--repo", str(repo), "--out", str(self.tmp / "out"), "--config-dir"]
+        argv += [str(self.tmp / "cfg"), *extra_args]
+        stdout = io.StringIO()
+        with mock.patch.object(sys, "argv", argv), contextlib.redirect_stdout(stdout):
+            self.assertEqual(rs.main(), 0)
+        return stdout.getvalue(), sorted(p.name for p in (self.tmp / "out").iterdir())
+
+    def test_repo_mode_without_also_prefix_misses_orca_and_lookalike_dirs(self):
+        manifest, files = self.run_repo_mode()
+        self.assertEqual(files, ["main_main0001.txt", "wt-a_wt000001.txt"])
+        self.assertNotIn("orca0001", manifest)
+        self.assertNotIn("other001", manifest)
+
+    def test_repo_mode_also_prefix_includes_orca_sessions_as_workers(self):
+        manifest, files = self.run_repo_mode("--also-prefix", str(self.tmp / "orca" / "repo"))
+        self.assertEqual(files, ["feat_orca0001.txt", "main_main0001.txt", "wt-a_wt000001.txt"])
+        (row,) = [line for line in manifest.splitlines() if line.startswith("orca0001")]
+        self.assertIn("worker", row)
+
+    def test_also_prefix_requires_repo(self):
+        argv = ["render_session.py", "--session", "abc", "--also-prefix", "/x", "--out", str(self.tmp / "out")]
+        with mock.patch.object(sys, "argv", argv), contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as ctx:
+                rs.main()
+        self.assertEqual(ctx.exception.code, 2)
 
 
 if __name__ == "__main__":
