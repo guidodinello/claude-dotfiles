@@ -23,14 +23,14 @@ To do this, follow these steps precisely:
 5. For each issue found in #4, launch a parallel Haiku agent that takes the PR, issue description, and list of CLAUDE files (from step 2), and returns a score to indicate the agent's level of confidence for whether the issue is real or false positive. To do that, the agent should:
    - **Always start by fetching the PR diff** using `gh pr diff <PR_NUMBER> --repo <OWNER>/<REPO>` as the primary source of truth for what code is being reviewed. The code described in the issue may be newly introduced by this PR and therefore not present in the local filesystem yet — absence from local files is NOT evidence of a false positive.
    - Verify whether the specific code pattern described in the issue actually appears in the PR diff. If it does, treat it as confirmed and score accordingly.
-   - Only use local file reads to gather additional context (e.g. CLAUDE.md contents, existing patterns, proxy config) — not to verify the existence of new code being added.
-   - For issues flagged due to CLAUDE.md instructions, double check that the CLAUDE.md actually calls out that issue specifically.
+   - Only use local file reads to gather additional context (e.g. CLAUDE file contents, existing patterns, proxy config) — not to verify the existence of new code being added.
+   - For issues flagged due to CLAUDE.md instructions, double check that the CLAUDE file (CLAUDE.md or CLAUDE.local.md) actually calls out that issue specifically.
 
    The agent should score each issue on a scale from 0-100. The scale is (give this rubric to the agent verbatim):
    a. 0: Not confident at all. This is a false positive that doesn't stand up to light scrutiny, or is a pre-existing issue.
-   b. 25: Somewhat confident. This might be a real issue, but may also be a false positive. The agent wasn't able to verify that it's a real issue. If the issue is stylistic, it is one that was not explicitly called out in the relevant CLAUDE.md.
+   b. 25: Somewhat confident. This might be a real issue, but may also be a false positive. The agent wasn't able to verify that it's a real issue. If the issue is stylistic, it is one that was not explicitly called out in the relevant CLAUDE file.
    c. 50: Moderately confident. The agent was able to verify this is a real issue, but it might be a nitpick or not happen very often in practice. Relative to the rest of the PR, it's not very important.
-   d. 75: Highly confident. The agent double checked the issue, and verified that it is very likely it is a real issue that will be hit in practice. The existing approach in the PR is insufficient. The issue is very important and will directly impact the code's functionality, or it is an issue that is directly mentioned in the relevant CLAUDE.md.
+   d. 75: Highly confident. The agent double checked the issue, and verified that it is very likely it is a real issue that will be hit in practice. The existing approach in the PR is insufficient. The issue is very important and will directly impact the code's functionality, or it is an issue that is directly mentioned in the relevant CLAUDE file.
    e. 100: Absolutely certain. The agent double checked the issue, and confirmed that it is definitely a real issue, that will happen frequently in practice. The evidence directly confirms this.
 6. Triage issues into two tiers. The primary axis is **whether the scoring agent verified the issue is real**, not the raw number — discrete rubric anchors (0/25/50/75/100) make agents snap to round scores, so a genuinely-verified-but-minor finding can land at 40 and wrongly get dropped. Avoid that. Do not silently discard verified findings — that loses real signal.
    - **Blocking (verified real AND important — typically score >= 70)**: real issues that should be addressed before merge.
@@ -81,7 +81,7 @@ To do this, follow these steps precisely:
 
       `reviewed` (a review happened) and `ready-to-merge` (the merge gate is passed) coexist — never remove `reviewed` when adding `ready-to-merge`.
 
-      Never set `ready-to-merge` when the posted review carries even one finding — it is a standing OK to auto-merge. If the PR doesn't have the `pending-review` label (e.g. it wasn't opened via the feature-workflow skill), it's fine for `--remove-label` to no-op — still add the new label. Verify with `gh pr view <PR_NUMBER> --json labels -q '[.labels[].name]'`.
+      Never set `ready-to-merge` when the posted review carries even one finding — it is a standing OK to auto-merge. If the PR doesn't have the `pending-review` label (e.g. it wasn't opened via the feature-workflow skill), it's fine for `--remove-label` to no-op — still add the new label, if the repo has it (see the label list above). Verify with `gh pr view <PR_NUMBER> --json labels -q '[.labels[].name]'` only for labels you actually added; skip the check when the edit was skipped.
 
    Keep each inline comment body brief. Avoid emojis. Include the permalink to the relevant lines in the comment body.
 
