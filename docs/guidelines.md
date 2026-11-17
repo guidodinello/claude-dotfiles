@@ -36,6 +36,7 @@ from a `CLAUDE.md`.
 | `guidelines/tools/engram.md` | Engram persistent-memory protocol |
 | `guidelines/tools/RTK.md` | RTK token-optimizing CLI proxy |
 | `guidelines/tools/github-accounts.md` | Two-GitHub-account setup (personal vs work) |
+| `guidelines/tools/1password.md` | 1Password CLI: never print secrets, one `op run` per script |
 | `guidelines/templates/audit-template.md` | Shared reporting contract for the audit skills |
 
 `react-native.md` is here not because it's always-on but because it **can't be cleanly

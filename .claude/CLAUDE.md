@@ -2,6 +2,7 @@
 @guidelines/tools/RTK.md
 @guidelines/tools/github-accounts.md
 @guidelines/tools/zsh.md
+@guidelines/tools/1password.md
 
 @guidelines/reasoning-discipline.md
 @guidelines/debugging-patterns.md
