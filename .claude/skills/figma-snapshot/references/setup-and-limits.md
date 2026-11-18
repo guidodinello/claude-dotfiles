@@ -27,6 +27,8 @@ read -rs "tok?Figma token: " && op item create --category "API Credential" --tit
 
 Optional `"tier1_monthly_budget": 15` (the default) caps the Tier 1 calls this snapshot dir makes per UTC month.
 
+Optional `"token_expires": "YYYY-MM-DD"`: the date the token expires, as shown when it was created. The Figma API never reports it, so without this field an expired token only shows up as an HTTP 403 mid-task. With it, `check` and `pull` warn on stderr from 14 days before.
+
 ## Budget ledger
 
 - Every successful Tier 1 call is appended to `<dir>/tier1-ledger.json`, grouped by UTC month. Before each Tier 1 call, `pull` refuses once the budget is used up, unless `--over-budget` is passed. `check` and `pull` print the count.

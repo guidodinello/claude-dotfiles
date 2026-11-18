@@ -31,6 +31,7 @@ from pathlib import Path
 API = "https://api.figma.com/v1"
 EXIT_CHANGED = 10
 DEFAULT_TIER1_BUDGET = 15
+TOKEN_EXPIRY_WARN_DAYS = 14
 RENDER_SCALE = 2
 DOWNLOAD_WORKERS = 8
 ROW_BUCKET_PX = 400
@@ -110,7 +111,8 @@ class Client:
                     f"429 on a Tier {tier} call: Retry-After={e.headers.get('Retry-After')}, "
                     f"X-Figma-Rate-Limit-Type={e.headers.get('X-Figma-Rate-Limit-Type')}, "
                     f"X-Figma-Plan-Tier={e.headers.get('X-Figma-Plan-Tier')}") from e
-            raise SnapshotError(f"HTTP {e.code} on {path}: {e.read()[:300]!r}") from e
+            hint = " (expired or revoked token?)" if e.code in (401, 403) else ""
+            raise SnapshotError(f"HTTP {e.code}{hint} on {path}: {e.read()[:300]!r}") from e
 
 
 def slug(s: str) -> str:
@@ -256,6 +258,25 @@ def load_config(root: Path) -> dict:
     if cfg is None:
         raise SnapshotError(f"no {root / 'targets.json'}; run `add <figma-url>` first")
     return cfg
+
+
+def warn_token_expiry(cfg: dict, today: dt.date | None = None) -> None:
+    """Figma's API never reports a token's expiry, so it is kept in targets.json as token_expires."""
+    raw = cfg.get("token_expires")
+    if not raw:
+        return
+    try:
+        expires = dt.date.fromisoformat(raw)
+    except ValueError:
+        print(f"warning: token_expires {raw!r} is not YYYY-MM-DD", file=sys.stderr)
+        return
+    days = (expires - (today or dt.datetime.now(dt.UTC).date())).days
+    if days < 0:
+        print(f"warning: the Figma token expired on {expires}; create a new one and update token_expires",
+              file=sys.stderr)
+    elif days <= TOKEN_EXPIRY_WARN_DAYS:
+        print(f"warning: the Figma token expires in {days} days ({expires}); renew it and update token_expires",
+              file=sys.stderr)
 
 
 def select_targets(cfg: dict, name: str | None) -> list[dict]:
@@ -432,6 +453,7 @@ def main() -> None:
         if args.cmd == "add":
             sys.exit(cmd_add(root, args.url, args.name))
         cfg = load_config(root)
+        warn_token_expiry(cfg)
         ledger = Ledger(path=root / "tier1-ledger.json",
                         budget=cfg.get("tier1_monthly_budget", DEFAULT_TIER1_BUDGET),
                         allow_over=getattr(args, "over_budget", False))
