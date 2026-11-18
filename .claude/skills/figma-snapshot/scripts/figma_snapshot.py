@@ -190,14 +190,23 @@ def build_group(container: Node, siblings: list[Node], out: Path) -> Group:
                             if abs(box(t)["x"] - b["x"]) < CAPTION_X_TOLERANCE_PX
                             and b["y"] - CAPTION_MAX_GAP_PX < box(t)["y"] < b["y"]]
 
-    def nearest(x: float, right_edge: bool) -> Node:
-        return min(g.screens, key=lambda s: abs(box(s)["x"] + (box(s)["width"] if right_edge else 0) - x))
+    def nearest(x: float, y: float, right_edge: bool) -> Node:
+        """Closest screen edge to (x, y); y counts as 0 distance anywhere along the screen's height, so an
+        arrow in a lower row never snaps to a screen in the row above."""
+        def distance(s: Node) -> float:
+            b = box(s)
+            edge_x = b["x"] + (b["width"] if right_edge else 0)
+            off_y = max(b["y"] - y, 0, y - (b["y"] + b["height"]))
+            return abs(edge_x - x) + off_y
+        return min(g.screens, key=distance)
 
     for k in siblings:
         if k["type"] in ("VECTOR", "LINE") and "arrow" in k["name"].lower() and g.screens:
             b = box(k)
+            mid_y = b["y"] + b["height"] / 2
             label = min(labels, key=lambda t: abs(box(t)["x"] - b["x"]) + abs(box(t)["y"] - b["y"]), default=None)
-            g.flows.append((g.names[nearest(b["x"], True)["id"]], g.names[nearest(b["x"] + b["width"], False)["id"]],
+            g.flows.append((g.names[nearest(b["x"], mid_y, True)["id"]],
+                            g.names[nearest(b["x"] + b["width"], mid_y, False)["id"]],
                             one_line(label["characters"]) if label else "?"))
     return g
 
