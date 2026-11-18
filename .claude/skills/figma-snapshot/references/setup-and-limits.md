@@ -25,6 +25,15 @@ read -rs "tok?Figma token: " && op item create --category "API Credential" --tit
 
 `nodes` takes any node id: a page, a section or a single frame. `add <url>` fills `file_key` and `nodes` from a design URL (`node-id=12-345` becomes `12:345`; a branch URL uses the branch key).
 
+Optional `"tier1_monthly_budget": 15` (the default) caps the Tier 1 calls this snapshot dir makes per UTC month.
+
+## Budget ledger
+
+- Every successful Tier 1 call is appended to `<dir>/tier1-ledger.json`, grouped by UTC month. Before each Tier 1 call, `pull` refuses once the budget is used up, unless `--over-budget` is passed. `check` and `pull` print the count.
+- The default of 15 leaves headroom under the documented 20, because the same docs also say 6.
+- The ledger only sees calls this snapshot dir made. Calls made with the same token elsewhere (another project on the same plan, curl by hand) aren't counted, so log them in the ledger yourself if they matter.
+- Figma doesn't document whether its monthly window is a calendar month or rolling. The ledger uses calendar months, so treat the first days of a new month with care.
+
 ## Output, per target
 
 | Path | What |
@@ -39,7 +48,10 @@ read -rs "tok?Figma token: " && op item create --category "API Credential" --tit
 Source: [Figma REST API rate limits](https://developers.figma.com/docs/rest-api/rate-limits), read 18 Nov 2026.
 
 - Tier 1 (`/files`, `/nodes`, `/images`): up to 20 a month for View and Collab seats. The intro of the same page says 6. Full and Dev seats get 10 to 20 a minute, by plan.
-- The plan that owns the file sets the limit, not the plan of the token's owner.
+- The plan that owns the file sets the limit, not the plan of the token's owner. Personal access tokens are counted per user and per plan, so teammates don't share your quota, but everything that runs with your token (scripts, workers) does.
+- The [MCP limits](https://developers.figma.com/docs/figma-mcp-server/rate-limits-access/) are documented in a separate table (20 tool calls a month for View and Collab seats). Whether they share a counter with the REST tiers is not documented.
+- A 429 can carry a `Retry-After` of days: one [forum report](https://forum.figma.com/report-a-problem-6/rest-api-rate-limits-pro-plan-with-full-seat-still-getting-x-figma-rate-limit-type-low-and-multi-day-retry-after-51333) describes multi-day waits. Running out means no design access until it expires.
+- Why `pull` should never be scheduled: designers edit some page of the file most working days, so the file version changes almost daily. A daily `pull` would spend 1 or 2 Tier 1 calls a day, more than the monthly quota.
 - `check` uses `/meta` (Tier 3) and, only when something changed, `/versions` (Tier 2). Neither touches the Tier 1 quota.
 - `pull` spends nothing in Tier 1 when the version is unchanged. Otherwise it makes one `/nodes` call for all of a target's nodes, plus one `/images` call when a screen changed.
 - `version` is per file, so an edit to any page bumps it, and `check` may say CHANGED while the tracked nodes are the same.

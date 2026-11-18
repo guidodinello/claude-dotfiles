@@ -5,6 +5,9 @@
   figma_snapshot.py check [target]                  Tier 3 only: has the file changed since the last pull?
   figma_snapshot.py pull  [target] [--force]        fetch, re-render only the screens that changed
 
+Tier 1 calls are counted in <dir>/tier1-ledger.json; pull refuses past tier1_monthly_budget (default 15)
+unless --over-budget.
+
 Snapshot dir: --dir, else $FIGMA_SNAPSHOT_DIR, else ./my-dev-things/designs if ./my-dev-things exists,
 else ./designs. Config is <dir>/targets.json. Token: $FIGMA_TOKEN, else `op read` of the config's op_ref.
 """
@@ -27,6 +30,7 @@ from pathlib import Path
 
 API = "https://api.figma.com/v1"
 EXIT_CHANGED = 10
+DEFAULT_TIER1_BUDGET = 15
 RENDER_SCALE = 2
 DOWNLOAD_WORKERS = 8
 ROW_BUCKET_PX = 400
@@ -46,8 +50,37 @@ class SnapshotError(Exception):
 
 
 @dataclass(slots=True)
+class Ledger:
+    """Local count of Tier 1 calls per UTC month. Figma doesn't expose the remaining quota, so the script
+    keeps its own count and refuses to go past the budget. It only sees calls this snapshot dir made."""
+    path: Path
+    budget: int
+    allow_over: bool
+
+    def entries(self) -> list[dict]:
+        return load_json(self.path, {}).get(month(), [])
+
+    def used(self) -> int:
+        return len(self.entries())
+
+    def ensure_room(self, what: str) -> None:
+        if self.used() >= self.budget and not self.allow_over:
+            raise SnapshotError(f"Tier 1 budget used up: {self.used()}/{self.budget} this month ({month()}), "
+                                f"needed for {what}. Rerun with --over-budget only if the design is worth it.")
+
+    def record(self, what: str) -> None:
+        data = load_json(self.path, {})
+        data.setdefault(month(), []).append({"at": utc_stamp(), "call": what})
+        self.path.write_text(json.dumps(data, indent=1))
+
+    def summary(self) -> str:
+        return f"Tier 1 budget: {self.used()}/{self.budget} used in {month()} (ledger {self.path.name})"
+
+
+@dataclass(slots=True)
 class Client:
     op_ref: str | None
+    ledger: Ledger
     _token: str | None = None
 
     def token(self) -> str:
@@ -61,10 +94,16 @@ class Client:
         return self._token
 
     def get(self, path: str, tier: int) -> dict:
+        endpoint = path.split("?")[0]
+        if tier == 1:
+            self.ledger.ensure_room(endpoint)
         req = urllib.request.Request(API + path, headers={"X-Figma-Token": self.token()})
         try:
             with urllib.request.urlopen(req, timeout=300) as r:
-                return json.load(r)
+                body = json.load(r)
+            if tier == 1:
+                self.ledger.record(endpoint)
+            return body
         except urllib.error.HTTPError as e:
             if e.code == 429:
                 raise SnapshotError(
@@ -151,14 +190,23 @@ def build_group(container: Node, siblings: list[Node], out: Path) -> Group:
                             if abs(box(t)["x"] - b["x"]) < CAPTION_X_TOLERANCE_PX
                             and b["y"] - CAPTION_MAX_GAP_PX < box(t)["y"] < b["y"]]
 
-    def nearest(x: float, right_edge: bool) -> Node:
-        return min(g.screens, key=lambda s: abs(box(s)["x"] + (box(s)["width"] if right_edge else 0) - x))
+    def nearest(x: float, y: float, right_edge: bool) -> Node:
+        """Closest screen edge to (x, y); y counts as 0 distance anywhere along the screen's height, so an
+        arrow in a lower row never snaps to a screen in the row above."""
+        def distance(s: Node) -> float:
+            b = box(s)
+            edge_x = b["x"] + (b["width"] if right_edge else 0)
+            off_y = max(b["y"] - y, 0, y - (b["y"] + b["height"]))
+            return abs(edge_x - x) + off_y
+        return min(g.screens, key=distance)
 
     for k in siblings:
         if k["type"] in ("VECTOR", "LINE") and "arrow" in k["name"].lower() and g.screens:
             b = box(k)
+            mid_y = b["y"] + b["height"] / 2
             label = min(labels, key=lambda t: abs(box(t)["x"] - b["x"]) + abs(box(t)["y"] - b["y"]), default=None)
-            g.flows.append((g.names[nearest(b["x"], True)["id"]], g.names[nearest(b["x"] + b["width"], False)["id"]],
+            g.flows.append((g.names[nearest(b["x"], mid_y, True)["id"]],
+                            g.names[nearest(b["x"] + b["width"], mid_y, False)["id"]],
                             one_line(label["characters"]) if label else "?"))
     return g
 
@@ -261,6 +309,7 @@ def cmd_check(client: Client, root: Path, targets: list[dict]) -> int:
             print(f"  {v['created_at']}  {(v.get('user') or {}).get('handle', '?')}  "
                   f"{v.get('label') or v.get('description') or '(autosave)'}")
         print("  The version covers the whole file; `pull` tells whether the tracked nodes changed.")
+    print(client.ledger.summary())
     return EXIT_CHANGED if changed else 0
 
 
@@ -280,6 +329,10 @@ def change_log(meta: dict, old: dict, new: dict, added: list, removed: list, cha
 
 def utc_stamp() -> str:
     return dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%MZ")
+
+
+def month() -> str:
+    return dt.datetime.now(dt.UTC).strftime("%Y-%m")
 
 
 def download_all(url_to_path: dict[str, Path]) -> None:
@@ -354,6 +407,7 @@ def cmd_pull(client: Client, root: Path, targets: list[dict], force: bool, nodes
              "pulled_at": utc_stamp(), "screens": new}, indent=1))
         print(f"{t['name']}: {len(new)} screens. added {len(added)}, changed {len(changed)}, "
               f"removed {len(removed)}, rendered {len(to_render) if render else 0}")
+    print(client.ledger.summary())
     return 0
 
 
@@ -371,13 +425,17 @@ def main() -> None:
     p.add_argument("--force", action="store_true", help="fetch even if the file version is unchanged")
     p.add_argument("--nodes-json", help="use a saved /nodes response instead of calling the API (testing)")
     p.add_argument("--no-render", action="store_true", help="skip the images call (testing)")
+    p.add_argument("--over-budget", action="store_true", help="allow Tier 1 calls past tier1_monthly_budget")
     args = ap.parse_args()
     root = snapshot_dir(args.dir)
     try:
         if args.cmd == "add":
             sys.exit(cmd_add(root, args.url, args.name))
         cfg = load_config(root)
-        client = Client(op_ref=cfg.get("op_ref"))
+        ledger = Ledger(path=root / "tier1-ledger.json",
+                        budget=cfg.get("tier1_monthly_budget", DEFAULT_TIER1_BUDGET),
+                        allow_over=getattr(args, "over_budget", False))
+        client = Client(op_ref=cfg.get("op_ref"), ledger=ledger)
         targets = select_targets(cfg, args.target)
         if args.cmd == "check":
             sys.exit(cmd_check(client, root, targets))
