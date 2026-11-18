@@ -13,8 +13,8 @@ Load when a task needs a Figma design as input (implementing or reviewing a scre
 
 ## Hard Rules
 
-- Prefer this script over the Figma MCP for reading designs: on a View or Collab seat both share a tiny Tier 1 quota, and the MCP spends a call per node.
-- Run `check` before `pull`. Never `pull --force` without a reason: each forced pull spends a Tier 1 call.
+- Prefer this script over the Figma MCP for reading designs: on a View or Collab seat both are capped at about 20 calls a month (separate counters, as far as the docs show), and the MCP spends a call per node.
+- Schedule `check` freely. Run `pull` on demand, when a task needs the design. Never schedule it. Never `pull --force` without a reason: each forced pull spends a Tier 1 call.
 - Never print, paste or pass the token as an argument. It comes from `$FIGMA_TOKEN` or the config's `op_ref`.
 - Never scrape browser cookies or session storage for Figma auth.
 - Treat each group `README.md` (flow, designer notes, copy) as the spec, and the PNGs as layout. Quote copy from the README, not from the image.
