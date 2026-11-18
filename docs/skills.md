@@ -59,7 +59,7 @@ are `user-invocable-only` since they're expensive/niche but still useful on dema
 | `/design-review` | High-level, ADR-shaped review of a PR: decisions and rejected alternatives, quality attributes, trade-offs, invariants and their guards, risks checked against a cited principle catalog. Read-only |
 | `/dev-docs-index` | Conventions for a repo's `my-dev-things/` knowledge base: a README index in every folder, inline source citations, and tree-first navigation |
 | `/discover-conventions` | Surfaces de-facto conventions the code follows but nobody wrote down, and proposes ADR drafts, CLAUDE.md additions, and convention index entries |
-| `/figma-to-tailwind` | Implements UI components from Figma designs using Tailwind 4 + tailwind-variants |
+| `/figma-snapshot` | Snapshots Figma pages, sections or frames via the REST API (2x PNGs, flow, designer notes, exact copy) and re-renders only what changed; cheap `check` for design updates |
 | `/find-session` | Finds past Claude Code sessions by remembered keywords (TF-IDF ranked) and gives the resume command; `--pick` opens an fzf picker |
 | `/fix-ignores` | Audits lint and type suppression comments (Python and TypeScript) and fixes the underlying issues so the suppressions can be removed |
 | `/git-brag` | Finds your commits on a path, formatted for perf-review docs |

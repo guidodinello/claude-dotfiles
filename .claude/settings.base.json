@@ -71,7 +71,6 @@
     "audit-consolidation-validator": "off",
     "audit-fact-checker": "off",
     "db-migration-planner": "off",
-    "figma-to-tailwind": "off",
     "markdown-to-slite": "off",
     "meta-skill-db-scalability-audit-improver": "off",
     "meta-skill-hipaa-audit-improver": "off",
