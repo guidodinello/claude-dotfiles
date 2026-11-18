@@ -30,6 +30,7 @@ Load when a task needs a Figma design as input (implementing or reviewing a scre
 | `check` exit 0 | Use the existing snapshot |
 | `check` exit 10 | `pull`, then read `CHANGES.md` |
 | 429 | Stop. Report the `Retry-After` value and the limit type; don't retry |
+| "Tier 1 budget used up" | Stop and tell the user. Use `--over-budget` only if they say so |
 | Page not covered | `add` that page, section or frame URL, then `pull` |
 
 ## Execution Steps

@@ -25,6 +25,15 @@ read -rs "tok?Figma token: " && op item create --category "API Credential" --tit
 
 `nodes` takes any node id: a page, a section or a single frame. `add <url>` fills `file_key` and `nodes` from a design URL (`node-id=12-345` becomes `12:345`; a branch URL uses the branch key).
 
+Optional `"tier1_monthly_budget": 15` (the default) caps the Tier 1 calls this snapshot dir makes per UTC month.
+
+## Budget ledger
+
+- Every successful Tier 1 call is appended to `<dir>/tier1-ledger.json`, grouped by UTC month. Before each Tier 1 call, `pull` refuses once the budget is used up, unless `--over-budget` is passed. `check` and `pull` print the count.
+- The default of 15 leaves headroom under the documented 20, because the same docs also say 6.
+- The ledger only sees calls this snapshot dir made. Calls made with the same token elsewhere (another project on the same plan, curl by hand) aren't counted, so log them in the ledger yourself if they matter.
+- Figma doesn't document whether its monthly window is a calendar month or rolling. The ledger uses calendar months, so treat the first days of a new month with care.
+
 ## Output, per target
 
 | Path | What |
