@@ -1,0 +1,39 @@
+{
+  "watch": ["claude-fable-5-2", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"],
+  "roles": {
+    "orchestrator": {
+      "release": "claude-opus-5-5",
+      "effort": "medium",
+      "set_in": "~/.claude/settings.json model + effortLevel"
+    },
+    "worker-plan": {
+      "release": "claude-opus-5-5",
+      "effort": "medium",
+      "set_in": "orca-orchestration/scripts/wlaunch.py DEFAULT_COMMAND (opusplan, plan mode)"
+    },
+    "worker-code": {
+      "release": "claude-sonnet-5-5",
+      "effort": "medium",
+      "set_in": "orca-orchestration/scripts/wlaunch.py DEFAULT_COMMAND (opusplan, after plan approval)"
+    },
+    "review-main": {
+      "release": "claude-sonnet-5-5",
+      "effort": "medium",
+      "set_in": "the session running /code-review; babysit-prs/scripts/spawn_reviewer.py --effort"
+    },
+    "review-scorer": {
+      "release": "claude-haiku-5-5",
+      "effort": "medium",
+      "set_in": "code-review/SKILL.md Haiku agents; inherit the session effort"
+    }
+  },
+  "session_kinds": {
+    "code-review": {
+      "first_prompt_contains": ["<command-name>/code-review</command-name>"],
+      "first_prompt_prefix": ["Run /code-review on PR"]
+    },
+    "worker": {
+      "first_prompt_prefix": ["Read .task-brief.md"]
+    }
+  }
+}
