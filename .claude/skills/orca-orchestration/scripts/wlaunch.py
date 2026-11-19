@@ -26,6 +26,7 @@ presses Enter once and waits again, then fails with the terminal left open for i
 import argparse
 import importlib.util
 import json
+import subprocess
 import os
 import sys
 import time
@@ -47,8 +48,9 @@ DEFAULT_COMMAND = "claude --model opus --effort medium --permission-mode plan"
 CODE_COMMAND = "claude --model sonnet --effort high --permission-mode auto"
 CODE_PROMPT = (
     "Your plan is approved and saved in .task-plan.md. Read .task-brief.md for the task and its "
-    "rules, then implement .task-plan.md without re-planning. When done, open the PR as the brief "
-    "specifies (or report back if the brief says there is no PR)."
+    "rules, but skip its plan-mode and approval steps: you are past them. Implement .task-plan.md "
+    "without re-planning. When done, open the PR as the brief specifies (or report back if the "
+    "brief says there is no PR)."
 )
 DEFAULT_PROMPT = (
     "Read .task-brief.md in this worktree root and follow it exactly: investigate, then write "
@@ -114,11 +116,32 @@ def save_pending_plan(worktree):
     return path
 
 
+def ensure_plan_excluded(worktree):
+    """Add .task-plan.md to the repo's git exclude, for repos set up before the file existed."""
+    try:
+        common = subprocess.run(
+            ["git", "-C", worktree, "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return
+    exclude = os.path.join(common, "info", "exclude")
+    os.makedirs(os.path.dirname(exclude), exist_ok=True)
+    existing = open(exclude, encoding="utf-8").read().splitlines() if os.path.exists(exclude) else []
+    if ".task-plan.md" not in existing:
+        with open(exclude, "a", encoding="utf-8") as fh:
+            fh.write(("\n" if existing and existing[-1] else "") + ".task-plan.md\n")
+
+
 def code(worktree, title, planner, prompt, command):
     save_pending_plan(worktree)
+    ensure_plan_excluded(worktree)
+    # The planner closes only once the coder is up: if the coder fails to start, the planner
+    # and its pending plan are still there to retry from.
+    out = launch(worktree, title, prompt, command, AUTO_MODE_MARKER)
     if planner:
         _orca.orca("terminal", "close", "--terminal", planner)
-    return launch(worktree, title, prompt, command, AUTO_MODE_MARKER)
+    return out
 
 
 def launch(worktree, title, prompt, command, marker):

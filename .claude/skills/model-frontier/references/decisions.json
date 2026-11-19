@@ -83,6 +83,10 @@
         "what": "The first orchestration run after merge and sync.sh launches a planner, `wlaunch.py code` saves the plan, closes the planner and starts the coder, and the coder implements .task-plan.md without re-planning or asking what was decided.",
         "done": null
       }
+    ],
+    "evidence": [
+      "opusplan uses one effort for both models: `claude -p --model opusplan --effort high` recorded (claude-opus-5-5, high) per turn in plan mode and (claude-sonnet-5-5, high) outside it (2026-11-19, two runs, transcript per-turn `effort`).",
+      "Status line text: `claude --permission-mode auto` shows `⏵⏵ auto mode on (shift+tab to cycle)` and `--permission-mode plan` shows `⏸ plan mode on (shift+tab to cycle)` (live TUI captured with tmux capture-pane, 2026-11-19)."
     ]
   }
 ]

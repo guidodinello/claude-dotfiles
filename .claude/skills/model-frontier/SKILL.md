@@ -41,7 +41,7 @@ they run from any directory.
      sessions pass that.
    - **How effort is set.** Effort is per session: subagents inherit it unless the Agent
      call sets `effort`; one on another model keeps its own default. `opusplan` runs both
-     phases at one effort, which is why orca workers are a planner session plus a coder
+     phases at one effort (verified; `evidence` in the worker-split decision), which is why orca workers are a planner session plus a coder
      session. Confirm a change by reading the per-turn `(model, effort)` in a transcript.
    - **What the index measures.** AAII is a general benchmark, not our codebase. Use it to
      rank options, and the retro to confirm.

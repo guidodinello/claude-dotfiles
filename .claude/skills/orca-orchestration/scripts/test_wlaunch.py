@@ -4,6 +4,7 @@ import contextlib
 import io
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -17,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fake_orca  # noqa: E402
 import wlaunch  # noqa: E402
 
-TYPED = "$ claude --model opus --effort medium --permission-mode plan"
+TYPED = "$ " + wlaunch.DEFAULT_COMMAND
 PLAN = "plan mode on (shift+tab to cycle)"
 AUTO = "auto mode on (shift+tab to cycle)"
 PROMPT = "Read .task-brief.md and plan."
@@ -199,11 +200,11 @@ class Code(unittest.TestCase):
             with open(os.path.join(self.path, ".task-plan.md"), encoding="utf-8") as fh:
                 self.assertEqual("final plan", fh.read())
             calls = fake.calls()
-            self.assertEqual(["terminal", "close", "--terminal", "term_plan"], calls[0])
             self.assertEqual(
                 ["terminal", "create", "--worktree", f"path:{self.path}", "--title", "t1-code", "--command", wlaunch.CODE_COMMAND],
-                calls[1],
+                calls[0],
             )
+            self.assertEqual(["terminal", "close", "--terminal", "term_plan"], calls[-1])
             self.assertEqual(wlaunch.CODE_PROMPT, sends(fake)[0][sends(fake)[0].index("--text") + 1])
 
     def test_refuses_when_no_plan_is_pending(self):
@@ -227,12 +228,22 @@ class Code(unittest.TestCase):
         with open(target, encoding="utf-8") as fh:
             self.assertEqual("keep", fh.read())
 
-    def test_coder_that_never_reaches_auto_mode_fails(self):
+    def test_coder_that_never_reaches_auto_mode_fails_and_keeps_the_planner(self):
         self.transcript(self.plan_row("p"))
-        with fake_orca.FakeOrca(previews=(PLAN, PLAN)):
+        with fake_orca.FakeOrca(previews=(PLAN, PLAN)) as fake:
             code, _, err = self.code()
             self.assertEqual(1, code)
             self.assertIn("auto mode on", err)
+            self.assertNotIn(["terminal", "close", "--terminal", "term_plan"], fake.calls())
+
+    def test_adds_the_plan_file_to_the_git_exclude_once(self):
+        subprocess.run(["git", "init", "-q", self.path], check=True)
+        self.transcript(self.plan_row("p"))
+        for _ in range(2):
+            with fake_orca.FakeOrca(previews=(AUTO, AUTO)):
+                self.assertEqual(0, self.code()[0])
+        with open(os.path.join(self.path, ".git", "info", "exclude"), encoding="utf-8") as fh:
+            self.assertEqual(1, fh.read().splitlines().count(".task-plan.md"))
 
 
 if __name__ == "__main__":

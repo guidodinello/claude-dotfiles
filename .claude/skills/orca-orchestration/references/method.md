@@ -8,8 +8,8 @@ Before any worktree exists, confirm these with the user (fill from the profile, 
 
 ```text
 Orchestrate the implementation of <story id> subtasks with the orca CLI.
-- Workers: new Orca worktrees. A planner session (Opus, medium effort, plan mode) writes the
-  plan; on approval a fresh coder session (Sonnet, high effort, auto mode) implements it.
+- Workers: new Orca worktrees. A planner session in plan mode writes the plan; on approval a
+  fresh coder session in auto mode implements it (models and efforts: `wlaunch.py`).
 - Initial prompts go through <worktree>/.task-brief.md; the worker is told to read it.
   The brief asks the worker to open the PR when done.
 - Plans: the orchestrator answers their questions; an approved plan is saved to
