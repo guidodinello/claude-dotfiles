@@ -381,6 +381,73 @@ const results = await Promise.all(ids.map(fetchUser));
 
 Use `AbortController` to make a fetch or long-running operation cancellable
 instead of leaving it to run to completion after the caller has moved on.
+For a timeout, use `AbortSignal.timeout(ms)` instead of wiring a
+`setTimeout` to a controller; combine signals with `AbortSignal.any([...])`.
+
+---
+
+## Prefer the platform
+
+**Before writing a helper or adding a package, check whether the language or
+runtime already has it.** The built-in is tested, locale-aware, and costs no
+bundle size. Everything below is Baseline widely available; for anything
+newer, check MDN's Baseline badge first — it may need a polyfill.
+
+### Strings: length is not characters
+
+`.length`, `.slice()` and `split("")` work on UTF-16 code units, so they cut
+emoji, flags and combined accents in half. For anything the user sees — a
+character counter, truncation with "…" — count graphemes with
+`Intl.Segmenter`:
+
+```ts
+const family = "👨‍👩‍👧";
+family.length; // 8 — UTF-16 code units
+[...family].length; // 5 — code points
+const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+[...graphemes.segment(family)].length; // 1 — what the user sees
+```
+
+Validate a storage limit in the unit the storage counts, not in graphemes:
+Postgres `varchar(n)` counts code points, the HTML `maxLength` attribute
+counts UTF-16 units. `granularity: "word"` splits words in languages
+without spaces (Japanese, Thai), where `split(" ")` fails.
+
+### Intl: formatting for people
+
+Format numbers, dates and lists with `Intl`, not string concatenation or a
+formatting package:
+
+- `Intl.NumberFormat` — currency, percent, compact (`1.2K`), units.
+- `Intl.DateTimeFormat` — dates and times in the user's locale and time zone.
+  For date *arithmetic* a library is still needed (Temporal is not Baseline).
+- `Intl.RelativeTimeFormat` — "3 days ago", "in 2 hours".
+- `Intl.PluralRules` — pick the right plural form instead of `n === 1 ? …`.
+- `Intl.ListFormat` — "a, b, and c" with the locale's conjunction.
+- `Intl.Collator` — sort user-visible strings:
+
+```ts
+// Bad — code-unit order: uppercase and accented letters land at the end
+names.sort();
+
+// Good — locale order, and "item 2" before "item 10"
+const collator = new Intl.Collator(undefined, { numeric: true });
+names.toSorted(collator.compare);
+```
+
+### Built-ins that replace common helpers
+
+- `structuredClone(value)` for a deep copy. `JSON.parse(JSON.stringify(x))`
+  turns a `Date` into a string, a `Map` into `{}`, and drops `undefined`.
+- `toSorted`, `toReversed`, `toSpliced`, `with` — the non-mutating versions
+  of `sort`, `reverse`, `splice` and index assignment.
+- `Object.groupBy` / `Map.groupBy` instead of a `reduce` or lodash `groupBy`.
+- `URL` and `URLSearchParams` to build or read URLs (they encode for you);
+  `URL.canParse(s)` to validate one, not a regex.
+- `crypto.randomUUID()` instead of the `uuid` package. In the browser it
+  exists only in a secure context (HTTPS or localhost).
+- `Promise.withResolvers()` instead of hand-capturing `resolve`/`reject` in
+  a "deferred" helper.
 
 ---
 
@@ -436,8 +503,8 @@ These patterns are warning signs that the design needs rethinking:
 
 - **`Array.prototype.sort`/`reverse`/`splice` on a value the caller still
   holds a reference to** — these mutate in place and silently corrupt
-  whatever else was pointing at that array. Copy first (`[...arr].sort()`)
-  unless the array is genuinely local and owned.
+  whatever else was pointing at that array. Use `toSorted`/`toReversed`/
+  `toSpliced` unless the array is genuinely local and owned.
 
 - **Default-export-only modules in a library** — a default export can't be
   auto-imported by name and re-exports awkwardly; prefer named exports for
