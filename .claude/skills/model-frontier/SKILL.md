@@ -40,9 +40,9 @@ they run from any directory.
      $0.50/$2.50 per 1M tokens above a 100K-token prompt (5x its base). Long Claude Code
      sessions pass that.
    - **How effort is set.** Effort is per session: subagents inherit it unless the Agent
-     call sets `effort`. Check whether `opusplan` applies one effort to both the Opus
-     planning phase and the Sonnet coding phase: read the per-turn `(model, effort)` in a
-     worker transcript.
+     call sets `effort`; one on another model keeps its own default. `opusplan` runs both
+     phases at one effort, which is why orca workers are a planner session plus a coder
+     session. Confirm a change by reading the per-turn `(model, effort)` in a transcript.
    - **What the index measures.** AAII is a general benchmark, not our codebase. Use it to
      rank options, and the retro to confirm.
 4. **Record, then apply.** Before changing any flag, record the decision with its baseline.

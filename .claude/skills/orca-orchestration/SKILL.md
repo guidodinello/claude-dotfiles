@@ -1,6 +1,6 @@
 ---
 name: orca-orchestration
-description: "Trigger: orchestrate subtasks with orca, implementer sessions or workers in worktrees, supervise waves of PRs, resume an orchestration run. Land a story's technical subtasks through Claude Code implementer sessions in Orca worktrees (opusplan, plan mode), answering their plans from one orchestrator session, supervising via transcripts, reviewing and merging their PRs, with a per-project docs folder."
+description: "Trigger: orchestrate subtasks with orca, implementer sessions or workers in worktrees, supervise waves of PRs, resume an orchestration run. Land a story's technical subtasks through Claude Code implementer sessions in Orca worktrees (a planner session in plan mode, then a fresh coder session per worker), answering their plans from one orchestrator session, supervising via transcripts, reviewing and merging their PRs, with a per-project docs folder."
 license: Apache-2.0
 metadata:
   author: "guidodinello"
@@ -29,7 +29,8 @@ python3 -I <home>/.claude/skills/orca-orchestration/scripts/<script>.py ...
 |---|---|
 | `wstat.py <worker> [chars]` | Pending tool and last text from a worker's transcript. Exit 2 before the first transcript write |
 | `wlaunch.py create --repo <sel> --name <wt> --base <ref> --branch <branch>` | Create the worktree with its final branch name and no parent; prints `{worktree, branch}` |
-| `wlaunch.py start <worktree> --title <t>` | Needs `.task-brief.md`. Opens Claude Code in plan mode, waits for "plan mode on", sends the one-line prompt; prints `{worktree, handle}` for `ids.json` |
+| `wlaunch.py start <worktree> --title <t>` | Needs `.task-brief.md`. Opens the planner (Opus, medium effort) in plan mode, waits for "plan mode on", sends the one-line prompt; prints `{worktree, handle}` for `ids.json` |
+| `wlaunch.py code <worktree> --title <t> --planner <handle>` | After you read and accepted the plan: saves the pending plan to `.task-plan.md`, closes the planner, starts the coder (Sonnet, high effort) in auto mode on it; prints `{worktree, handle}`. Refuses when no plan is pending |
 | `wsend.py <handle> "<text>"` / `--menu <n>` | Send one line (text, then a bare Enter) or a bare menu number. Refuses multi-line or over 400 chars: use the answers file |
 | `wwatch2.py [--follow] <minutes> <worker>...` | Block until READY (plan or question), PR (the worker's own `gh pr create`), IDLE, STUCK, NOTRANSCRIPT, DEAD (no live claude in the worktree; a reviewer session there hides it) or TIMEOUT. One-shot: run it in the background. `--follow`: one line per event, each once; run it under Monitor |
 | `../babysit-prs/scripts/watch.py -R <repo> --pr <n>... --agent <id>...` | Durable watcher for PRs (merged, review, label, failed check, conflict) and herdr agents, one line per event, re-arms itself. Use it instead of any hand-written `seq`/`sleep` loop. Flags and rules: the babysit-prs skill, "Loop until clear". Invoke as `python3 -I <home>/.claude/skills/babysit-prs/scripts/watch.py ...` |
@@ -42,7 +43,7 @@ python3 -I <home>/.claude/skills/orca-orchestration/scripts/<script>.py ...
 
 ## Hard Rules
 
-- **Never approve a plan you have not read.** Read it with `wplan.py`, check every answer you sent is folded in, then approve. Never script "wait for the menu, then approve".
+- **Never approve a plan you have not read.** Read it with `wplan.py`, check every answer you sent is folded in, then approve with `wlaunch.py code`. Never script "wait for the menu, then approve", and never pick "Yes" on the planner's menu: that starts coding on the planner's model and effort.
 - **Long text never goes through the terminal.** `orca terminal send` truncates it. Write answers to `<worktree>/.orchestrator-answers.md` and send a one-line pointer.
 - **Always `--terminal <h>`, never a positional handle**, also for `terminal read` and `terminal close` (Orca answers "Unknown command"). `wsend.py` and `wlaunch.py` already do.
 - **Menus and prompts are typed differently.** A menu choice is the bare option number (no `--enter`). A free-text prompt is the full text without `--enter`, then a separate bare Enter. Read the menu on screen before choosing: the same number means different things on different menus.

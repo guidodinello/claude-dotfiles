@@ -89,12 +89,23 @@ class RetroTest(unittest.TestCase):
 
     def test_session_kind_prompts_match_the_files_that_send_them(self):
         skills = Path(__file__).resolve().parents[2]
-        owners = {"Run /code-review on PR": skills / "babysit-prs/scripts/spawn_reviewer.py", "Read .task-brief.md": skills / "orca-orchestration/scripts/wlaunch.py"}
+        owners = {"Run /code-review on PR": skills / "babysit-prs/scripts/spawn_reviewer.py", "Read .task-brief.md": skills / "orca-orchestration/scripts/wlaunch.py", "Your plan is approved and saved in .task-plan.md": skills / "orca-orchestration/scripts/wlaunch.py"}
         kinds = model_retro.aa_frontier.load_roles()["session_kinds"]
         prefixes = {p for rule in kinds.values() for p in rule.get("first_prompt_prefix", [])}
         self.assertEqual(prefixes - set(owners), set(), "add the owning file of each new prefix to this test")
         for prefix, owner in owners.items():
             self.assertIn(prefix, owner.read_text(), f"{owner.name} no longer sends {prefix!r}")
+
+    def test_project_unit_adds_the_sessions_of_one_worktree(self):
+        kinds = {"worker": {"first_prompt_prefix": ["Read .task-brief.md", "Your plan is approved"], "unit": "project"}}
+        wt = self.root / "wt"
+        wt.mkdir()
+        (wt / "plan.jsonl").write_text(user_line("Read .task-brief.md") + "\n" + turn_line("p1", "claude-sonnet-5-5", "medium", 1_000_000) + "\n")
+        (wt / "code.jsonl").write_text(user_line("Your plan is approved and saved") + "\n" + turn_line("c1", "claude-sonnet-5-5", "high", 1_000_000) + "\n")
+        with mock.patch.object(model_retro.aa_frontier, "load_roles", return_value={"session_kinds": kinds}):
+            result = model_retro.collect("worker", dt.date(2026, 11, 1), dt.date(2026, 11, 30), [self.root], PRICES, require="claude-sonnet-5-5@high")
+        self.assertEqual(result["sessions"], 1)
+        self.assertAlmostEqual(result["cost_per_session"]["median"], 20.0, places=2)
 
     def test_unknown_model_is_reported_not_priced(self):
         self.assertIsNone(model_retro.turn_cost({"model": "gpt-x", "usage": {"output_tokens": 5}}, PRICES))

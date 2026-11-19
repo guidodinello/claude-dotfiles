@@ -7,6 +7,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 os.environ.setdefault("WSEND_SETTLE_SECS", "0")
 os.environ.setdefault("WLAUNCH_PLAN_WAIT_SECS", "0.2")
@@ -16,8 +17,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fake_orca  # noqa: E402
 import wlaunch  # noqa: E402
 
-TYPED = "$ claude --model opusplan --permission-mode plan"
+TYPED = "$ claude --model opus --effort medium --permission-mode plan"
 PLAN = "plan mode on (shift+tab to cycle)"
+AUTO = "auto mode on (shift+tab to cycle)"
 PROMPT = "Read .task-brief.md and plan."
 
 
@@ -161,6 +163,64 @@ class Start(unittest.TestCase):
 
     def test_default_prompt_fits_the_send_limit(self):
         wlaunch._orca.refuse_unsendable(wlaunch.DEFAULT_PROMPT)
+
+
+class Code(unittest.TestCase):
+    def setUp(self):
+        self.wt = tempfile.TemporaryDirectory()
+        self.cfg = tempfile.TemporaryDirectory()
+        self.addCleanup(self.wt.cleanup)
+        self.addCleanup(self.cfg.cleanup)
+        self.path = os.path.realpath(self.wt.name)
+        patch = mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": self.cfg.name})
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def transcript(self, *rows):
+        project = wlaunch._tx.resolve(self.path)
+        os.makedirs(project, exist_ok=True)
+        with open(os.path.join(project, "s1.jsonl"), "w", encoding="utf-8") as fh:
+            for row in rows:
+                fh.write(json.dumps(row) + "\n")
+
+    def plan_row(self, plan, tool_id="t1"):
+        block = {"type": "tool_use", "id": tool_id, "name": "ExitPlanMode", "input": {"plan": plan}}
+        return {"message": {"role": "assistant", "content": [block]}}
+
+    def code(self):
+        return run("code", self.path, "--title", "t1-code", "--planner", "term_plan")
+
+    def test_saves_the_pending_plan_closes_the_planner_then_starts_the_coder_in_auto_mode(self):
+        self.transcript(self.plan_row("old plan", "t0"), {"message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t0"}]}}, self.plan_row("final plan"))
+        with fake_orca.FakeOrca(previews=(AUTO, AUTO)) as fake:
+            code, out, _ = self.code()
+            self.assertEqual(0, code)
+            self.assertEqual({"worktree": self.path, "handle": "term_x"}, json.loads(out))
+            with open(os.path.join(self.path, ".task-plan.md"), encoding="utf-8") as fh:
+                self.assertEqual("final plan", fh.read())
+            calls = fake.calls()
+            self.assertEqual(["terminal", "close", "--terminal", "term_plan"], calls[0])
+            self.assertEqual(
+                ["terminal", "create", "--worktree", f"path:{self.path}", "--title", "t1-code", "--command", wlaunch.CODE_COMMAND],
+                calls[1],
+            )
+            self.assertEqual(wlaunch.CODE_PROMPT, sends(fake)[0][sends(fake)[0].index("--text") + 1])
+
+    def test_refuses_when_no_plan_is_pending(self):
+        self.transcript(self.plan_row("p", "t0"), {"message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t0"}]}})
+        with fake_orca.FakeOrca(previews=(AUTO, AUTO)) as fake:
+            code, _, err = self.code()
+            self.assertEqual(1, code)
+            self.assertIn("no plan is pending", err)
+            self.assertEqual([], fake.calls())
+            self.assertFalse(os.path.exists(os.path.join(self.path, ".task-plan.md")))
+
+    def test_coder_that_never_reaches_auto_mode_fails(self):
+        self.transcript(self.plan_row("p"))
+        with fake_orca.FakeOrca(previews=(PLAN, PLAN)):
+            code, _, err = self.code()
+            self.assertEqual(1, code)
+            self.assertIn("auto mode on", err)
 
 
 if __name__ == "__main__":
