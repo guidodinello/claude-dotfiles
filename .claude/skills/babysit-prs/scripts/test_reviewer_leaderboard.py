@@ -32,6 +32,24 @@ class ReviewModel(unittest.TestCase):
         body = HEADER + "🤖 Generated with OpenCode, model `opencode/deepseek-v4-flash-free`."
         self.assertEqual("deepseek-v4-flash", lb.review_model(body))
 
+    def test_unfilled_placeholders_do_not_make_a_row(self):
+        body = HEADER + "🤖 Generated with Claude Code, model `claude-opus-4.8`, effort `<effort>`, scorer `<scorer id>` at `<scorer effort>`."
+        self.assertEqual("claude-opus-4.8", lb.review_model(body))
+
+    def test_parses_the_footer_template_in_the_code_review_skill(self):
+        skill = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "code-review", "SKILL.md")
+        with open(skill, encoding="utf-8") as fh:
+            templates = {line.strip() for line in fh if line.startswith("🤖 Generated with <harness name>, model")}
+        self.assertEqual(1, len(templates), "the footer template lines in code-review/SKILL.md differ")
+        filled = (templates.pop().replace("<harness name>", "Claude Code").replace("<model id>", "claude-sonnet-5-5")
+                  .replace("<scorer effort>", "xhigh").replace("<scorer id>", "claude-haiku-5-5").replace("<effort>", "high"))
+        self.assertEqual("claude-sonnet-5-5@high +scorer claude-haiku-5-5@xhigh", lb.review_model(HEADER + filled))
+
+    def test_long_configuration_labels_are_not_cut(self):
+        stats = {"x": lb.ModelStats("claude-sonnet-5-5@high +scorer claude-haiku-5-5@xhigh")}
+        stats["x"].reviews = 1
+        self.assertIn("claude-sonnet-5-5@high +scorer claude-haiku-5-5@xhigh ", lb.format_model_table(stats, 5))
+
     def test_not_a_code_review(self):
         self.assertIsNone(lb.review_model("LGTM"))
 

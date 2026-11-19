@@ -141,12 +141,12 @@ def review_model(body: str | None) -> str | None:
     head = rest[: scorer.start()] if scorer else rest
     match = _MODEL_RE.search(head)
     model_id = match.group("id").strip().rstrip(".`") if match else ""
-    if not model_id:
+    if not model_id or model_id.startswith("<"):
         return f"unknown:{_harness_slug(rest)}"
     bucket = normalize_model_id(model_id)
-    if effort := _EFFORT_RE.search(head):
+    if (effort := _EFFORT_RE.search(head)) and not effort.group("effort").startswith("<"):
         bucket += f"@{effort.group('effort').lower()}"
-    if scorer:
+    if scorer and not scorer.group("id").startswith("<"):
         bucket += f" +scorer {normalize_model_id(scorer.group('id').rstrip('.`'))}"
         if scorer.group("effort"):
             bucket += f"@{scorer.group('effort').lower()}"
@@ -358,8 +358,9 @@ def format_model_table(stats: dict[str, ModelStats], min_samples: int) -> str:
             return (True, 0.0, -s.reviews)
         return (False, -(s.accepted_pct or 0.0), -s.reviews)
 
+    width = max([28] + [len(s.model) + 2 for s in stats.values()])
     header = (
-        f"{'model':<28}{'revs':>5}{'PRs':>5}{'blk/rev':>8}{'nb/rev':>7}"
+        f"{'model':<{width}}{'revs':>5}{'PRs':>5}{'blk/rev':>8}{'nb/rev':>7}"
         f"{'0-find':>7}{'acc':>5}{'rej':>5}{'oth':>5}{'norep':>6}{'acc%':>6}  note"
     )
     lines = [header, "-" * len(header)]
@@ -367,7 +368,7 @@ def format_model_table(stats: dict[str, ModelStats], min_samples: int) -> str:
         n = s.reviews or 1
         note = f"low-sample (<{min_samples} decided)" if s.decided < min_samples else ""
         lines.append(
-            f"{s.model[:27]:<28}{s.reviews:>5}{len(s.prs):>5}"
+            f"{s.model:<{width}}{s.reviews:>5}{len(s.prs):>5}"
             f"{s.blocking / n:>8.2f}{s.non_blocking / n:>7.2f}"
             f"{s.zero_finding_reviews:>7}{s.outcomes[ACCEPTED]:>5}"
             f"{s.outcomes[REJECTED]:>5}{s.outcomes[OTHER]:>5}"
@@ -379,14 +380,15 @@ def format_model_table(stats: dict[str, ModelStats], min_samples: int) -> str:
 def format_pair_table(pairs: Iterable[PairStat]) -> str:
     rows = [p for p in pairs if p.a_accepted]
     rows.sort(key=lambda p: (p.model_a, -p.missed_by_b, p.model_b))
+    width = max([28] + [len(m) + 2 for p in rows for m in (p.model_a, p.model_b)])
     header = (
-        f"{'model A':<28}{'model B':<28}{'snaps':>6}{'A acc':>7}{'B missed':>10}"
+        f"{'model A':<{width}}{'model B':<{width}}{'snaps':>6}{'A acc':>7}{'B missed':>10}"
         f"{'missed%':>9}"
     )
     lines = [header, "-" * len(header)]
     for p in rows:
         lines.append(
-            f"{p.model_a[:27]:<28}{p.model_b[:27]:<28}{p.shared_snapshots:>6}"
+            f"{p.model_a:<{width}}{p.model_b:<{width}}{p.shared_snapshots:>6}"
             f"{p.a_accepted:>7}{p.missed_by_b:>10}"
             f"{_pct(100 * p.missed_by_b / p.a_accepted):>9}"
         )

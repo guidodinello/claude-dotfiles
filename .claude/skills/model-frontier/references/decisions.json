@@ -38,8 +38,11 @@
     "verify": [
       {
         "what": "The first review after merge and sync.sh shows claude-sonnet-5-5@high and claude-haiku-5-5@xhigh in `model_retro.py measure --kind code-review --since <that day>`, so the skill frontmatter effort reaches the Sonnet agents and the Agent effort reaches the Haiku agents.",
-        "done": null
+        "done": "2026-11-19"
       }
+    ],
+    "evidence": [
+      "Review of PR #111 (2026-11-19, session started with no --effort, so medium): main session turns after the skill loaded ran claude-sonnet-5-5@high, all 5 Sonnet reviewer agents @high, all 11 Haiku agents @xhigh (transcript per-turn effort)."
     ]
   },
   {
