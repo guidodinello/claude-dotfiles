@@ -56,7 +56,7 @@ To do this, follow these steps precisely:
      --input - <<'EOF'
    {
      "commit_id": "<head_sha>",
-     "body": "### Code review\n\nFound N blocking issue(s) and M non-blocking note(s).\n\n🤖 Generated with <harness name>, model `<model id>`.",
+     "body": "### Code review\n\nFound N blocking issue(s) and M non-blocking note(s).\n\n🤖 Generated with <harness name>, model `<model id>`, effort `<effort>`, scorer `<scorer id>` at `<scorer effort>`.",
      "event": "COMMENT",
      "comments": [
        {
@@ -121,10 +121,11 @@ https://github.com/{owner}/{repo}/blob/{full_sha}/{path}#L{start}-L{end}
 
 Found N blocking issue(s) and M non-blocking note(s).
 
-🤖 Generated with <harness name>, model `<model id>`.
+🤖 Generated with <harness name>, model `<model id>`, effort `<effort>`, scorer `<scorer id>` at `<scorer effort>`.
 ```
 
   Replace `<harness name>` and `<model id>` with the identity of the coding agent/CLI and model actually running this skill (e.g. "OpenCode, model `opencode/deepseek-v4-flash-free`", "Kiro CLI, model `claude-opus-4.8`") — never hardcode "Claude Code". If you cannot determine the model id, use the harness name alone: "🤖 Generated with <harness name>."
+  `<effort>` is the `effort` in this file's frontmatter when your harness applies it (Claude Code does). `<scorer id>` and `<scorer effort>` are the model and effort the step 5 scoring agents were launched with, as set at the top of these steps. Name the scorer even when no issue needed scoring, so a clean review lands in the same leaderboard row as its configuration. Drop `, effort ...` when your harness ignores the frontmatter, and drop `, scorer ...` only when your harness has no separate scoring step. `babysit-prs/scripts/reviewer_leaderboard.py` reads these fields to compare configurations.
 
 - Each inline comment should be prefixed with its tier: `**[blocking]**` or `**[non-blocking]**`. This lets the author see priority at a glance without needing to read the full review body.
 
@@ -135,7 +136,7 @@ Found N blocking issue(s) and M non-blocking note(s).
 
 No issues found. Checked for bugs and CLAUDE.md compliance.
 
-🤖 Generated with <harness name>, model `<model id>`.
+🤖 Generated with <harness name>, model `<model id>`, effort `<effort>`, scorer `<scorer id>` at `<scorer effort>`.
 ```
 
 - When linking to code, follow the following format precisely, otherwise the Markdown preview won't render correctly: <https://github.com/anthropics/claude-cli-internal/blob/c21d3c10bc8e898b7ac1a2d745bdc9bc4e423afe/package.json#L10-L15>

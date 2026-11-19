@@ -64,9 +64,9 @@ change goes live at merge and sync, not on the decision date) and compares:
 - **Cost:** median API-equivalent dollars per session before and after, against the AA
   cost ratio the decision predicted.
 - **Quality proxies:** findings per review from the transcripts. Acceptance rates come from
-  `babysit-prs/scripts/reviewer_leaderboard.py`, but it keys rows on the model in the review
-  footer only, without effort or scorer model. Split its output by date around the
-  decision until the footer carries both.
+  `babysit-prs/scripts/reviewer_leaderboard.py`, which gives each reviewer model, effort and
+  scorer configuration in the review footer its own row. Reviews posted before the footer
+  carried effort and scorer show the bare model.
 
 Wait for at least 10 sessions after the change, or the comparison is noise. Report it as
 "index went from X to Y; sessions now cost Z times as much (AA predicted W)", and say
