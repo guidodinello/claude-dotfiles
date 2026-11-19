@@ -31,6 +31,7 @@ from pathlib import Path
 API = "https://api.figma.com/v1"
 EXIT_CHANGED = 10
 DEFAULT_TIER1_BUDGET = 15
+ICON_TYPES = {"VECTOR", "BOOLEAN_OPERATION", "STAR", "REGULAR_POLYGON"}
 TOKEN_EXPIRY_WARN_DAYS = 14
 RENDER_SCALE = 2
 DOWNLOAD_WORKERS = 8
@@ -166,6 +167,75 @@ def screen_copy(screen: Node) -> list[str]:
     return [text for _, _, text in sorted(found)]
 
 
+def paint_hex(paint: dict) -> str | None:
+    if paint.get("type") != "SOLID" or paint.get("visible", True) is False:
+        return None
+    c = paint["color"]
+    hex_ = "#" + "".join(f"{round(c[k] * 255):02x}" for k in "rgb")
+    alpha = c.get("a", 1) * paint.get("opacity", 1)
+    return hex_ if alpha >= 0.995 else f"{hex_} {alpha:.0%}"
+
+
+def first_hex(paints: list[dict] | None) -> str | None:
+    return next((h for p in paints or [] if (h := paint_hex(p))), None)
+
+
+def screen_styles(screen: Node) -> list[str]:
+    """Raw values a build needs and a PNG hides: fonts, hex colors, strokes, radii and auto-layout spacing.
+    Each style is listed once, in the order it first appears, with the layers or copy that use it."""
+    text: dict[str, list[str]] = {}
+    other: dict[str, list[str]] = {}
+
+    def add(table: dict[str, list[str]], key: str, example: str) -> None:
+        table.setdefault(key, [])
+        if example and example not in table[key] and len(table[key]) < 3:
+            table[key].append(example)
+
+    def walk(n: Node) -> None:
+        if n.get("visible", True) is False:
+            return
+        name = one_line(n.get("name", ""))[:40]
+        if n["type"] == "TEXT":
+            st = n.get("style") or {}
+            if st.get("fontFamily"):
+                key = f"`{st['fontFamily']} {st.get('fontWeight', '')} {st.get('fontSize', 0):g}px"
+                if lh := st.get("lineHeightPx"):
+                    key += f"/{lh:g}"
+                if ls := st.get("letterSpacing"):
+                    key += f" tracking {ls:g}"
+                if st.get("italic"):
+                    key += " italic"
+                if st.get("textCase", "ORIGINAL") != "ORIGINAL":
+                    key += f" {st['textCase'].lower()}"
+                key += f"` `{first_hex(n.get('fills')) or 'no fill'}`"
+                add(text, key, '"' + one_line(n.get("characters", ""))[:40] + '"')
+        elif n["type"] in ICON_TYPES:
+            for color in filter(None, (first_hex(n.get("fills")), first_hex(n.get("strokes")))):
+                add(other, f"Icon `{color}`", name)
+        else:
+            if fill := first_hex(n.get("fills")):
+                add(other, f"Fill `{fill}`", name)
+            if (stroke := first_hex(n.get("strokes"))) and n.get("strokeWeight"):
+                add(other, f"Stroke `{stroke}` {round(n['strokeWeight'], 1):g}px", name)
+            if r := n.get("cornerRadius"):
+                add(other, f"Radius {r:g}", name)
+            if n.get("layoutMode") in ("HORIZONTAL", "VERTICAL"):
+                pad = [n.get(f"padding{side}", 0) or 0 for side in ("Top", "Right", "Bottom", "Left")]
+                if not any(pad) and not n.get("itemSpacing"):
+                    return walk_children(n)
+                desc = f"Auto-layout {n['layoutMode'].lower()}, padding {'/'.join(f'{v:g}' for v in pad)}"
+                desc += f", gap {n.get('itemSpacing', 0) or 0:g}"
+                add(other, desc, name)
+        walk_children(n)
+
+    def walk_children(n: Node) -> None:
+        for c in n.get("children", []):
+            walk(c)
+    walk(screen)
+    return ([f"- Text {k}: {', '.join(v)}" for k, v in text.items()]
+            + [f"- {k}: {', '.join(v)}" for k, v in other.items()])
+
+
 @dataclass(slots=True)
 class Group:
     """Screens that sit side by side in one container (a section, a page, or one frame)."""
@@ -238,6 +308,9 @@ def group_readme(g: Group) -> str:
         if notes := g.notes[s["id"]]:
             lines += ["Designer notes:", ""] + [f"> {n}" for n in notes] + [""]
         lines += ["Copy (top to bottom):", ""] + [f"- {c}" for c in screen_copy(s)] + [""]
+        if styles := screen_styles(s):
+            lines += ["Styles (raw Figma values; map each to the project's closest design token):", ""]
+            lines += styles + [""]
     return "\n".join(lines)
 
 
