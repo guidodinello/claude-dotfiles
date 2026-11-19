@@ -72,10 +72,12 @@ class FrontierTest(unittest.TestCase):
         self.assertNotIn("s (xhigh)", text)
         self.assertIn("1 dominated move(s) hidden", text)
 
-    def test_svg_marks_roles(self):
-        svg = aa_frontier.render_svg(self.models, {"review": {"release": "s", "effort": "medium"}}, "5.0.1", "2026-11-19")
+    def test_svg_marks_roles_sharing_a_point_once(self):
+        roles = {"review": {"release": "s", "effort": "medium"}, "coder": {"release": "s", "effort": "medium"}}
+        svg = aa_frontier.render_svg(self.models, roles, "5.0.1", "2026-11-19")
         self.assertTrue(svg.startswith("<svg"))
-        self.assertIn(">review</text>", svg)
+        self.assertIn(">review, coder</text>", svg)
+        self.assertEqual(svg.count('r="9"'), 1)
 
 
 if __name__ == "__main__":

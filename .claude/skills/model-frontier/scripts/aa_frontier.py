@@ -251,16 +251,19 @@ def render_svg(models: list[dict[str, Any]], roles: dict[str, Any], version: str
             out.append(f'<polyline fill="none" stroke="{color}" stroke-width="2" points="' + " ".join(f"{x(m['cost_per_task']):.1f},{y(m['index']):.1f}" for m in points) + '"/>')
         for m in points:
             out.append(f'<circle cx="{x(m["cost_per_task"]):.1f}" cy="{y(m["index"]):.1f}" r="4" fill="{color}"><title>{html.escape(m["name"])}: {m["index"]:.1f} pts, ${m["cost_per_task"]:.2f}/task</title></circle>')
-            out.append(f'<text x="{x(m["cost_per_task"]) + 6:.1f}" y="{y(m["index"]) + 4:.1f}" fill="{color}" font-size="10">{html.escape(m["effort"] or "")}</text>')
+            out.append(f'<text x="{x(m["cost_per_task"]) + 12:.1f}" y="{y(m["index"]) + 4:.1f}" fill="{color}" font-size="10">{html.escape(m["effort"] or "")}</text>')
         ly = top + 10 + i * 18
         out.append(f'<rect x="{width - right + 20}" y="{ly - 9}" width="10" height="10" fill="{color}"/><text x="{width - right + 36}" y="{ly}">{html.escape(release)}</text>')
 
+    roles_at: dict[str, list[str]] = {}
     for name, role in roles.items():
-        m = variant(models, role["release"], role["effort"])
-        if m:
-            cx, cy = x(m["cost_per_task"]), y(m["index"])
-            out.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="9" fill="none" stroke="#111" stroke-width="1.5"/>')
-            out.append(f'<text x="{cx - 10:.1f}" y="{cy - 12:.1f}" text-anchor="end" fill="#111" font-weight="600">{html.escape(name)}</text>')
+        if m := variant(models, role["release"], role["effort"]):
+            roles_at.setdefault(m["slug"], []).append(name)
+    for slug, names in roles_at.items():
+        m = next(m for m in models if m["slug"] == slug)
+        cx, cy = x(m["cost_per_task"]), y(m["index"])
+        out.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="9" fill="none" stroke="#111" stroke-width="1.5"/>')
+        out.append(f'<text x="{cx - 12:.1f}" y="{cy - 12:.1f}" text-anchor="end" fill="#111" font-weight="600">{html.escape(", ".join(names))}</text>')
     ly = top + 10 + len(releases) * 18 + 10
     out.append(f'<line x1="{width - right + 20}" x2="{width - right + 32}" y1="{ly - 4}" y2="{ly - 4}" stroke="#999" stroke-dasharray="4 4"/><text x="{width - right + 36}" y="{ly}">Pareto frontier</text>')
     out.append(f'<circle cx="{width - right + 26}" cy="{ly + 14}" r="6" fill="none" stroke="#111"/><text x="{width - right + 36}" y="{ly + 18}">our current role</text>')
