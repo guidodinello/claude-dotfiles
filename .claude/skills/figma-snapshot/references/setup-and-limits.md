@@ -40,10 +40,14 @@ Optional `"token_expires": "YYYY-MM-DD"`: the date the token expires, as shown w
 
 | Path | What |
 |---|---|
-| `<node>/<section>/…/` | `NN-<screen>.png` (2x) and `README.md` (flow, designer notes, copy, node ids) |
+| `<node>/<section>/…/` | `NN-<screen>.png` (2x) and `README.md` (flow, designer notes, copy, styles, node ids) |
 | `CHANGES.md` | One entry per pull that found changes, newest first, with copy diffs |
 | `state.json` | Last pulled version, plus a hash per screen |
 | `nodes.json` | Raw `/nodes` response from the last pull (styles, geometry) |
+
+Each screen's Styles section lists every text style (family, weight, size/line height, color) with the copy that uses it, plus fills, strokes, icon colors, radii and non-zero auto-layout padding and gap, with the layer names. Values are raw hex: the REST endpoint for variable names needs an Enterprise plan, so token names are not available. Mixed styles inside one text layer show only the base style; look in `nodes.json` for those.
+
+Regenerating the READMEs after a skill update costs no Tier 1 call: `pull --force --nodes-json <dir>/<target>/nodes.json --no-render`. Run it only when `check` says unchanged: otherwise `state.json` records the new file version against the old `nodes.json`, and the next `pull` misses the changes.
 
 ## Rate limits
 
