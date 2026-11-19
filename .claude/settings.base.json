@@ -101,7 +101,17 @@
     "anthropic-skills:import-memory": "off",
     "anthropic-skills:internal-comms": "off",
     "anthropic-skills:morning": "off",
-    "anthropic-skills:project-knowledge-update": "off"
+    "anthropic-skills:project-knowledge-update": "off",
+    "agents-sdk": "off",
+    "cloudflare": "off",
+    "cloudflare-email-service": "off",
+    "cloudflare-one": "off",
+    "cloudflare-one-migrations": "off",
+    "durable-objects": "off",
+    "sandbox-sdk": "off",
+    "turnstile-spin": "off",
+    "workers-best-practices": "off",
+    "wrangler": "off"
   },
   "hooks": {
     "PreToolUse": [

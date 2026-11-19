@@ -38,6 +38,12 @@ Current baseline (see `~/.claude/settings.json`): Slite sync skills and the
 `db-scalability-audit`, `permissions-audit`, `code-health`, etc.) and PR/permissions helpers
 are `user-invocable-only` since they're expensive/niche but still useful on demand.
 
+Stack-specific skills that only some projects use are `off` here and turned back `on` in
+those projects' gitignored `.claude/settings.local.json`. A project's `skillOverrides` merges
+key by key with this one, so it only needs the skills it re-enables. Today that is the
+Cloudflare set (`cloudflare*`, `durable-objects`, `agents-sdk`, `sandbox-sdk`,
+`workers-best-practices`, `wrangler`, `turnstile-spin`), installed outside this repo.
+
 | Skill | Description |
 |---|---|
 | `/accessibility-review` | WCAG 2.2 AA audit of the web frontend (semantic HTML, ARIA, keyboard, contrast, screen readers, reduced motion, touch targets), grouped by component; applies only safe, unambiguous fixes |
