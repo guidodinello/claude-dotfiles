@@ -17,6 +17,9 @@ is public).
 - Exclamation marks go in greetings and acks ("perfect, thanks!", "sure, will do!"), never on
   technical lines, findings or reports.
 - Light humor and the odd Slack emoji code are his. Keep them sparse.
+- A short ack is one casual word and the point ("cool, good to know …!"), not a stacked
+  "perfect, thanks <name>! …" opener. He often pairs it with an emoji reaction on their
+  message, so when suggesting an ack, suggest the reaction too (18 Nov 2026).
 
 ## Sentences
 
