@@ -22,7 +22,8 @@ baseline numbers in the decision itself; `check` never needs the old transcripts
 Usage:
   model_retro.py measure --kind code-review [--since YYYY-MM-DD] [--until YYYY-MM-DD]
   model_retro.py record --id ID --kind code-review --from claude-sonnet-5-5@medium --to claude-sonnet-5-5@high --change "..."
-  model_retro.py check --id ID
+  model_retro.py check --id ID [--save]
+  model_retro.py verified --id ID --item N
 """
 
 from __future__ import annotations
@@ -245,6 +246,7 @@ def cmd_record(args: argparse.Namespace) -> int:
             "input_price_ratio": round(new["price_1m_input"] / old["price_1m_input"], 2),
         },
         "baseline": baseline,
+        "verify": [{"what": what, "done": None} for what in args.verify or []],
         "checks": [],
     }
     decisions.append(decision)
@@ -277,9 +279,32 @@ def cmd_check(args: argparse.Namespace) -> int:
     print(f"Cost mix after: {after['cost_share']}")
     if after["sessions"] < 10:
         print(f"\nOnly {after['sessions']} sessions since the change: too few to judge, check again later.")
+    print_open_verifications(decision)
     if args.save:
         decision["checks"].append({"date": dt.date.today().isoformat(), "after": after, "observed_cost_ratio": observed})
         DECISIONS_FILE.write_text(json.dumps(decisions, indent=2) + "\n")
+    return 0
+
+
+def print_open_verifications(decision: dict[str, Any]) -> None:
+    open_items = [(i, v["what"]) for i, v in enumerate(decision.get("verify", [])) if not v["done"]]
+    if open_items:
+        print("\nStill to verify (mark with `verified --id <id> --item <n>`):")
+        for i, what in open_items:
+            print(f"  {i}. {what}")
+
+
+def cmd_verified(args: argparse.Namespace) -> int:
+    decisions = load_decisions()
+    decision = next((d for d in decisions if d["id"] == args.id), None)
+    if decision is None:
+        raise SystemExit(f"no decision {args.id} in {DECISIONS_FILE}")
+    items = decision.get("verify", [])
+    if not 0 <= args.item < len(items):
+        raise SystemExit(f"{args.id} has no verify item {args.item}")
+    items[args.item]["done"] = dt.date.today().isoformat()
+    DECISIONS_FILE.write_text(json.dumps(decisions, indent=2) + "\n")
+    print_open_verifications(decision)
     return 0
 
 
@@ -301,10 +326,15 @@ def main(argv: list[str] | None = None) -> int:
     record.add_argument("--to", dest="to_variant", required=True, help="<release>@<effort>")
     record.add_argument("--change", required=True, help="one line: what changed and where")
     record.add_argument("--since", help="baseline window start (default: 30 days ago)")
+    record.add_argument("--verify", action="append", help="a runtime check the change still needs, repeatable; `check` lists it until marked done")
     record.set_defaults(func=cmd_record)
     check = sub.add_parser("check", help="compare sessions since a decision with its baseline")
     check.add_argument("--id", required=True)
     check.add_argument("--save", action="store_true", help="append the result to the decision")
+    verified = sub.add_parser("verified", help="mark one verify item of a decision as done")
+    verified.add_argument("--id", required=True)
+    verified.add_argument("--item", type=int, required=True)
+    verified.set_defaults(func=cmd_verified)
     check.set_defaults(func=cmd_check)
     args = parser.parse_args(argv)
     return args.func(args)

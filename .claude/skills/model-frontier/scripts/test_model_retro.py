@@ -1,7 +1,10 @@
+import contextlib
 import datetime as dt
+import io
 import json
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 import model_retro
@@ -50,6 +53,18 @@ class RetroTest(unittest.TestCase):
     def test_window_excludes_sessions(self):
         result = model_retro.collect("code-review", dt.date(2026, 11, 11), dt.date(2026, 11, 30), [self.root], PRICES)
         self.assertEqual(result["sessions"], 0)
+
+    def test_verify_items_stay_listed_until_marked_done(self):
+        decisions = self.root / "decisions.json"
+        decisions.write_text(json.dumps([{"id": "d1", "verify": [{"what": "first review shows sonnet@high", "done": None}]}]))
+        with mock.patch.object(model_retro, "DECISIONS_FILE", decisions):
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                model_retro.print_open_verifications(model_retro.load_decisions()[0])
+            self.assertIn("0. first review shows sonnet@high", out.getvalue())
+            with contextlib.redirect_stdout(io.StringIO()):
+                model_retro.main(["verified", "--id", "d1", "--item", "0"])
+            self.assertTrue(model_retro.load_decisions()[0]["verify"][0]["done"])
 
     def test_unknown_model_is_reported_not_priced(self):
         self.assertIsNone(model_retro.turn_cost({"model": "gpt-x", "usage": {"output_tokens": 5}}, PRICES))

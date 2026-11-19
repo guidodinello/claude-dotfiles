@@ -46,6 +46,9 @@ The roles, what each one runs today, and the file that sets it are in
    Transcripts expire after `cleanupPeriodDays` (30 by default), so the baseline is gone if
    you wait:
    `python3 scripts/model_retro.py record --id <yyyy-mm-dd-short-name> --kind code-review --from claude-sonnet-5-5@medium --to claude-sonnet-5-5@high --change "<what changed, in which file>"`
+   Add one `--verify "<what to confirm at runtime>"` per thing a diff can't prove, such as
+   "the first review shows claude-sonnet-5-5@high". `check` lists open items until
+   `model_retro.py verified --id <id> --item <n>` marks them done.
    Then make the change in the file named by `set_in`, update `roles.json`, and commit
    both with `decisions.json`.
 
