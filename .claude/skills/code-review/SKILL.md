@@ -5,9 +5,12 @@ description: >
   checks CLAUDE.md compliance, bugs, git history, previous PR comments, and
   code comment guidance. Posts blocking findings and a separate non-blocking
   section on the PR.
+effort: high
 ---
 
 Provide a code review for the given pull request.
+
+Launch every Haiku agent below with `effort: xhigh`. Haiku is a different model from the session, so it does not inherit the session's effort and would otherwise run at its default (medium). Sonnet agents inherit this skill's `effort: high`.
 
 To do this, follow these steps precisely:
 

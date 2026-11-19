@@ -8,7 +8,7 @@ usage: spawn_reviewer.py PR [-R OWNER/REPO] [--repo-dir DIR] [--config-dir DIR]
 Reproduces the recipe the orchestrator used to type by hand:
 
   1. detached worktree of the PR head branch, next to the repo checkout
-  2. herdr workspace `rev<PR>` with CLAUDE_CONFIG_DIR set, Claude Sonnet (medium
+  2. herdr workspace `rev<PR>` with CLAUDE_CONFIG_DIR set, Claude Sonnet (high
      effort, auto permission mode) started in it
   3. the full `/code-review` brief sent as a prompt
   4. wait for the review to be POSTED (a new review whose body starts with
@@ -321,7 +321,7 @@ def spawn(args: argparse.Namespace) -> int:
             "--model",
             "sonnet",
             "--effort",
-            "medium",
+            "high",
             "--permission-mode",
             "auto",
         ]
