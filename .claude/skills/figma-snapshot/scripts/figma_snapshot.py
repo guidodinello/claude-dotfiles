@@ -167,6 +167,14 @@ def screen_copy(screen: Node) -> list[str]:
     return [text for _, _, text in sorted(found)]
 
 
+TEXT_CASES = {"UPPER", "LOWER", "TITLE", "SMALL_CAPS", "SMALL_CAPS_FORCED"}
+
+
+def clean(value: object, limit: int = 40) -> str:
+    """Designer-controlled text inside a Styles line: one line, no backticks, capped."""
+    return one_line(str(value)).replace("`", "'")[:limit]
+
+
 def paint_hex(paint: dict) -> str | None:
     if paint.get("type") != "SOLID" or paint.get("visible", True) is False:
         return None
@@ -194,21 +202,21 @@ def screen_styles(screen: Node) -> list[str]:
     def walk(n: Node) -> None:
         if n.get("visible", True) is False:
             return
-        name = one_line(n.get("name", ""))[:40]
+        name = clean(n.get("name", ""))
         if n["type"] == "TEXT":
             st = n.get("style") or {}
             if st.get("fontFamily"):
-                key = f"`{st['fontFamily']} {st.get('fontWeight', '')} {st.get('fontSize', 0):g}px"
+                key = f"`{clean(st['fontFamily'], 60)} {st.get('fontWeight', 0):g} {st.get('fontSize', 0):g}px"
                 if lh := st.get("lineHeightPx"):
                     key += f"/{lh:g}"
                 if ls := st.get("letterSpacing"):
                     key += f" tracking {ls:g}"
                 if st.get("italic"):
                     key += " italic"
-                if st.get("textCase", "ORIGINAL") != "ORIGINAL":
+                if st.get("textCase") in TEXT_CASES:
                     key += f" {st['textCase'].lower()}"
                 key += f"` `{first_hex(n.get('fills')) or 'no fill'}`"
-                add(text, key, '"' + one_line(n.get("characters", ""))[:40] + '"')
+                add(text, key, '"' + clean(n.get("characters", "")) + '"')
         elif n["type"] in ICON_TYPES:
             for color in filter(None, (first_hex(n.get("fills")), first_hex(n.get("strokes")))):
                 add(other, f"Icon `{color}`", name)
