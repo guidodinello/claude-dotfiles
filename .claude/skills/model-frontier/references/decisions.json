@@ -34,6 +34,12 @@
       "findings_per_review_median": 2.0,
       "unpriced_models": []
     },
-    "checks": []
+    "checks": [],
+    "verify": [
+      {
+        "what": "The first review after merge and sync.sh shows claude-sonnet-5-5@high and claude-haiku-5-5@xhigh in `model_retro.py measure --kind code-review --since <that day>`, so the skill frontmatter effort reaches the Sonnet agents and the Agent effort reaches the Haiku agents.",
+        "done": null
+      }
+    ]
   }
 ]
