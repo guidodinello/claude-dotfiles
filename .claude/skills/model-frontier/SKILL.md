@@ -52,13 +52,15 @@ The roles, what each one runs today, and the file that sets it are in
 ## Checking a past decision
 
 Run `python3 scripts/model_retro.py check --id <id>`, and add `--save` to store the result
-in the decision. It measures sessions of the decision's kind since its date and compares:
+in the decision. It measures sessions of the decision's kind that ran the new variant (the
+change goes live at merge and sync, not on the decision date) and compares:
 
 - **Cost:** median API-equivalent dollars per session before and after, against the AA
   cost ratio the decision predicted.
-- **Quality proxies:** findings per review from the transcripts. For acceptance rates, run
-  `babysit-prs/scripts/reviewer_leaderboard.py`. Its rows are keyed by the model and effort
-  in the review footer.
+- **Quality proxies:** findings per review from the transcripts. Acceptance rates come from
+  `babysit-prs/scripts/reviewer_leaderboard.py`, but it keys rows on the model in the review
+  footer only, without effort or scorer model. Split its output by date around the
+  decision until the footer carries both.
 
 Wait for at least 10 sessions after the change, or the comparison is noise. Report it as
 "index went from X to Y; sessions now cost Z times as much (AA predicted W)", and say

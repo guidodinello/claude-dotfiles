@@ -131,7 +131,8 @@ def session_start(path: Path) -> dt.date | None:
     return None
 
 
-def collect(kind: str, since: dt.date, until: dt.date, projects_dirs: list[Path], prices: dict[str, dict[str, float]]) -> dict[str, Any]:
+def collect(kind: str, since: dt.date, until: dt.date, projects_dirs: list[Path], prices: dict[str, dict[str, float]], require: str | None = None) -> dict[str, Any]:
+    """Cost profile of one session kind. `require` (model@effort) keeps only sessions with a turn on it."""
     kinds = aa_frontier.load_roles()["session_kinds"]
     sessions = []
     unpriced: set[str] = set()
@@ -154,6 +155,8 @@ def collect(kind: str, since: dt.date, until: dt.date, projects_dirs: list[Path]
             cost += value
             key = f"{turn['model']}@{turn['effort'] or '?'}"
             mix[key] = mix.get(key, 0.0) + value
+        if require and require not in mix:
+            continue
         findings = [int(a) + int(b) for a, b in FINDINGS_RE.findall(text)] if kind == "code-review" else []
         sessions.append({"cost": cost, "mix": mix, "findings": findings[-1] if findings else None})
     return summarize(kind, since, until, sessions, unpriced)
@@ -256,19 +259,21 @@ def cmd_check(args: argparse.Namespace) -> int:
     decision = next((d for d in decisions if d["id"] == args.id), None)
     if decision is None:
         raise SystemExit(f"no decision {args.id} in {DECISIONS_FILE}")
-    since = dt.date.fromisoformat(decision["date"]) + dt.timedelta(days=1)
-    after = collect(decision["kind"], since, dt.date.today(), projects(args), prices)
+    # The change goes live at merge and sync, not at the decision date, so "after" counts only
+    # sessions that actually ran the new variant.
+    after = collect(decision["kind"], dt.date.fromisoformat(decision["date"]), dt.date.today(), projects(args), prices, require=decision["to"])
     before, expected = decision["baseline"], decision["expected"]
     b, a = before["cost_per_session"]["median"], after["cost_per_session"]["median"]
     observed = round(a / b, 2) if a is not None and b else None
     print(f"# {decision['id']}: {decision['change']}\n")
-    print(f"Expected (AA v{expected['index_version']}): {expected['index_from']:.0f} -> {expected['index_to']:.0f} pts, cost x{expected['aa_cost_ratio']} per AA task\n")
+    predicted = expected.get("blended_cost_ratio", expected["aa_cost_ratio"])
+    print(f"Expected (AA v{expected['index_version']}): {expected['index_from']:.0f} -> {expected['index_to']:.0f} pts, cost x{predicted} per session\n")
     print("| | Before | After |")
     print("|---|---|---|")
     print(f"| Sessions | {before['sessions']} | {after['sessions']} |")
     print(f"| Median API-equivalent $ per session | {b} | {a} |")
     print(f"| Median findings per review | {before['findings_per_review_median']} | {after['findings_per_review_median']} |")
-    print(f"\nObserved cost ratio: {observed} (AA predicted {expected['aa_cost_ratio']})")
+    print(f"\nObserved cost ratio: {observed} (predicted {predicted})")
     print(f"Cost mix after: {after['cost_share']}")
     if after["sessions"] < 10:
         print(f"\nOnly {after['sessions']} sessions since the change: too few to judge, check again later.")
