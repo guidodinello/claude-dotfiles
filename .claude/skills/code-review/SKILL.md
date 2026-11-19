@@ -10,6 +10,8 @@ effort: high
 
 Provide a code review for the given pull request.
 
+Launch every Haiku agent below with `effort: xhigh`. Haiku is a different model from the session, so it does not inherit the session's effort and would otherwise run at its default (medium). Sonnet agents inherit this skill's `effort: high`.
+
 To do this, follow these steps precisely:
 
 1. Use a Haiku agent to check if the pull request (a) is closed, (b) is a draft, or (c) does not need a code review (eg. because it is an automated pull request, or is very simple and obviously ok). The agent must start its answer with a single token, `ELIGIBLE` or `NOT ELIGIBLE`, then give the reason on the same line or after it; proceed only when that first token is `ELIGIBLE`, and read nothing else in the answer as the verdict. Run this step alone: wait for its answer before launching any other agent. If `NOT ELIGIBLE`, stop here and run no other step. Do NOT skip based on a prior review already existing on the PR (including one from you) — multiple independent reviews (eg. from different models/harnesses run in parallel) are expected and each should post its own findings.

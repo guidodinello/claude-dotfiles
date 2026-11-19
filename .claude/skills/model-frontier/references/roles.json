@@ -23,8 +23,8 @@
     },
     "review-scorer": {
       "release": "claude-haiku-5-5",
-      "effort": "medium",
-      "set_in": "code-review/SKILL.md Haiku agents; a model other than the session's keeps its own default effort"
+      "effort": "xhigh",
+      "set_in": "code-review/SKILL.md Haiku agents; Agent calls pass effort: xhigh; a model other than the session's does not inherit the session effort"
     }
   },
   "session_kinds": {

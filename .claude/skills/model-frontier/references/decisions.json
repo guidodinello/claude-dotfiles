@@ -2,7 +2,7 @@
   {
     "id": "2026-11-19-review-sonnet-high",
     "date": "2026-11-19",
-    "change": "code-review: Sonnet reviewer session and its 5 reviewer agents from medium to high effort (spawn_reviewer.py --effort, code-review SKILL.md agent effort)",
+    "change": "code-review: Sonnet session and its 5 reviewer agents from medium to high effort (skill frontmatter, spawn_reviewer.py --effort), and the Haiku agents from medium to xhigh (Agent effort)",
     "kind": "code-review",
     "from": "claude-sonnet-5-5@medium",
     "to": "claude-sonnet-5-5@high",
@@ -12,8 +12,8 @@
       "index_to": 41.52,
       "aa_cost_ratio": 2.1,
       "input_price_ratio": 1.0,
-      "blended_cost_ratio": 2.06,
-      "note": "Weighted by baseline cost share: Sonnet 96% at 2.1x; Haiku scorers (4%) keep their own default effort."
+      "blended_cost_ratio": 2.12,
+      "note": "Weighted by baseline cost share: Sonnet 96% at 2.1x (31 to 42 pts) plus Haiku 4% at 2.7x (25 to 35 pts). Both ship together, so one decision."
     },
     "baseline": {
       "kind": "code-review",
