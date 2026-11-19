@@ -44,6 +44,8 @@ DECISIONS_FILE = aa_frontier.SKILL_DIR / "references" / "decisions.json"
 DEFAULT_PROJECTS = [Path.home() / ".claude" / "projects"]
 CACHE_WRITE_5M, CACHE_WRITE_1H = 1.25, 2.0
 FINDINGS_RE = re.compile(r"Found (\d+) blocking issue\(s\) and (\d+) non-blocking")
+CLEAN_REVIEW = "No issues found. Checked for bugs and CLAUDE.md compliance."
+MODEL_ALIASES = ("haiku", "sonnet", "opus", "fable")
 
 
 def first_prompt(record: dict[str, Any]) -> str | None:
@@ -85,9 +87,10 @@ def turns(paths: Iterable[Path]) -> list[dict[str, Any]]:
             if not isinstance(message, dict) or not message.get("usage"):
                 continue
             key = message.get("id") or record.get("requestId") or record.get("uuid")
-            if key in seen:
-                continue
-            seen.add(key)
+            if key is not None:
+                if key in seen:
+                    continue
+                seen.add(key)
             out.append({"model": message.get("model"), "effort": record.get("effort"), "usage": message["usage"]})
     return out
 
@@ -112,11 +115,35 @@ def turn_cost(turn: dict[str, Any], prices: dict[str, dict[str, float]]) -> floa
 
 
 def price_table(snapshot: dict[str, Any]) -> dict[str, dict[str, float]]:
+    """Prices by model id. Transcripts sometimes log a short alias (`haiku`), priced as the
+    first release of that family in the snapshot's watch list."""
     prices = {}
     for m in snapshot["models"]:
         if m["release"] and m["price_1m_input"] is not None and m["price_1m_output"] is not None:
             prices.setdefault(m["release"], {"input": m["price_1m_input"], "output": m["price_1m_output"], "cache_hit": m["price_1m_cache_hit"] if m["price_1m_cache_hit"] is not None else m["price_1m_input"] * 0.1})
+    for alias in MODEL_ALIASES:
+        release = next((r for r in snapshot.get("releases", []) if r.startswith(f"claude-{alias}-") and r in prices), None)
+        if release:
+            prices.setdefault(alias, prices[release])
     return prices
+
+
+def assistant_text(paths: Iterable[Path]) -> str:
+    """What the session itself wrote (text and tool inputs), not the skill text it was given."""
+    parts = []
+    for path in paths:
+        for record in read_jsonl(path):
+            message = record.get("message")
+            if isinstance(message, dict) and message.get("role") == "assistant":
+                parts.append(json.dumps(message.get("content"), ensure_ascii=False))
+    return "\n".join(parts)
+
+
+def review_findings(text: str) -> int | None:
+    counts = [int(a) + int(b) for a, b in FINDINGS_RE.findall(text)]
+    if counts:
+        return counts[-1]
+    return 0 if CLEAN_REVIEW in text else None
 
 
 def session_files(projects_dirs: list[Path]) -> Iterable[Path]:
@@ -141,7 +168,6 @@ def collect(kind: str, since: dt.date, until: dt.date, projects_dirs: list[Path]
         start = session_start(path)
         if start is None or not since <= start <= until:
             continue
-        text = path.read_text(errors="replace")
         prompt = next((p for r in read_jsonl(path) if (p := first_prompt(r))), None)
         if classify(prompt, kinds) != kind:
             continue
@@ -158,8 +184,8 @@ def collect(kind: str, since: dt.date, until: dt.date, projects_dirs: list[Path]
             mix[key] = mix.get(key, 0.0) + value
         if require and require not in mix:
             continue
-        findings = [int(a) + int(b) for a, b in FINDINGS_RE.findall(text)] if kind == "code-review" else []
-        sessions.append({"cost": cost, "mix": mix, "findings": findings[-1] if findings else None})
+        findings = review_findings(assistant_text([path])) if kind == "code-review" else None
+        sessions.append({"cost": cost, "mix": mix, "findings": findings})
     return summarize(kind, since, until, sessions, unpriced)
 
 
@@ -230,7 +256,7 @@ def cmd_record(args: argparse.Namespace) -> int:
     if old is None or new is None:
         raise SystemExit("both variants must be in the snapshot")
     today = dt.date.today()
-    baseline = collect(args.kind, parse_date(args.since, today - dt.timedelta(days=30)), today, projects(args), prices)
+    baseline = collect(args.kind, parse_date(args.since, today - dt.timedelta(days=30)), today, projects(args), prices, require=args.from_variant)
     decision = {
         "id": args.id,
         "date": today.isoformat(),
@@ -277,6 +303,8 @@ def cmd_check(args: argparse.Namespace) -> int:
     print(f"| Median findings per review | {before['findings_per_review_median']} | {after['findings_per_review_median']} |")
     print(f"\nObserved cost ratio: {observed} (predicted {predicted})")
     print(f"Cost mix after: {after['cost_share']}")
+    if after["unpriced_models"]:
+        print(f"Not priced, left out of the cost: {after['unpriced_models']}")
     if after["sessions"] < 10:
         print(f"\nOnly {after['sessions']} sessions since the change: too few to judge, check again later.")
     print_open_verifications(decision)

@@ -1,5 +1,8 @@
 import json
+import tempfile
 import unittest
+from pathlib import Path
+from unittest import mock
 
 import aa_frontier
 
@@ -49,6 +52,27 @@ class ParsePageTest(unittest.TestCase):
         html = page([model("a", "s", "low", 10, 20, 0.5)]) + page([], version="4.3.2")
         with self.assertRaises(aa_frontier.ScrapeError):
             aa_frontier.parse_page(html)
+
+
+class RobustnessTest(unittest.TestCase):
+    def test_zero_cost_rows_are_dropped(self):
+        _, models = aa_frontier.parse_page(page([model("free", "f", "low", 10, 20, 0.0), model("s-med", "s", "medium", 30, 31, 0.78)]))
+        self.assertEqual([m["slug"] for m in models], ["s-med"])
+
+    def test_network_error_becomes_a_scrape_error(self):
+        def boom(*_args, **_kwargs):
+            raise aa_frontier.urllib.error.URLError("offline")
+        with mock.patch.object(aa_frontier.urllib.request, "urlopen", boom):
+            with self.assertRaises(aa_frontier.ScrapeError):
+                aa_frontier.fetch_page("claude-x")
+
+    def test_newest_snapshot_compares_versions_as_numbers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            snaps = Path(tmp) / "snapshots"
+            snaps.mkdir()
+            for name in ("2026-11-19-v5.0.9.json", "2026-11-19-v5.0.10.json", "2026-11-18-v5.1.0.json"):
+                (snaps / name).write_text("{}")
+            self.assertEqual(aa_frontier.latest_snapshot(Path(tmp)).name, "2026-11-19-v5.0.10.json")
 
 
 class FrontierTest(unittest.TestCase):

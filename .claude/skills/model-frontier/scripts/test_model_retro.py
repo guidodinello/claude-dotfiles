@@ -32,7 +32,7 @@ class RetroTest(unittest.TestCase):
             user_line("<command-name>/code-review</command-name> 12"),
             turn_line("m1", "claude-sonnet-5-5", "medium", 1_000_000),
             turn_line("m1", "claude-sonnet-5-5", "medium", 1_000_000),
-            json.dumps({"type": "assistant", "message": {"content": "Found 2 blocking issue(s) and 1 non-blocking note(s)."}}),
+            json.dumps({"type": "assistant", "message": {"role": "assistant", "content": "Found 2 blocking issue(s) and 1 non-blocking note(s)."}}),
         ]) + "\n")
         sub = project / "r1" / "subagents"
         sub.mkdir(parents=True)
@@ -65,6 +65,36 @@ class RetroTest(unittest.TestCase):
             with contextlib.redirect_stdout(io.StringIO()):
                 model_retro.main(["verified", "--id", "d1", "--item", "0"])
             self.assertTrue(model_retro.load_decisions()[0]["verify"][0]["done"])
+
+    def test_clean_review_counts_as_zero_but_skill_text_does_not(self):
+        skill_text = json.dumps({"type": "user", "message": {"role": "user", "content": "post: No issues found. Checked for bugs and CLAUDE.md compliance."}})
+        posted = json.dumps({"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "input": {"body": "No issues found. Checked for bugs and CLAUDE.md compliance."}}]}})
+        clean, unposted = self.root / "clean.jsonl", self.root / "unposted.jsonl"
+        clean.write_text(skill_text + "\n" + posted + "\n")
+        unposted.write_text(skill_text + "\n")
+        self.assertEqual(model_retro.review_findings(model_retro.assistant_text([clean])), 0)
+        self.assertIsNone(model_retro.review_findings(model_retro.assistant_text([unposted])))
+
+    def test_short_model_alias_is_priced_as_the_watched_release(self):
+        snapshot = {"releases": ["claude-haiku-5-5"], "models": [{"release": "claude-haiku-5-5", "price_1m_input": 0.1, "price_1m_output": 0.5, "price_1m_cache_hit": 0.01}]}
+        prices = model_retro.price_table(snapshot)
+        self.assertEqual(prices["haiku"], prices["claude-haiku-5-5"])
+        self.assertNotIn("sonnet", prices)
+
+    def test_turns_without_any_id_are_all_counted(self):
+        path = self.root / "keyless.jsonl"
+        line = json.dumps({"type": "assistant", "message": {"model": "claude-sonnet-5-5", "usage": {"output_tokens": 1}}})
+        path.write_text(line + "\n" + line + "\n")
+        self.assertEqual(len(model_retro.turns([path])), 2)
+
+    def test_session_kind_prompts_match_the_files_that_send_them(self):
+        skills = Path(__file__).resolve().parents[2]
+        owners = {"Run /code-review on PR": skills / "babysit-prs/scripts/spawn_reviewer.py", "Read .task-brief.md": skills / "orca-orchestration/scripts/wlaunch.py"}
+        kinds = model_retro.aa_frontier.load_roles()["session_kinds"]
+        prefixes = {p for rule in kinds.values() for p in rule.get("first_prompt_prefix", [])}
+        self.assertEqual(prefixes - set(owners), set(), "add the owning file of each new prefix to this test")
+        for prefix, owner in owners.items():
+            self.assertIn(prefix, owner.read_text(), f"{owner.name} no longer sends {prefix!r}")
 
     def test_unknown_model_is_reported_not_priced(self):
         self.assertIsNone(model_retro.turn_cost({"model": "gpt-x", "usage": {"output_tokens": 5}}, PRICES))

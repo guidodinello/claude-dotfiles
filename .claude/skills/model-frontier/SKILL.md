@@ -12,17 +12,19 @@ predicted.
 
 The roles, what each one runs today, and the file that sets it are in
 `references/roles.json`. Past decisions, with their predictions and baselines, are in
-`references/decisions.json`.
+`references/decisions.json`. `<skill-dir>` below is this skill's installed folder
+(`~/.claude/skills/model-frontier`); the scripts find their data from their own path, so
+they run from any directory.
 
 ## When a model drops, or to re-check the setup
 
 1. **Fetch.** Add the new release's AA slug to `watch` in `references/roles.json` (the URL
    path of `artificialanalysis.ai/models/<slug>`), then run:
-   `python3 scripts/aa_frontier.py fetch`
+   `python3 <skill-dir>/scripts/aa_frontier.py fetch`
    This writes `~/.claude/model-frontier/snapshots/<date>-v<index version>.json`. The
    script reads the data embedded in the page with plain HTTP, no browser. If it fails
    with `scrape failed`, the page layout changed: fix the parser, don't guess numbers.
-2. **Report.** Run `python3 scripts/aa_frontier.py report --previous <older snapshot>`.
+2. **Report.** Run `python3 <skill-dir>/scripts/aa_frontier.py report --previous <older snapshot>`.
    You get a table of every variant, the move options per role, and an SVG plot next to
    the snapshot. Open it with `open <path>.svg` and give the user the path. Diffs only
    work within one index version; the script refuses to compare v4 with v5.
@@ -34,8 +36,9 @@ The roles, what each one runs today, and the file that sets it are in
    - **AA cost per task vs our cost.** Our sessions are mostly cache reads and cache writes.
      The "input price per token" column is the better guide for long agentic sessions.
      The retro check shows which one held, so read past `checks` in `decisions.json`.
-   - **Price tiers AA doesn't show.** Haiku 5.5 costs 5x more above a 100K-token prompt,
-     and long Claude Code sessions pass that.
+   - **Price tiers AA doesn't show.** The claude-api skill's model table lists Haiku 5.5 at
+     $0.50/$2.50 per 1M tokens above a 100K-token prompt (5x its base). Long Claude Code
+     sessions pass that.
    - **How effort is set.** Effort is per session: subagents inherit it unless the Agent
      call sets `effort`. Check whether `opusplan` applies one effort to both the Opus
      planning phase and the Sonnet coding phase: read the per-turn `(model, effort)` in a
@@ -45,7 +48,7 @@ The roles, what each one runs today, and the file that sets it are in
 4. **Record, then apply.** Before changing any flag, record the decision with its baseline.
    Transcripts expire after `cleanupPeriodDays` (30 by default), so the baseline is gone if
    you wait:
-   `python3 scripts/model_retro.py record --id <yyyy-mm-dd-short-name> --kind code-review --from claude-sonnet-5-5@medium --to claude-sonnet-5-5@high --change "<what changed, in which file>"`
+   `python3 <skill-dir>/scripts/model_retro.py record --id <yyyy-mm-dd-short-name> --kind code-review --from claude-sonnet-5-5@medium --to claude-sonnet-5-5@high --change "<what changed, in which file>"`
    Add one `--verify "<what to confirm at runtime>"` per thing a diff can't prove, such as
    "the first review shows claude-sonnet-5-5@high". `check` lists open items until
    `model_retro.py verified --id <id> --item <n>` marks them done.
@@ -54,7 +57,7 @@ The roles, what each one runs today, and the file that sets it are in
 
 ## Checking a past decision
 
-Run `python3 scripts/model_retro.py check --id <id>`, and add `--save` to store the result
+Run `python3 <skill-dir>/scripts/model_retro.py check --id <id>`, and add `--save` to store the result
 in the decision. It measures sessions of the decision's kind that ran the new variant (the
 change goes live at merge and sync, not on the decision date) and compares:
 

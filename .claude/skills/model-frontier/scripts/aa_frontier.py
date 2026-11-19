@@ -17,7 +17,7 @@ evaluations, and mixing them is what produced contradictory numbers on aggregato
 
 Usage:
   aa_frontier.py fetch [--release claude-opus-5-5 ...] [--data-dir DIR]
-  aa_frontier.py report [--snapshot PATH] [--previous PATH] [--svg PATH] [--all-creators]
+  aa_frontier.py report [--snapshot PATH] [--previous PATH] [--svg PATH] [--all-creators] [--show-dominated]
 """
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ import json
 import math
 import re
 import sys
+import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -83,7 +84,7 @@ def _num(value: Any) -> float | None:
 def normalize(obj: dict[str, Any]) -> dict[str, Any] | None:
     cost = (obj.get("intelligenceIndexCostPerTask") or {}).get("cost") or {}
     index, total = _num(obj.get("intelligenceIndex")), _num(cost.get("total"))
-    if index is None or total is None:
+    if index is None or total is None or total <= 0:
         return None
     effort = obj.get("effort") or {}
     release = obj.get("release") or {}
@@ -116,8 +117,11 @@ def parse_page(page_html: str) -> tuple[str, list[dict[str, Any]]]:
 
 def fetch_page(release: str) -> str:
     request = urllib.request.Request(PAGE_URL.format(release=release), headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(request, timeout=60) as response:
-        return response.read().decode("utf-8")
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            return response.read().decode("utf-8")
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        raise ScrapeError(f"{release}: could not fetch the page ({exc})") from exc
 
 
 def load_roles() -> dict[str, Any]:
@@ -162,8 +166,16 @@ def variant(models: list[dict[str, Any]], release: str, effort: str) -> dict[str
     return next((m for m in models if m["release"] == release and m["effort"] == effort), None)
 
 
+def snapshot_order(path: Path) -> tuple:
+    """Date, then index version as numbers: v5.0.10 is newer than v5.0.9."""
+    match = re.match(r"(\d{4}-\d{2}-\d{2})-v(\d+(?:\.\d+)*)$", path.stem)
+    if not match:
+        return (path.stem, ())
+    return (match.group(1), tuple(int(n) for n in match.group(2).split(".")))
+
+
 def latest_snapshot(data_dir: Path) -> Path:
-    snaps = sorted((data_dir / "snapshots").glob("*.json"))
+    snaps = sorted((data_dir / "snapshots").glob("*.json"), key=snapshot_order)
     if not snaps:
         raise SystemExit(f"no snapshot under {data_dir}/snapshots: run `fetch` first")
     return snaps[-1]
