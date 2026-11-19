@@ -11,7 +11,9 @@
       "index_from": 30.82,
       "index_to": 41.52,
       "aa_cost_ratio": 2.1,
-      "input_price_ratio": 1.0
+      "input_price_ratio": 1.0,
+      "blended_cost_ratio": 2.06,
+      "note": "Weighted by baseline cost share: Sonnet 96% at 2.1x; Haiku scorers (4%) keep their own default effort."
     },
     "baseline": {
       "kind": "code-review",
@@ -46,7 +48,9 @@
       "index_from": 30.82,
       "index_to": 41.52,
       "aa_cost_ratio": 2.1,
-      "input_price_ratio": 1.0
+      "input_price_ratio": 1.0,
+      "blended_cost_ratio": 1.92,
+      "note": "Weighted by baseline cost share: Sonnet 73% at 2.1x plus Opus planning 27% at 1.4x (Opus medium to high). Opus high is dominated on AA (Fable 5.2 low scores more for less), accepted because opusplan has one effort for both phases."
     },
     "baseline": {
       "kind": "worker",
