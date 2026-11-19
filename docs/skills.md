@@ -42,7 +42,8 @@ Stack-specific skills that only some projects use are `off` here and turned back
 those projects' gitignored `.claude/settings.local.json`. A project's `skillOverrides` merges
 key by key with this one, so it only needs the skills it re-enables. Today that is the
 Cloudflare set (`cloudflare*`, `durable-objects`, `agents-sdk`, `sandbox-sdk`,
-`workers-best-practices`, `wrangler`, `turnstile-spin`), installed outside this repo.
+`workers-best-practices`, `wrangler`, `turnstile-spin`), installed outside this repo, and
+`ios-sim`, on in iOS app repos.
 
 | Skill | Description |
 |---|---|

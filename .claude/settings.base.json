@@ -111,7 +111,14 @@
     "sandbox-sdk": "off",
     "turnstile-spin": "off",
     "workers-best-practices": "off",
-    "wrangler": "off"
+    "wrangler": "off",
+    "go-testing": "off",
+    "ios-sim": "off",
+    "opencode-dual-review": "user-invocable-only",
+    "find-skills": "user-invocable-only",
+    "gentle-ai-bench": "user-invocable-only",
+    "issue-creation": "user-invocable-only",
+    "skill-improver": "user-invocable-only"
   },
   "hooks": {
     "PreToolUse": [
