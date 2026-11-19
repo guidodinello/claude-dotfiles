@@ -89,7 +89,7 @@ Profile and index for orchestrated implementer runs on <project>. Method: the `o
 ### Workers
 
 - **Read-first files**: <absolute path of the workspace CLAUDE.md; product-context files>
-- **Files workers must never commit**: <besides .task-brief.md and .orchestrator-answers.md>
+- **Files workers must never commit**: <besides .task-brief.md, .orchestrator-answers.md and .task-plan.md>
 - **Protected files the orchestrator writes for workers**: <e.g. env files under a deny rule>
 - **Consent gates to check in pre-flight**: <tools that prompt before commits>
 - **Permission rules in the orchestrator settings**: <the exact rules, expanded paths, e.g. `Bash(orca terminal send:*)`, `Bash(python3 -I <home>/.claude/skills/orca-orchestration/scripts/*)`, `Bash(<home>/.claude/skills/orca-orchestration/scripts/fb.sh:*)`, `Bash(<home>/.claude/skills/orca-orchestration/scripts/tread.sh:*)`, `Bash(python3 -I <run-dir>/make-brief.py:*)`>

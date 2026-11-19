@@ -8,11 +8,12 @@ Before any worktree exists, confirm these with the user (fill from the profile, 
 
 ```text
 Orchestrate the implementation of <story id> subtasks with the orca CLI.
-- Workers: new Orca worktrees with Claude Code, model opusplan, plan mode.
+- Workers: new Orca worktrees. A planner session in plan mode writes the plan; on approval a
+  fresh coder session in auto mode implements it (models and efforts: `wlaunch.py`).
 - Initial prompts go through <worktree>/.task-brief.md; the worker is told to read it.
   The brief asks the worker to open the PR when done.
-- Plans: the orchestrator answers their questions; an approved plan switches the worker
-  to auto mode ("Yes, and use auto mode").
+- Plans: the orchestrator answers their questions; an approved plan is saved to
+  <worktree>/.task-plan.md and handed to the coder (`wlaunch.py code`).
 - Base: <integration branch per repo, or the base branch for single-PR repos>.
   Children merge into the integration branch with merge commits; one final <squash>
   to <base branch> after the user validates.
@@ -25,13 +26,13 @@ Orchestrate the implementation of <story id> subtasks with the orca CLI.
 ## 1. Pre-flight
 
 - **Consent gates.** Check any repo-level gate that prompts before commits (a review-mode tool, a commit hook asking for input) in every repo in play. If one is on, workers stall at its prompt: ask the user before launching.
-- **CLI flags.** `claude --help | rg permission-mode` confirms `--model opusplan --permission-mode plan` still exist.
+- **CLI flags.** `claude --help | rg -e permission-mode -e effort` confirms `--model`, `--effort` and `--permission-mode plan|auto` still exist.
 - **Orca repo setup.** `orca repo show --repo id:<id> --json` shows the worktree Setup Script (dependency install, env file) is still wired.
 - **Git exclude for the brief and answers files**, in every repo in play. Worktrees share the common `.git`, so one entry covers them all:
 
   ```bash
   common=$(git -C <repo> rev-parse --path-format=absolute --git-common-dir)
-  printf '%s\n' .task-brief.md .orchestrator-answers.md >> "$common/info/exclude"
+  printf '%s\n' .task-brief.md .orchestrator-answers.md .task-plan.md >> "$common/info/exclude"
   ```
 
   Without `--path-format=absolute`, `rev-parse --git-common-dir` can return a relative `.git` that resolves against your cwd and lands in the wrong repo.
@@ -129,7 +130,9 @@ python3 -I <home>/.claude/skills/orca-orchestration/scripts/wlaunch.py start <wo
 - **Plan ready** (pending `ExitPlanMode`): read it with `wplan.py`.
   - To answer, pick the plan menu's "Tell Claude what to change" option (observed: **3**; read the menu first) with a one-line pointer, or `fb.sh`.
   - Put the answers in `<worktree>/.orchestrator-answers.md`, then `wsend.py <handle> "Read .orchestrator-answers.md, fold it into the plan and re-present it"`. Keep shell-quoted texts free of apostrophes.
-  - When the plan comes back, check it contains the answers (`wplan.py <worktree> | rg <keyword>`), then approve with "Yes, and use auto mode" (observed: **1**), as `wsend.py <handle> --menu 1`.
+  - When the plan comes back, check it contains the answers (`wplan.py <worktree> | rg <keyword>`), then approve with `wlaunch.py code <worktree> --title <task-id>-code --planner <planner handle>`. Record the coder's handle in `ids.json`; later messages and menus go to it. Never pick "Yes" on the planner's menu.
+  - Why two sessions: `opusplan` runs both phases at one effort, so the coder could not get a higher effort than the planner. The coder also starts with a small context instead of everything the planner read. The plan must therefore stand on its own: files, steps, decisions and the answers, not "as discussed".
+  - The watchers follow the newest transcript in the worktree, so after `code` they report on the coder.
 - **Question** (pending `AskUserQuestion`): send the option number, then a follow-up message with any constraints.
 - **Permission prompt** for a tool you allow: read the last screen lines, then send the option that allows it. Never answer with a keyword loop: a plan text that mentions the tool would get the same keystroke, and on the plan menu that number means something else. Tools that prompt on every call need an answer every time.
 - **Network drop** (`ENOTFOUND` on the worker screen): check the API host is reachable, then tell the worker to continue where it left off. The same outage makes review models "fail".
@@ -194,4 +197,5 @@ python3 -I <home>/.claude/skills/orca-orchestration/scripts/wlaunch.py start <wo
 | `Unknown command: terminal send term_...` (also `read`, `close`) | The handle was passed positionally | Always `--terminal <h>`; `wsend.py` and `wlaunch.py` do |
 | `orca terminal create --command` leaves the command typed at the shell prompt, no TUI | The shell's nvm hook is slow when the command arrives | `wlaunch.py start` presses Enter once when it sees the command at the prompt; by hand, send a bare Enter |
 | The review stops with "NOT ELIGIBLE ... is a draft" | A stacked PR was opened as a draft | `gh pr view <n> --json isDraft`, then `gh pr ready <n>` before the review |
+| Coder re-plans or asks what was decided | The plan leaned on the planner's context | Ask the planner for a self-contained plan before `wlaunch.py code`; point the coder at `.orchestrator-answers.md` |
 | Worker silent after an Orca restart | Orca killed its process; the transcript ends like an idle turn | `wwatch2.py` reports DEAD (process table); relaunch with `claude --resume` |

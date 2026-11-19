@@ -160,9 +160,14 @@ def session_start(path: Path) -> dt.date | None:
 
 
 def collect(kind: str, since: dt.date, until: dt.date, projects_dirs: list[Path], prices: dict[str, dict[str, float]], require: str | None = None) -> dict[str, Any]:
-    """Cost profile of one session kind. `require` (model@effort) keeps only sessions with a turn on it."""
+    """Cost profile of one session kind. `require` (model@effort) keeps only units with a turn on it.
+
+    A unit is one session, or with `"unit": "project"` every matching session in one project dir
+    (one worktree), so a worker split into planner and coder sessions counts once.
+    """
     kinds = aa_frontier.load_roles()["session_kinds"]
-    sessions = []
+    by_project = kinds[kind].get("unit") == "project"
+    units: dict[Path, dict[str, Any]] = {}
     unpriced: set[str] = set()
     for path in session_files(projects_dirs):
         start = session_start(path)
@@ -182,10 +187,14 @@ def collect(kind: str, since: dt.date, until: dt.date, projects_dirs: list[Path]
             cost += value
             key = f"{turn['model']}@{turn['effort'] or '?'}"
             mix[key] = mix.get(key, 0.0) + value
-        if require and require not in mix:
-            continue
         findings = review_findings(assistant_text([path])) if kind == "code-review" else None
-        sessions.append({"cost": cost, "mix": mix, "findings": findings})
+        unit = units.setdefault(path.parent if by_project else path, {"cost": 0.0, "mix": {}, "findings": None})
+        unit["cost"] += cost
+        for key, value in mix.items():
+            unit["mix"][key] = unit["mix"].get(key, 0.0) + value
+        if findings is not None:
+            unit["findings"] = findings
+    sessions = [u for u in units.values() if not require or require in u["mix"]]
     return summarize(kind, since, until, sessions, unpriced)
 
 

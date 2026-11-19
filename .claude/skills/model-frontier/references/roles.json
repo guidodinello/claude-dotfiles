@@ -9,12 +9,12 @@
     "worker-plan": {
       "release": "claude-opus-5-5",
       "effort": "medium",
-      "set_in": "orca-orchestration/scripts/wlaunch.py DEFAULT_COMMAND (opusplan, plan mode)"
+      "set_in": "orca-orchestration/scripts/wlaunch.py DEFAULT_COMMAND (planner session)"
     },
     "worker-code": {
       "release": "claude-sonnet-5-5",
-      "effort": "medium",
-      "set_in": "orca-orchestration/scripts/wlaunch.py DEFAULT_COMMAND (opusplan, after plan approval)"
+      "effort": "high",
+      "set_in": "orca-orchestration/scripts/wlaunch.py CODE_COMMAND (coder session)"
     },
     "review-main": {
       "release": "claude-sonnet-5-5",
@@ -33,7 +33,8 @@
       "first_prompt_prefix": ["Run /code-review on PR"]
     },
     "worker": {
-      "first_prompt_prefix": ["Read .task-brief.md"]
+      "first_prompt_prefix": ["Read .task-brief.md", "Your plan is approved and saved in .task-plan.md"],
+      "unit": "project"
     }
   }
 }

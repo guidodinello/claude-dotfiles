@@ -41,5 +41,52 @@
         "done": null
       }
     ]
+  },
+  {
+    "id": "2026-11-19-worker-split",
+    "date": "2026-11-19",
+    "change": "orca workers: opusplan at medium replaced by a planner session (Opus medium) plus a fresh coder session (Sonnet high) per worktree (wlaunch.py start / code)",
+    "kind": "worker",
+    "from": "claude-sonnet-5-5@medium",
+    "to": "claude-sonnet-5-5@high",
+    "expected": {
+      "index_version": "5.0.1",
+      "index_from": 30.82,
+      "index_to": 41.52,
+      "aa_cost_ratio": 2.1,
+      "input_price_ratio": 1.0,
+      "blended_cost_ratio": 1.82,
+      "note": "Weighted by baseline cost share: Sonnet 75% at 2.1x (31 to 42 pts), Opus planning 25% unchanged. The coder's fresh context should cut prompt size (baseline median 282K tokens per Sonnet turn), so the observed ratio may come in below this."
+    },
+    "baseline": {
+      "kind": "worker",
+      "window": [
+        "2026-10-20",
+        "2026-11-19"
+      ],
+      "sessions": 41,
+      "cost_per_session": {
+        "median": 6.197,
+        "p25": 3.547,
+        "p75": 13.224
+      },
+      "cost_share": {
+        "claude-sonnet-5-5@medium": 0.745,
+        "claude-opus-5-5@medium": 0.255
+      },
+      "findings_per_review_median": null,
+      "unpriced_models": []
+    },
+    "checks": [],
+    "verify": [
+      {
+        "what": "The first orchestration run after merge and sync.sh launches a planner, `wlaunch.py code` saves the plan, closes the planner and starts the coder, and the coder implements .task-plan.md without re-planning or asking what was decided.",
+        "done": null
+      }
+    ],
+    "evidence": [
+      "opusplan uses one effort for both models: `claude -p --model opusplan --effort high` recorded (claude-opus-5-5, high) per turn in plan mode and (claude-sonnet-5-5, high) outside it (2026-11-19, two runs, transcript per-turn `effort`).",
+      "Status line text: `claude --permission-mode auto` shows `⏵⏵ auto mode on (shift+tab to cycle)` and `--permission-mode plan` shows `⏸ plan mode on (shift+tab to cycle)` (live TUI captured with tmux capture-pane, 2026-11-19)."
+    ]
   }
 ]

@@ -102,7 +102,7 @@ def main():
         "- Never pipe `git commit`, `git push`, `gh api` writes or `gh pr` writes (`create`, `merge`, `edit`, `comment`, "
         "`review`, `close`) into `tail` or `head`: it hides a hook rejection or CLI error. Run unpiped (optionally "
         "followed by `; echo exit=$?`), or `set -o pipefail; ...` in the same command.\n"
-        "- `git status` before every commit. Never commit `.task-brief.md` or `.orchestrator-answers.md`.",
+        "- `git status` before every commit. Never commit `.task-brief.md`, `.orchestrator-answers.md` or `.task-plan.md`.",
         read(docs / "brief-rules" / "common.md"),
         read(docs / "brief-rules" / f"{t['repo']}.md"),
         f"## Your task ({t['id']})\n\n{task_body}",
