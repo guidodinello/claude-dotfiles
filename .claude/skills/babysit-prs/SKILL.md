@@ -19,7 +19,7 @@ to spawn several `Agent` calls and a couple of herdr panes, and to loop back
 after each merge because landing one PR can put another into conflict.
 
 Mental model: **Claude Sonnet agents write/fix code, and a separate herdr
-Sonnet (medium effort) session running the full `/code-review` reviews it.**
+Sonnet (high effort) session running the full `/code-review` reviews it.**
 You are the orchestrator tying both together with `gh`, never the one
 hand-editing PR branches yourself except for trivial, mechanical
 merge-conflict resolution you're confident about.

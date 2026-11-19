@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fake_orca  # noqa: E402
 import wlaunch  # noqa: E402
 
-TYPED = "$ claude --model opusplan --permission-mode plan"
+TYPED = "$ claude --model opusplan --effort high --permission-mode plan"
 PLAN = "plan mode on (shift+tab to cycle)"
 PROMPT = "Read .task-brief.md and plan."
 

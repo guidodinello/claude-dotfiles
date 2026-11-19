@@ -5,6 +5,7 @@ description: >
   checks CLAUDE.md compliance, bugs, git history, previous PR comments, and
   code comment guidance. Posts blocking findings and a separate non-blocking
   section on the PR.
+effort: high
 ---
 
 Provide a code review for the given pull request.

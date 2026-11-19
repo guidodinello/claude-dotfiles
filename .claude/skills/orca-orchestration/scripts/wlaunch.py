@@ -31,7 +31,7 @@ _spec = importlib.util.spec_from_file_location(
 _orca = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_orca)
 
-DEFAULT_COMMAND = "claude --model opusplan --permission-mode plan"
+DEFAULT_COMMAND = "claude --model opusplan --effort high --permission-mode plan"
 DEFAULT_PROMPT = (
     "Read .task-brief.md in this worktree root and follow it exactly: investigate, then write "
     "your implementation plan with an explicit Open questions section. Do not implement until "

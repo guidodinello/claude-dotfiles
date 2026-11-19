@@ -8,23 +8,23 @@
     },
     "worker-plan": {
       "release": "claude-opus-5-5",
-      "effort": "medium",
+      "effort": "high",
       "set_in": "orca-orchestration/scripts/wlaunch.py DEFAULT_COMMAND (opusplan, plan mode)"
     },
     "worker-code": {
       "release": "claude-sonnet-5-5",
-      "effort": "medium",
+      "effort": "high",
       "set_in": "orca-orchestration/scripts/wlaunch.py DEFAULT_COMMAND (opusplan, after plan approval)"
     },
     "review-main": {
       "release": "claude-sonnet-5-5",
-      "effort": "medium",
+      "effort": "high",
       "set_in": "the session running /code-review; babysit-prs/scripts/spawn_reviewer.py --effort"
     },
     "review-scorer": {
       "release": "claude-haiku-5-5",
       "effort": "medium",
-      "set_in": "code-review/SKILL.md Haiku agents; inherit the session effort"
+      "set_in": "code-review/SKILL.md Haiku agents; a model other than the session's keeps its own default effort"
     }
   },
   "session_kinds": {
