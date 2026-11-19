@@ -70,7 +70,9 @@ PAIR_LINE_WINDOW = 5
 
 _CODE_REVIEW_HEADER_RE = re.compile(r"^\s*#{2,3}\s*Code review\b", re.IGNORECASE)
 _FOOTER_RE = re.compile(r"Generated with\s+(?P<rest>[^\n]*)", re.IGNORECASE)
-_MODEL_RE = re.compile(r"\bmodel\b:?\s*`?\s*(?P<id>[^`\s]+)", re.IGNORECASE)
+_MODEL_RE = re.compile(r"\bmodel\b:?\s*`?\s*(?P<id>[^`\s,]+)", re.IGNORECASE)
+_EFFORT_RE = re.compile(r"\beffort\b:?\s*`?\s*(?P<effort>[a-z]+)", re.IGNORECASE)
+_SCORER_RE = re.compile(r"\bscorer\b:?\s*`?\s*(?P<id>[^`\s,]+)`?(?:\s+at\s+`?\s*(?P<effort>[a-z]+))?", re.IGNORECASE)
 _MD_LINK_RE = re.compile(r"\[([^\]]*)\]\([^)]*\)")
 _BLOCKING_RE = re.compile(r"\[blocking\]", re.IGNORECASE)
 
@@ -125,7 +127,9 @@ def review_model(body: str | None) -> str | None:
     """Model bucket for a review body, or None if it is not a code review.
 
     A code review without a usable model id is `unknown:<harness>` (or plain
-    `unknown` with no footer at all), so it still shows up in the table.
+    `unknown` with no footer at all), so it still shows up in the table. Footers that
+    name the effort and the scoring agents (code-review skill) get their own bucket,
+    `<model>@<effort> +scorer <model>@<effort>`; older footers keep the bare model.
     """
     if not body or not _CODE_REVIEW_HEADER_RE.match(body):
         return None
@@ -133,11 +137,20 @@ def review_model(body: str | None) -> str | None:
     if footer is None:
         return "unknown"
     rest = footer.group("rest")
-    match = _MODEL_RE.search(rest)
+    scorer = _SCORER_RE.search(rest)
+    head = rest[: scorer.start()] if scorer else rest
+    match = _MODEL_RE.search(head)
     model_id = match.group("id").strip().rstrip(".`") if match else ""
     if not model_id:
         return f"unknown:{_harness_slug(rest)}"
-    return normalize_model_id(model_id)
+    bucket = normalize_model_id(model_id)
+    if effort := _EFFORT_RE.search(head):
+        bucket += f"@{effort.group('effort').lower()}"
+    if scorer:
+        bucket += f" +scorer {normalize_model_id(scorer.group('id').rstrip('.`'))}"
+        if scorer.group("effort"):
+            bucket += f"@{scorer.group('effort').lower()}"
+    return bucket
 
 
 def classify_reply(body: str | None) -> str:
