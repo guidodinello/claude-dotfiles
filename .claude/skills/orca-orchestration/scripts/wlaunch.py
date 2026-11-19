@@ -106,7 +106,10 @@ def save_pending_plan(worktree):
     if not pending or pending.get("name") != "ExitPlanMode":
         raise RuntimeError("no plan is pending approval: read it with wplan.py once the planner presents it")
     path = os.path.join(worktree, ".task-plan.md")
-    with open(path, "w", encoding="utf-8") as fh:
+    # The worktree is a checkout of someone's repo: a committed .task-plan.md symlink must not
+    # redirect this write outside it.
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
         fh.write((pending.get("input") or {}).get("plan") or "")
     return path
 
@@ -164,7 +167,7 @@ def main(argv=None):
         else:
             _orca.refuse_unsendable(args.prompt)
             out = code(os.path.abspath(args.worktree), args.title, args.planner, args.prompt, args.command)
-    except (_orca.OrcaError, FileNotFoundError, RuntimeError, ValueError) as exc:
+    except (_orca.OrcaError, OSError, RuntimeError, ValueError) as exc:
         print(f"wlaunch: {exc}", file=sys.stderr)
         return 1
     print(json.dumps(out))

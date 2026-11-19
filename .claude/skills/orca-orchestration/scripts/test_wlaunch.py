@@ -215,6 +215,18 @@ class Code(unittest.TestCase):
             self.assertEqual([], fake.calls())
             self.assertFalse(os.path.exists(os.path.join(self.path, ".task-plan.md")))
 
+    def test_refuses_to_write_through_a_planted_symlink(self):
+        self.transcript(self.plan_row("p"))
+        target = os.path.join(self.cfg.name, "outside.txt")
+        with open(target, "w", encoding="utf-8") as fh:
+            fh.write("keep")
+        os.symlink(target, os.path.join(self.path, ".task-plan.md"))
+        with fake_orca.FakeOrca(previews=(AUTO, AUTO)):
+            code, _, _ = self.code()
+        self.assertNotEqual(0, code)
+        with open(target, encoding="utf-8") as fh:
+            self.assertEqual("keep", fh.read())
+
     def test_coder_that_never_reaches_auto_mode_fails(self):
         self.transcript(self.plan_row("p"))
         with fake_orca.FakeOrca(previews=(PLAN, PLAN)):
