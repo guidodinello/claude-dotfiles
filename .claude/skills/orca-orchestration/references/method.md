@@ -8,7 +8,7 @@ Before any worktree exists, confirm these with the user (fill from the profile, 
 
 ```text
 Orchestrate the implementation of <story id> subtasks with the orca CLI.
-- Workers: new Orca worktrees with Claude Code, model opusplan at high effort, plan mode. One effort applies to both phases, so Opus plans at high too (the 2026-11-19 decision in model-frontier).
+- Workers: new Orca worktrees with Claude Code, model opusplan, plan mode.
 - Initial prompts go through <worktree>/.task-brief.md; the worker is told to read it.
   The brief asks the worker to open the PR when done.
 - Plans: the orchestrator answers their questions; an approved plan switches the worker
@@ -25,7 +25,7 @@ Orchestrate the implementation of <story id> subtasks with the orca CLI.
 ## 1. Pre-flight
 
 - **Consent gates.** Check any repo-level gate that prompts before commits (a review-mode tool, a commit hook asking for input) in every repo in play. If one is on, workers stall at its prompt: ask the user before launching.
-- **CLI flags.** `claude --help | rg permission-mode` confirms `--model opusplan --effort high --permission-mode plan` still exist.
+- **CLI flags.** `claude --help | rg permission-mode` confirms `--model opusplan --permission-mode plan` still exist.
 - **Orca repo setup.** `orca repo show --repo id:<id> --json` shows the worktree Setup Script (dependency install, env file) is still wired.
 - **Git exclude for the brief and answers files**, in every repo in play. Worktrees share the common `.git`, so one entry covers them all:
 

@@ -35,42 +35,5 @@
       "unpriced_models": []
     },
     "checks": []
-  },
-  {
-    "id": "2026-11-19-worker-effort-high",
-    "date": "2026-11-19",
-    "change": "orca workers: opusplan at --effort high (wlaunch.py DEFAULT_COMMAND). One effort for both phases, so Opus planning also moves medium to high",
-    "kind": "worker",
-    "from": "claude-sonnet-5-5@medium",
-    "to": "claude-sonnet-5-5@high",
-    "expected": {
-      "index_version": "5.0.1",
-      "index_from": 30.82,
-      "index_to": 41.52,
-      "aa_cost_ratio": 2.1,
-      "input_price_ratio": 1.0,
-      "blended_cost_ratio": 1.92,
-      "note": "Weighted by baseline cost share: Sonnet 73% at 2.1x plus Opus planning 27% at 1.4x (Opus medium to high). Opus high is dominated on AA (Fable 5.2 low scores more for less), accepted because opusplan has one effort for both phases."
-    },
-    "baseline": {
-      "kind": "worker",
-      "window": [
-        "2026-10-20",
-        "2026-11-19"
-      ],
-      "sessions": 53,
-      "cost_per_session": {
-        "median": 5.777,
-        "p25": 3.447,
-        "p75": 10.538
-      },
-      "cost_share": {
-        "claude-sonnet-5-5@medium": 0.734,
-        "claude-opus-5-5@medium": 0.266
-      },
-      "findings_per_review_median": null,
-      "unpriced_models": []
-    },
-    "checks": []
   }
 ]

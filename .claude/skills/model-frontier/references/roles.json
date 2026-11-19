@@ -8,12 +8,12 @@
     },
     "worker-plan": {
       "release": "claude-opus-5-5",
-      "effort": "high",
+      "effort": "medium",
       "set_in": "orca-orchestration/scripts/wlaunch.py DEFAULT_COMMAND (opusplan, plan mode)"
     },
     "worker-code": {
       "release": "claude-sonnet-5-5",
-      "effort": "high",
+      "effort": "medium",
       "set_in": "orca-orchestration/scripts/wlaunch.py DEFAULT_COMMAND (opusplan, after plan approval)"
     },
     "review-main": {
