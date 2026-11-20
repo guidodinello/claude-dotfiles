@@ -34,7 +34,14 @@ Wired globally from `settings.base.json`. After an Edit/Write to a `.json` file,
 
 ### dev-docs-index-check.py (Stop)
 
-Wired globally from `settings.base.json` on `Stop`. When the session's cwd has a `my-dev-things/` folder and a file in it changed since the session started (the transcript's creation time), it runs the `dev-docs-index` skill's `check_index.py`. On findings it exits 2, so Claude keeps going and fixes the indexes before it stops. A Stop hook, not a PostToolUse one, because most edits there go through Bash and an index is legitimately incomplete mid-task. It fails open (bad input or a missing checker exits 0) and exits 0 when `stop_hook_active` is set, so it blocks at most once per turn. Old gaps don't block a session that never touched the tree.
+Wired globally from `settings.base.json` on `Stop`. When the session's cwd has a `my-dev-things/` folder and a doc or script in it (`.md`, `.sh`, `.py`, `.mjs`, `.html`) changed since the session started (the transcript's creation time), it runs the `dev-docs-index` skill's `check_index.py`. It keeps only findings about that work: a gap in a folder where a file changed, or a missing README or unnamed subfolder on the path down to one. On those it exits 2, so Claude keeps going and fixes the indexes before it stops. Logs a running stack keeps rewriting don't count, and an old gap in another folder (or in a parent) never blocks.
+
+- **Why Stop, not PostToolUse:** most edits there go through Bash, and an index is legitimately incomplete mid-task.
+- **Failing safe:** it fails open (bad input or a missing checker exits 0) and exits 0 when `stop_hook_active` is set, so it blocks at most once per turn.
+- **Not covered:**
+  - a deleted or moved file;
+  - worktree sessions, whose cwd has the `.my-dev-things` link instead of the folder;
+  - two sessions editing under the same parent folder, where one session's unfinished folder can block the other.
 
 ---
 

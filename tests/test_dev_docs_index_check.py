@@ -75,6 +75,43 @@ class StopHookTest(unittest.TestCase):
         self.old_files()
         self.assertEqual(self.run_hook(self.payload()).returncode, ALLOW)
 
+    def test_rewritten_logs_do_not_count_as_a_change(self) -> None:
+        (self.tree / "old").mkdir()
+        (self.tree / "old" / "notes.md").write_text("x")
+        self.old_files()
+        (self.tree / "logs").mkdir()
+        (self.tree / "logs" / "ngrok.log").write_text("rewritten by a running stack")
+        self.assertEqual(self.run_hook(self.payload()).returncode, ALLOW)
+
+    def test_old_gap_in_another_folder_does_not_block(self) -> None:
+        (self.tree / "README.md").write_text("`a/` `b/`")
+        for name in ("a", "b"):
+            (self.tree / name).mkdir()
+            (self.tree / name / "README.md").write_text("`doc.md`")
+            (self.tree / name / "doc.md").write_text("x")
+        (self.tree / "b" / "stale.md").write_text("never indexed")
+        self.old_files()
+        (self.tree / "a" / "doc.md").write_text("edited this session")
+        self.assertEqual(self.run_hook(self.payload()).returncode, ALLOW)
+
+    def test_old_gap_in_a_parent_does_not_block_a_child_edit(self) -> None:
+        (self.tree / "README.md").write_text("`a/`")
+        (self.tree / "a").mkdir()
+        (self.tree / "a" / "README.md").write_text("`doc.md`")
+        (self.tree / "a" / "doc.md").write_text("x")
+        (self.tree / "stale.md").write_text("never indexed")
+        self.old_files()
+        (self.tree / "a" / "doc.md").write_text("edited this session")
+        self.assertEqual(self.run_hook(self.payload()).returncode, ALLOW)
+
+    def test_new_folder_reports_its_parent_too(self) -> None:
+        (self.tree / "inv").mkdir()
+        (self.tree / "inv" / "report.md").write_text("x")
+        result = self.run_hook(self.payload())
+        self.assertEqual(result.returncode, BLOCK)
+        self.assertIn("inv: no README.md", result.stderr)
+        self.assertIn("does not name subfolder inv/", result.stderr)
+
     def test_stop_hook_active_never_blocks(self) -> None:
         (self.tree / "new-notes.md").write_text("x")
         self.assertEqual(self.run_hook(self.payload(stop_hook_active=True)).returncode, ALLOW)

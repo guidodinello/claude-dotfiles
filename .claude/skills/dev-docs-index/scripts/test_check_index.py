@@ -70,6 +70,11 @@ class CheckTreeTest(unittest.TestCase):
         self.write("2026-10-22-daily.md")
         self.assertEqual(self.findings(), [])
 
+    def test_bare_wildcards_do_not_count_as_listing(self) -> None:
+        self.write("README.md", "Sessions are `aw-*`, select `*`, open `x?token=1`.")
+        self.write("tool.mjs")
+        self.assertEqual(self.findings(), ["ROOT/README.md: does not name tool.mjs"])
+
     def test_broken_link_reported_and_urls_ignored(self) -> None:
         self.write("README.md", "[x](./gone.md) [y](https://example.com/a) [z](#top) [w](mailto:a@b.c)")
         self.assertEqual(self.findings(), ["ROOT/README.md: broken link ./gone.md"])

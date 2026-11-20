@@ -12,7 +12,7 @@ the skill's rule 5. Once a folder has a README.md, it is an index and must be co
 For every folder that has one, the checks are:
   - every subfolder that needs a README is named in it
   - every navigational file (NAV_SUFFIXES) directly inside is named in it, by name or by a
-    backticked glob such as `*-daily.md`
+    backticked glob that ends in one of those suffixes, such as `*-daily.md`
   - every relative markdown link in it resolves
 
 A `.index-ignore` file in any folder lists glob patterns, one per line (`#` comments),
@@ -64,6 +64,12 @@ def is_nav(path: Path) -> bool:
     return path.suffix in NAV_SUFFIXES and path.name not in {"README.md", IGNORE_FILE}
 
 
+def is_file_glob(token: str) -> bool:
+    """A backticked token like `*-daily.md`: has a wildcard and ends in a navigational suffix,
+    so `*`, `aw-*` or a URL with a query string never count as listing files."""
+    return any(c in token for c in "*?[") and Path(token).suffix in NAV_SUFFIXES
+
+
 def mentioned(name: str, text: str, globs: list[str]) -> bool:
     return name in text or any(fnmatch.fnmatch(name, g) for g in globs)
 
@@ -92,7 +98,7 @@ def check_tree(root: Path) -> list[str]:
             return needs_readme
 
         text = readme.read_text(errors="replace")
-        globs = [g for g in BACKTICKED.findall(text) if any(c in g for c in "*?[")]
+        globs = [g for g in BACKTICKED.findall(text) if is_file_glob(g)]
         for d in needing:
             if not mentioned(d.name, text, globs):
                 findings.append(f"{readme}: does not name subfolder {d.name}/")
