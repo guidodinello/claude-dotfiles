@@ -1,5 +1,7 @@
 """Unit tests for check_index.py. Run: python3 -I test_check_index.py."""
 
+from __future__ import annotations
+
 import os
 import sys
 import tempfile
@@ -78,6 +80,15 @@ class CheckTreeTest(unittest.TestCase):
     def test_broken_link_reported_and_urls_ignored(self) -> None:
         self.write("README.md", "[x](./gone.md) [y](https://example.com/a) [z](#top) [w](mailto:a@b.c)")
         self.assertEqual(self.findings(), ["ROOT/README.md: broken link ./gone.md"])
+
+    def test_links_in_code_are_examples(self) -> None:
+        self.write("README.md", "Write `[x](./gone.md)` like this.\n\n```md\n[y](./also-gone.md)\n```\n")
+        self.assertEqual(self.findings(), [])
+
+    def test_percent_encoded_link_resolves(self) -> None:
+        self.write("README.md", "[it](./my%20doc.md) `my doc.md`")
+        self.write("my doc.md")
+        self.assertEqual(self.findings(), [])
 
     def test_link_with_anchor_resolves_on_the_path(self) -> None:
         self.write("README.md", "[x](./doc.md#section) `doc.md`")

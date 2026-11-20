@@ -3,39 +3,58 @@
 
 Runs the dev-docs-index skill's check_index.py when the session's cwd has a my-dev-things/
 folder and a doc or script in it (check_index.NAV_SUFFIXES) changed since the session
-started (the transcript's creation time). Logs and data a running stack keeps rewriting do
-not count. Only findings about this session's work are reported: a gap in a folder where it
-changed a file, or a missing README or unnamed subfolder on the path down to one. An old
-gap in another folder, or a parent's, never blocks this session. Another session's half-written
-folder still can, when this session changed a doc in that folder's parent.
+started. The start is the first timestamped transcript entry, not file metadata: Linux has
+no creation time, and the transcript's ctime moves with every message. Logs and data a
+running stack keeps rewriting do not count.
+
+Findings are kept when they are about a folder that changed: a gap in a folder where a
+doc or script changed, or a missing README or unnamed subfolder on the path down to one
+(without those the new work is unreachable, so they count even when they are old). An old
+unnamed file in a parent, or any gap in an unrelated folder, does not block.
+
+"Changed" is mtime against the session start, with no attribution: a doc another session
+or a manual edit wrote under my-dev-things/ in the meantime counts too, and its gaps are
+reported here. Also not covered: a deleted or moved file (nothing new to see), and worktree
+sessions, whose cwd has the `.my-dev-things` link rather than `my-dev-things/`.
+
 On findings, exit 2: Claude Code keeps the turn going and shows stderr to Claude, which
 fixes the indexes before it stops. Otherwise exit 0.
 
-Not covered: a deleted or moved file (nothing new to see), and worktree sessions, whose
-cwd has the `.my-dev-things` link rather than `my-dev-things/`.
-
-This is a convenience check, not a policy control, so it fails open: bad input, a missing
-checker or any error exits 0 and never keeps Claude from stopping. `stop_hook_active`
-(already continuing because of a Stop hook) also exits 0, so it blocks at most once per
-turn and can never loop.
+This is a convenience check, not a policy control, so it fails open: bad input, an
+unreadable transcript, a missing checker or any error exits 0 and never keeps Claude from
+stopping. `stop_hook_active` (already continuing because of a Stop hook) also exits 0, so
+it blocks at most once per turn and can never loop.
 """
+
+from __future__ import annotations
 
 import json
 import os
 import sys
-import time
+from datetime import datetime
 from pathlib import Path
 
 SKIPPED_DIRS = {"node_modules", "__pycache__", ".git", ".venv"}
 CHECKER = Path(__file__).parent.parent / "skills" / "dev-docs-index" / "scripts"
+TRANSCRIPT_LINES_SCANNED = 200
 
 
-def session_start(transcript: str | None) -> float:
+def session_start(transcript: str | None) -> float | None:
+    """Epoch seconds of the first timestamped transcript entry, or None when unreadable."""
+    if not transcript:
+        return None
     try:
-        st = os.stat(transcript or "")
-    except OSError:
-        return time.time() - 3600
-    return getattr(st, "st_birthtime", st.st_ctime)
+        with open(transcript, encoding="utf-8", errors="replace") as f:
+            for _, line in zip(range(TRANSCRIPT_LINES_SCANNED), f):
+                try:
+                    stamp = json.loads(line).get("timestamp")
+                except (ValueError, AttributeError):
+                    continue
+                if isinstance(stamp, str):
+                    return datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp()
+    except (OSError, ValueError):
+        return None
+    return None
 
 
 def changed_paths(root: Path, since: float, suffixes: set[str]) -> tuple[set[Path], set[Path]]:
@@ -64,8 +83,8 @@ def changed_paths(root: Path, since: float, suffixes: set[str]) -> tuple[set[Pat
 
 
 def relevant(finding: str, own: set[Path], chain: set[Path]) -> bool:
-    """A finding about this session's work: a gap in a folder it changed a file in, or a
-    missing README / unnamed subfolder on the path down to one."""
+    """A gap in a folder where a file changed, or a missing README / unnamed subfolder on
+    the path down to one."""
     where, _, problem = finding.partition(": ")
     path = Path(where)
     if problem == "no README.md":
@@ -82,16 +101,18 @@ def main() -> int:
         return 0
     if not isinstance(data, dict) or data.get("stop_hook_active"):
         return 0
-    root = Path(data.get("cwd") or os.getcwd()) / "my-dev-things"
-    if not root.is_dir():
-        return 0
-    sys.dont_write_bytecode = True
-    sys.path.insert(0, str(CHECKER))
     try:
+        root = Path(data.get("cwd") or os.getcwd()) / "my-dev-things"
+        if not root.is_dir():
+            return 0
+        since = session_start(data.get("transcript_path"))
+        if since is None:
+            return 0
+        sys.dont_write_bytecode = True
+        sys.path.insert(0, str(CHECKER))
         import check_index  # ty: ignore[unresolved-import]
 
-        own, chain = changed_paths(root, session_start(data.get("transcript_path")),
-                                   check_index.NAV_SUFFIXES)
+        own, chain = changed_paths(root, since, check_index.NAV_SUFFIXES)
         if not own:
             return 0
         findings = [f for f in check_index.check_tree(root) if relevant(f, own, chain)]
@@ -100,9 +121,10 @@ def main() -> int:
     if not findings:
         return 0
     print(
-        "Docs you changed in my-dev-things/ this session left index gaps (dev-docs-index "
-        "skill). Add each item to its README.md, or to a .index-ignore if it is per-run "
-        "scaffolding, then stop:\n" + "\n".join(findings),
+        "Index gaps in my-dev-things/ folders that changed this session (dev-docs-index "
+        "skill). Name each missing file or subfolder in its README.md (per-run scaffolding "
+        "can go in a .index-ignore instead), create each missing README.md, fix each broken "
+        "link, then stop:\n" + "\n".join(findings),
         file=sys.stderr,
     )
     return 2

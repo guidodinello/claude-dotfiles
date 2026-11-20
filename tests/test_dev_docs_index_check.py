@@ -3,6 +3,8 @@
 Builds a throwaway config dir that mirrors the synced layout (hooks/ next to skills/), so
 the hook finds check_index.py the way it does under ~/.claude."""
 
+from __future__ import annotations
+
 import json
 import os
 import shutil
@@ -35,11 +37,18 @@ class StopHookTest(unittest.TestCase):
         self.tree.mkdir(parents=True)
         (self.tree / "README.md").write_text("index")
         self.transcript = base / "transcript.jsonl"
-        self.transcript.write_text("")
+        self.started = time.time() - 60
+        self.write_transcript_entry(self.started)
         self.old_files()
 
     def tearDown(self) -> None:
         self._tmp.cleanup()
+
+    def write_transcript_entry(self, epoch: float) -> None:
+        stamp = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime(epoch))
+        with self.transcript.open("a") as f:
+            f.write(json.dumps({"type": "permission-mode"}) + "\n")
+            f.write(json.dumps({"type": "user", "timestamp": stamp}) + "\n")
 
     def old_files(self) -> None:
         """Backdate everything so only files written after this count as changed."""
@@ -111,6 +120,33 @@ class StopHookTest(unittest.TestCase):
         self.assertEqual(result.returncode, BLOCK)
         self.assertIn("inv: no README.md", result.stderr)
         self.assertIn("does not name subfolder inv/", result.stderr)
+
+    def test_transcript_written_after_the_edit_still_blocks(self) -> None:
+        """The Linux case: the transcript's ctime/mtime is newer than every edit."""
+        (self.tree / "new-notes.md").write_text("x")
+        self.write_transcript_entry(time.time())
+        result = self.run_hook(self.payload())
+        self.assertEqual(result.returncode, BLOCK)
+        self.assertIn("does not name new-notes.md", result.stderr)
+
+    def test_unreadable_transcript_fails_open(self) -> None:
+        (self.tree / "new-notes.md").write_text("x")
+        self.transcript.write_text("no timestamps here\n")
+        self.assertEqual(self.run_hook(self.payload()).returncode, ALLOW)
+        self.assertEqual(self.run_hook(self.payload(transcript_path=None)).returncode, ALLOW)
+
+    def test_old_missing_readme_on_the_path_blocks(self) -> None:
+        """Documented: without the parent README the new doc is unreachable."""
+        (self.tree / "a" / "b").mkdir(parents=True)
+        self.old_files()
+        (self.tree / "a" / "b" / "README.md").write_text("`d.md`")
+        (self.tree / "a" / "b" / "d.md").write_text("x")
+        result = self.run_hook(self.payload())
+        self.assertEqual(result.returncode, BLOCK)
+        self.assertIn("a: no README.md", result.stderr)
+
+    def test_non_string_cwd_fails_open(self) -> None:
+        self.assertEqual(self.run_hook(self.payload(cwd=42)).returncode, ALLOW)
 
     def test_stop_hook_active_never_blocks(self) -> None:
         (self.tree / "new-notes.md").write_text("x")

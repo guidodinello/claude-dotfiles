@@ -45,10 +45,10 @@ need to be.
    stale/missing README is a broken promise. If the repo has no such master table, the
    top-level `docs/README.md` (or equivalent) is the entry point instead — make sure it
    lists every direct child.
-5. **Skip README.md only for**: non-navigational leaf files that are clearly
-   self-contained data (e.g. an example JSON/CSV fixture sitting alone, no subfolder),
-   and top-level utility folders (`scripts/`, `templates/`, `claude-artifacts/`) which
-   are code/config, not the knowledge-base tree this convention targets.
+5. **Skip README.md only for folders with nothing to read**: a folder that holds no
+   markdown doc and no subfolder needing a README (only code, generated HTML or data:
+   a harness, screenshots, fixtures, logs). Its parent's README says what it is. A
+   folder that does have a README is an index, so its parent must name it.
 
 ## What goes in a README.md here
 
@@ -246,8 +246,9 @@ what a missing-README scan can't: a README that exists but no longer lists a sub
 doc or script next to it, and relative links in a README that no longer resolve. Folders
 of code, generated HTML or data only don't need a README (rule 5). The script's docstring
 has the exact rules. A Stop hook (`~/.claude/hooks/dev-docs-index-check.py`) runs it at the end
-of any turn in a session that changed `my-dev-things/`, and keeps the turn going until the
-gaps are fixed.
+of a turn when a doc or script under `my-dev-things/` changed this session, and blocks that
+stop once so the gaps it reports get fixed. It does not re-check: if the fix is incomplete,
+the turn ends anyway, so run the checker yourself after fixing.
 
 When a folder holds per-run scaffolding that its README explains as a group (worker task
 bodies, plan versions), list the patterns in a `.index-ignore` file in that folder instead
