@@ -161,14 +161,14 @@ class SyncSettingsTest(ScriptCase):
         installer_hook = {"matcher": "*", "hooks": [{"type": "command", "command": "installer-hook"}]}
         self.write_settings(
             {
-                "hooks": {"PreToolUse": [installer_hook], "Stop": [installer_hook]},
+                "hooks": {"PreToolUse": [installer_hook], "Notification": [installer_hook]},
                 "permissions": {"allow": ["Bash(installer:*)"], "deny": ["Read(secret)"]},
             }
         )
         self.sync()
         settings = self.settings()
         self.assertIn(installer_hook, settings["hooks"]["PreToolUse"])
-        self.assertEqual(settings["hooks"]["Stop"], [installer_hook])
+        self.assertEqual(settings["hooks"]["Notification"], [installer_hook])
         self.assertIn("Bash(installer:*)", settings["permissions"]["allow"])
         self.assertIn("Read(secret)", settings["permissions"]["deny"])
         base = json.loads((self.src / "settings.base.json").read_text())

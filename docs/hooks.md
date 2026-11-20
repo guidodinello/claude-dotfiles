@@ -33,6 +33,23 @@ Wired globally from `settings.base.json`. After an Edit/Write to a `.json` file,
 
 ---
 
+## Stop
+
+### dev-docs-index-check.py
+
+Wired globally from `settings.base.json` on `Stop`. When the session's cwd has a `my-dev-things/` folder and a doc or script in it (`.md`, `.sh`, `.py`, `.mjs`, `.html`) changed since the session started, it runs the `dev-docs-index` skill's `check_index.py`. The session start is the first timestamped transcript entry, because Linux has no file creation time and the transcript's ctime moves with every message. Logs a running stack keeps rewriting don't count.
+
+It keeps findings about folders that changed: a gap in a folder where a doc or script changed, or a missing README or unnamed subfolder on the path down to one. Those last two count even when they are old, because without them the new work is unreachable. An old unnamed file in a parent, or any gap in an unrelated folder, does not block. On findings it exits 2, so Claude keeps going and fixes them before it stops.
+
+- **Why Stop, not PostToolUse:** most edits there go through Bash, and an index is legitimately incomplete mid-task.
+- **Failing safe:** it fails open (bad input, an unreadable transcript or a missing checker exits 0) and exits 0 when `stop_hook_active` is set, so it blocks at most once per turn and does not re-check the fix.
+- **Not covered:**
+  - attribution: "changed" is mtime against the session start, so a doc another session or a manual edit wrote anywhere under `my-dev-things/` counts as this session's, and its gaps are reported here;
+  - a deleted or moved file;
+  - worktree sessions, whose cwd has the `.my-dev-things` link instead of the folder.
+
+---
+
 ## PreToolUse (Safety Guards)
 
 The two Bash guards live in one script, `.claude/hooks/guard-bash.sh`, registered on the `Bash` matcher. It reads the command from `.tool_input.command` and matches with bash's own `[[ =~ ]]`, so it needs no GNU grep. It fails closed: if the hook input can't be read (no `jq`, or an unexpected shape), the command is blocked.
