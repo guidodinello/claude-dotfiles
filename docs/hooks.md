@@ -31,6 +31,11 @@ A project that needs different formatting rules creates its own `.claude/hooks/a
 
 Wired globally from `settings.base.json`. After an Edit/Write to a `.json` file, checks that it still parses (`jq empty`) and, if not, exits 2 so the error reaches Claude. The edit has already happened; nothing is blocked. Skips JSON-with-comments files (`tsconfig*.json`, `jsconfig*.json`, `devcontainer.json`, anything under `.vscode/`).
 
+
+### dev-docs-index-check.py (Stop)
+
+Wired globally from `settings.base.json` on `Stop`. When the session's cwd has a `my-dev-things/` folder and a file in it changed since the session started (the transcript's creation time), it runs the `dev-docs-index` skill's `check_index.py`. On findings it exits 2, so Claude keeps going and fixes the indexes before it stops. A Stop hook, not a PostToolUse one, because most edits there go through Bash and an index is legitimately incomplete mid-task. It fails open (bad input or a missing checker exits 0) and exits 0 when `stop_hook_active` is set, so it blocks at most once per turn. Old gaps don't block a session that never touched the tree.
+
 ---
 
 ## PreToolUse (Safety Guards)

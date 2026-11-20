@@ -151,6 +151,16 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -I {{CONFIG_DIR}}/hooks/dev-docs-index-check.py"
+          }
+        ]
+      }
     ]
   },
   "statusLine": {

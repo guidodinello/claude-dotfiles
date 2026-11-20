@@ -245,7 +245,9 @@ It prints one `<path>: <problem>` line per gap and exits 1 when there are any. I
 what a missing-README scan can't: a README that exists but no longer lists a subfolder,
 doc or script next to it, and relative links in a README that no longer resolve. Folders
 of code, generated HTML or data only don't need a README (rule 5). The script's docstring
-has the exact rules.
+has the exact rules. A Stop hook (`~/.claude/hooks/dev-docs-index-check.py`) runs it at the end
+of any turn in a session that changed `my-dev-things/`, and keeps the turn going until the
+gaps are fixed.
 
 When a folder holds per-run scaffolding that its README explains as a group (worker task
 bodies, plan versions), list the patterns in a `.index-ignore` file in that folder instead
