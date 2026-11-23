@@ -25,6 +25,29 @@ _lowercase() {
   printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
 }
 
+# Lexical clean-up of a path, no file system access: `//` and `/./` collapse and
+# `x/..` cancels, so `~//.`, `$HOME/./x/..` and `/home/me/../me` compare equal to
+# the plain directory.
+_normalize_path() {
+  local p="$1" part abs="" out=() parts=() IFS=/
+  [[ "${p}" == /* ]] && abs="/"
+  read -r -a parts <<<"${p}"
+  for part in "${parts[@]}"; do
+    case "${part}" in
+      "" | ".") ;;
+      "..")
+        if ((${#out[@]} > 0)) && [[ "${out[${#out[@]} - 1]}" != ".." ]]; then
+          out=("${out[@]:0:${#out[@]}-1}")
+        elif [[ -z "${abs}" ]]; then
+          out+=("..")
+        fi
+        ;;
+      *) out+=("${part}") ;;
+    esac
+  done
+  printf '%s' "${abs}${out[*]}"
+}
+
 is_env_file() {
   local p="$1" name
   while [[ "${p}" == */ && "${p}" != "/" ]]; do p="${p%/}"; done
@@ -62,8 +85,8 @@ is_secret_path() {
 
   # Only the home directory's .npmrc: a project .npmrc holds registry settings.
   if [[ "${name}" == .npmrc && "${p}" == */* ]]; then
-    dir="${p%/*}"
-    home="$(_lowercase "${HOME:-}")"
+    dir="$(_normalize_path "${p%/*}")"
+    home="$(_normalize_path "$(_lowercase "${HOME:-}")")"
     case "${dir}" in
       '~' | '$home' | '${home}') return 0 ;;
     esac

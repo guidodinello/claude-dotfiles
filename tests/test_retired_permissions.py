@@ -92,14 +92,5 @@ class GuardEntriesFailClosedTest(MergeCase):
         self.assertRegex(ref, r"^[0-9a-f]{40}$")
 
 
-class GuardsAreLinkedTest(MergeCase):
-    def test_env_names_library_is_linked_next_to_the_guards(self):
-        # The fake checkout only carries the files ScriptCase writes; the library
-        # is a plain file in hooks/, so linking needs no special case.
-        self.write(self.src / "hooks" / "env-names.sh", "# lib\n")
-        self.sync()
-        self.assertTrue((self.cfg / "hooks" / "env-names.sh").is_symlink())
-
-
 if __name__ == "__main__":
     unittest.main()

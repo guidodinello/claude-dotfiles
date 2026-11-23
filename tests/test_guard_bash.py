@@ -39,6 +39,15 @@ CASES = [
     (ALLOW, "docker compose rm -s"),
     (ALLOW, "docker rm c1"),
     (ALLOW, "docker system prune"),
+    # a shell metacharacter or `=` right after the word still ends it
+    (BLOCK, "docker volume prune;true"),
+    (BLOCK, "docker volume rm data&&ls"),
+    (BLOCK, "(docker volume prune)"),
+    (BLOCK, "docker compose down --volumes=true"),
+    (BLOCK, "docker compose down -v;ls"),
+    (BLOCK, "docker system prune --volumes;ls"),
+    (BLOCK, "wrangler d1 delete db;true"),
+    (BLOCK, "wrangler d1 time-travel restore db;true"),
     # wrangler deletes and restores
     (BLOCK, "wrangler d1 delete db"),
     (BLOCK, "npx wrangler r2 bucket delete b"),
@@ -62,6 +71,10 @@ CASES = [
     (BLOCK, "cat ~/.ssh/deploy.pem"),
     (BLOCK, "cat ~/.npmrc"),
     (BLOCK, "cat $HOME/.npmrc"),
+    (BLOCK, "cat ~//.npmrc"),
+    (BLOCK, "cat $HOME/./.npmrc"),
+    (BLOCK, "cat ~/proj/../.npmrc"),
+    (ALLOW, "cat ~/proj/.npmrc"),
     (ALLOW, "cat .env.example"),
     (ALLOW, "cat .env.prod.example"),
     (ALLOW, "cat .env.sample"),
@@ -71,6 +84,12 @@ CASES = [
     (ALLOW, "cat src/environment.ts"),
     (ALLOW, "cat packages/app/.npmrc"),
     (ALLOW, "cat deploy.pem"),  # a .pem outside .ssh is not judged
+    # JS runtime objects that end in .env are not files
+    (ALLOW, "rg process.env src"),
+    (ALLOW, "grep -rn import.meta.env ."),
+    (ALLOW, 'node -e "console.log(process.env.X)"'),
+    (BLOCK, "cat x/process.env"),
+    (BLOCK, "grep -rn context.env ."),
     # wrangler d1: needs an unquoted call with a standalone --local after it
     (BLOCK, 'wrangler d1 execute db --command "select 1"'),
     (BLOCK, "npx wrangler d1 execute db --remote --command x"),

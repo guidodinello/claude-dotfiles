@@ -99,6 +99,19 @@ class GuardEnvFilesTest(unittest.TestCase):
         (self.tmp / "notes").symlink_to(".dev.vars")
         self.assertEqual(run_guard(hook_input("Read", file_path=str(self.tmp / "notes"))).returncode, BLOCK)
 
+    def test_a_symlinked_directory_does_not_hide_a_secret_file(self):
+        """/tmp/x/credentials is ~/.aws/credentials when x is a link to the .aws directory."""
+        secrets = self.tmp / "home" / ".aws"
+        secrets.mkdir(parents=True)
+        (secrets / "credentials").write_text("")
+        (self.tmp / "link").symlink_to(secrets)
+        self.assertEqual(run_guard(hook_input("Read", file_path=str(self.tmp / "link" / "credentials"))).returncode, BLOCK)
+        ssh = self.tmp / "home" / ".ssh"
+        ssh.mkdir()
+        (self.tmp / "sshlink").symlink_to(ssh)
+        self.assertEqual(run_guard(hook_input("Read", file_path=str(self.tmp / "sshlink" / "id_rsa"))).returncode, BLOCK)
+        self.assertEqual(run_guard(hook_input("Read", file_path=str(self.tmp / "sshlink" / "id_rsa.pub"))).returncode, ALLOW)
+
     def test_relative_and_absolute_paths(self):
         for path, want in (
             (".env.backup", BLOCK),

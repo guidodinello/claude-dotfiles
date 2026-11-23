@@ -95,7 +95,7 @@ fi
 # chain cannot be followed (readlink fails, or more than 40 hops, which is also
 # what a symlink loop looks like), the call is blocked.
 check_path() {
-  local current="$1" target dir hop tilde='~'
+  local current="$1" target dir hop pdir physical tilde='~'
   for ((hop = 0; hop < 40; hop++)); do
     [[ "${current}" == "${tilde}/"* ]] && current="${HOME}/${current#"${tilde}/"}"
     if is_env_file "${current}"; then
@@ -103,6 +103,16 @@ check_path() {
     fi
     if is_secret_path "${current}"; then
       block "${current} is a secret file (.dev.vars, .aws, a private SSH key or ~/.npmrc). Secret files stay off-limits. Ask the user to read or change it."
+    fi
+    # A directory on the way can be a symlink (/tmp/x -> ~/.aws), which the literal
+    # path hides: judge the physical parent directory too.
+    pdir="."
+    if [[ "${current}" == */* ]]; then
+      pdir="${current%/*}"
+      [[ -n "${pdir}" ]] || pdir="/"
+    fi
+    if physical="$(cd -P -- "${pdir}" 2>/dev/null && pwd -P)" && is_secret_path "${physical%/}/${current##*/}"; then
+      block "${current} resolves to a secret file (${physical%/}/${current##*/}). Secret files stay off-limits. Ask the user to read or change it."
     fi
     [[ -L "${current}" ]] || return 0
     target="$(readlink "${current}")" || block "could not follow the symlink ${current}. Refusing to run unchecked."

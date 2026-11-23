@@ -64,13 +64,16 @@ plain="$(printf '%s' "${cmd}" | tr -d "\"'\\\\")"
 # Subcommands and flags are matched as whole words (whitespace on both sides),
 # so `down.yml` or `--verbose` is not `down` or `-v`.
 compose="(docker${sp}+(compose|stack)|docker-compose)"
+# What may follow a word: whitespace, a shell metacharacter, `=` (--volumes=true)
+# or the end. Not only whitespace: a prune followed by `;true` is still a prune.
+end='([[:space:];&|()<>=`]|$)'
 # -v, --volumes, or a short flag cluster containing v (-sfv, -tv).
-vflag="(-v|--volumes|-[[:alpha:]]*v[[:alpha:]]*)(${sp}|\$)"
+vflag="(-v|--volumes|-[[:alpha:]]*v[[:alpha:]]*)${end}"
 docker_down="${compose}${sp}+(.*${sp})?down${sp}(.*${sp})?${vflag}"
 docker_compose_rm="${compose}${sp}+(.*${sp})?rm${sp}(.*${sp})?${vflag}"
 docker_rm="docker${sp}+(container${sp}+)?rm${sp}(.*${sp})?${vflag}"
-docker_prune="docker${sp}+system${sp}+prune${sp}(.*${sp})?--volumes(${sp}|\$)"
-docker_volume="docker${sp}+volume${sp}+(rm|remove|prune)(${sp}|\$)"
+docker_prune="docker${sp}+system${sp}+prune${sp}(.*${sp})?--volumes${end}"
+docker_volume="docker${sp}+volume${sp}+(rm|remove|prune)${end}"
 if [[ "${plain}" =~ ${docker_down} || "${plain}" =~ ${docker_compose_rm} || "${plain}" =~ ${docker_rm} ||
   "${plain}" =~ ${docker_prune} || "${plain}" =~ ${docker_volume} ]]; then
   block "destructive Docker volume command. Volumes hold persistent data and removal is irreversible. Ask the user before running this."
@@ -88,6 +91,9 @@ case "${lower}" in
   *.env* | *.dev.vars* | *.aws* | *.ssh* | *.npmrc*)
     while IFS= read -r word; do
       case "${word}" in
+        # Runtime objects, not files: `rg process.env src`, `import.meta.env`.
+        # Only these exact words; `x/process.env` is still a path.
+        process.env | import.meta.env | deno.env | bun.env) continue ;;
         *.env* | *.dev.vars* | *.aws* | *.ssh* | *.npmrc*) ;;
         *) continue ;;
       esac
@@ -111,8 +117,8 @@ fi
 # Deletes and restores: any wrangler subcommand path with `delete` as a word
 # (d1 delete, r2 bucket delete, kv namespace delete, secret delete, delete), and
 # d1 time-travel restore, which overwrites a database with an earlier state.
-wrangler_delete="${wrangler_tok}${sp}(.*${sp})?delete(${sp}|\$)"
-wrangler_restore="${wrangler_tok}${sp}(.*${sp})?d1${sp}+time-travel${sp}+restore(${sp}|\$)"
+wrangler_delete="${wrangler_tok}${sp}(.*${sp})?delete${end}"
+wrangler_restore="${wrangler_tok}${sp}(.*${sp})?d1${sp}+time-travel${sp}+restore${end}"
 if [[ "${plain}" =~ ${wrangler_delete} ]]; then
   block "wrangler delete removes a deployed or stored resource (Worker, D1, R2, KV, secret). Ask the user before running this."
 fi
