@@ -1,12 +1,6 @@
 ---
 name: meta-skill-hipaa-audit-improver
-description: >
-  Improve and update the HIPAA audit skill by fetching authoritative regulatory sources, NIST
-  guidance, OWASP cheat sheets, and HHS enforcement cases. Use this skill when the user wants
-  to refresh or improve the HIPAA audit skill references, keep compliance guidance up to date,
-  or strengthen the skill with real enforcement cases and official citations. Trigger phrases:
-  "update the HIPAA skill", "refresh the compliance references", "improve the audit skill",
-  "run the HIPAA skill updater".
+description: 'Refresh hipaa-audit''s references from regulatory sources, NIST, OWASP and HHS enforcement cases.'
 compatibility:
   tools:
     - WebFetch

@@ -1,12 +1,6 @@
 ---
 name: slite-compare-docs
-description: >
-  Compare two Slite documents to check whether one supersedes the other — i.e., that no content
-  was lost when creating a newer version. Use this skill whenever the user wants to diff Slite docs,
-  check if a "Copy of" document can be safely archived or deleted, verify that a newer document
-  contains everything the old one had, or asks "did we lose anything?", "is this a superseding
-  version?", "can I delete the old one?", or "compare these Slite documents". Trigger even if the
-  user just pastes two Slite URLs and asks a vague comparison question.
+description: 'Compare two Slite documents to check that the newer one lost no content from the older one.'
 ---
 
 ## What this skill does
@@ -24,8 +18,8 @@ Fetch two Slite documents, diff their content, and tell the user:
 Slite URLs follow this pattern:
 
 ```
-https://lightit.slite.com/api/s/<NOTE_ID>/Some-Title-Slug
-https://lightit.slite.com/app/docs/<NOTE_ID>
+https://<workspace>.slite.com/api/s/<NOTE_ID>/Some-Title-Slug
+https://<workspace>.slite.com/app/docs/<NOTE_ID>
 ```
 
 Extract the `<NOTE_ID>` from each URL. If the user provided bare IDs instead of URLs, use them directly.

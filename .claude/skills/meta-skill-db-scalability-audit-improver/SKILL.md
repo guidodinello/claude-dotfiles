@@ -1,12 +1,6 @@
 ---
 name: meta-skill-db-scalability-audit-improver
-description: >
-  Improve and update the db-scalability-audit skill by fetching current provider documentation and
-  verifying that limits, pricing, and connection constraints in provider-limits.md are accurate.
-  Use this skill when the user wants to refresh the DB audit references, check if provider limits
-  have changed, or keep the audit skill current with the latest provider offerings.
-  Trigger phrases: "update the DB audit skill", "refresh provider limits", "check if D1 limits changed",
-  "run the DB skill updater".
+description: 'Refresh db-scalability-audit''s provider-limits references from current provider docs.'
 compatibility:
   tools:
     - WebFetch

@@ -1,6 +1,6 @@
 ---
 name: dev-docs-index
-description: "Conventions for organizing and navigating a repo's my-dev-things/ folder (a personal non-code knowledge base — docs/, data/, scripts/, etc. — kept alongside a project's code across several client engagements). Use when creating a new subfolder or file under any my-dev-things/, deciding where a new investigation/bug/idea/query doc should live, writing or updating a README.md index there, or when asked to find prior context on a topic inside a my-dev-things/ tree. Also owns the my-dev-things/work-guide/ layout and the post-meeting routine (run it when the user pastes a meeting transcript). The core rule: every folder and subfolder needs a README.md index, so the tree stays discoverable without needing to be preloaded into context."
+description: 'Trigger: create a subfolder or file under my-dev-things/, where a new investigation/bug/idea/query doc should live, update a README index there, find prior context in my-dev-things/, a pasted meeting transcript. Owns the work-guide layout and the post-meeting routine; every folder needs a README.md index.'
 ---
 
 # my-dev-things/ documentation conventions

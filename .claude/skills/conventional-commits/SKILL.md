@@ -1,7 +1,6 @@
 ---
 name: conventional-commits
-description: Generate granular conventional commits from staged changes
-disable-model-invocation: false
+description: 'Generate granular conventional commits from staged changes'
 ---
 
 # Conventional Commits Generator
