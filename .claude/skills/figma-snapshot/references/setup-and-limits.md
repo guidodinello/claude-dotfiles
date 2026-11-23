@@ -45,7 +45,17 @@ Optional `"token_expires": "YYYY-MM-DD"`: the date the token expires, as shown w
 | `state.json` | Last pulled version, plus a hash per screen |
 | `nodes.json` | Raw `/nodes` response from the last pull (styles, geometry) |
 
-Each screen's Styles section lists every text style (family, weight, size/line height, color) with the copy that uses it, plus fills, strokes, icon colors, radii and non-zero auto-layout padding and gap, with the layer names. Values are raw hex: the REST endpoint for variable names needs an Enterprise plan, so token names are not available. Mixed styles inside one text layer show only the base style; look in `nodes.json` for those.
+Each screen's Styles section lists every text style (family, weight, size/line height, color) with the copy that uses it, plus fills, strokes, icon colors, radii and non-zero auto-layout padding and gap, with the layer names. Mixed styles inside one text layer show only the base style; look in `nodes.json` for those.
+
+Each value is marked `token` (bound to a Figma variable) or `raw` (typed by hand); on text lines the token is the font size's. The REST API returns variable ids, not names (the variables endpoints need an Enterprise plan), so a token shows as a short id such as `token 12:345` unless `<target>/variables.json` names it:
+
+```json
+{"VariableID:<library key>/12:345": "Text/Base"}
+```
+
+Fill that map from whatever names you can prove: swatch labels on the design system's Color page (family + step), the Figma MCP `get_variable_defs` on a frame node (it returns names and values; join by value only when the value is unique), or a designer's variables export. `pull` reads it on every run and never overwrites it.
+
+`pull` writes a README in every folder it creates, each listing its subfolders. The target folder's own README is created once and then left to you; `pull` only prints a note when it doesn't name a subfolder.
 
 Regenerating the READMEs after a skill update costs no Tier 1 call: `pull --force --nodes-json <dir>/<target>/nodes.json --no-render`. Run it only when `check` says unchanged: otherwise `state.json` records the new file version against the old `nodes.json`, and the next `pull` misses the changes.
 
