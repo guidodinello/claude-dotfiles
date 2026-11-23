@@ -1,9 +1,17 @@
 #!/bin/bash
 input=$(cat)
 
-# Feed the same rate-limit JSON to herdr-agent-usage's cache (async, no display output of its own)
-echo "$input" | bash /home/guido/.config/herdr/plugins/github/usagebar-33803b79d616/bin/run-statusline.sh >/dev/null 2>&1 &
-disown 2>/dev/null || true
+# Feed the same rate-limit JSON to herdr-agent-usage's cache (async, no display output of its own).
+# The plugin dir name carries a hash that changes between installs: glob it, take the newest, skip if absent.
+HERDR_RUNNER=""
+for candidate in "${XDG_CONFIG_HOME:-$HOME/.config}"/herdr/plugins/github/usagebar-*/bin/run-statusline.sh; do
+  [ -f "$candidate" ] || continue
+  if [ -z "$HERDR_RUNNER" ] || [ "$candidate" -nt "$HERDR_RUNNER" ]; then HERDR_RUNNER="$candidate"; fi
+done
+if [ -n "$HERDR_RUNNER" ]; then
+  echo "$input" | bash "$HERDR_RUNNER" >/dev/null 2>&1 &
+  disown 2>/dev/null || true
+fi
 
 # Gentleman theme (ANSI 256)
 PRIMARY='\033[38;5;110m'   # azul claro
@@ -29,7 +37,11 @@ WORKTREE=$(echo "$input" | jq -r '.workspace.git_worktree // empty')
 DIR_NAME=$(basename "$DIR")
 DIR_PART="${ACCENT}${DIR_NAME}${NC}"
 
-GIT_CACHE="/tmp/statusline-git-${SESSION_ID}"
+# Per-user cache dir (not the world-writable /tmp). The session id comes from stdin, so
+# keep only [A-Za-z0-9_-] in the file name: no "/" or ".." can escape the dir.
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/claude-statusline"
+SAFE_SESSION=$(printf '%s' "$SESSION_ID" | tr -c 'A-Za-z0-9_-' '_')
+GIT_CACHE="${CACHE_DIR}/git-${SAFE_SESSION}"
 GIT_CACHE_TTL=5
 
 cache_stale() {
@@ -44,7 +56,12 @@ if git -C "$DIR" rev-parse --git-dir >/dev/null 2>&1; then
     BRANCH=$(git -C "$DIR" branch --show-current 2>/dev/null)
     STAGED=$(git -C "$DIR" diff --cached --numstat 2>/dev/null | wc -l | tr -d ' ')
     MODIFIED=$(git -C "$DIR" diff --numstat 2>/dev/null | wc -l | tr -d ' ')
-    echo "${BRANCH}|${STAGED}|${MODIFIED}" > "$GIT_CACHE"
+    # Best effort: a cache that cannot be written only costs a recompute on the next render.
+    if (umask 077; mkdir -p "$CACHE_DIR") 2>/dev/null; then
+      echo "${BRANCH}|${STAGED}|${MODIFIED}" > "$GIT_CACHE" 2>/dev/null
+      # Bound the dir: drop per-session files untouched for over a day (BSD and GNU find).
+      find "$CACHE_DIR" -type f -name 'git-*' -mtime +1 -delete 2>/dev/null
+    fi
   else
     IFS='|' read -r BRANCH STAGED MODIFIED < "$GIT_CACHE"
   fi
