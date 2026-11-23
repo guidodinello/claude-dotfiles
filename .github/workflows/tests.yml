@@ -19,10 +19,15 @@ jobs:
     name: Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: shellcheck
         run: git ls-files -z '*.sh' project-init | xargs -0 shellcheck -x -S warning
+
+      - name: ruff
+        run: |
+          pip install --quiet 'ruff==0.17.6'
+          git ls-files -z '*.py' | xargs -0 ruff check
 
       - name: Script and hook tests
         run: python3 -m unittest discover -s tests -v
@@ -43,3 +48,31 @@ jobs:
             echo "::endgroup::"
           done
           exit "${status}"
+
+  # The scripts claim to run on stock macOS bash 3.2, and the tests start them
+  # through `bash` from PATH. A shim dir with /bin/bash first on PATH makes every
+  # test exercise bash 3.2 and the BSD tools (sed, rsync) without rewriting them.
+  tests-macos:
+    name: Tests (macOS, bash 3.2)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # The runner's /usr/bin/python3 is 3.9; the tests need 3.10+.
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+
+      - name: Put /bin/bash first on PATH
+        run: |
+          mkdir -p "${RUNNER_TEMP}/bash32"
+          ln -s /bin/bash "${RUNNER_TEMP}/bash32/bash"
+          echo "${RUNNER_TEMP}/bash32" >> "${GITHUB_PATH}"
+
+      - name: Check the shell under test is bash 3.2
+        run: |
+          bash --version
+          bash --version | head -1 | grep -q 'version 3\.2'
+
+      - name: Script and hook tests
+        run: python3 -m unittest discover -s tests -v

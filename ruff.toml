@@ -1,0 +1,8 @@
+# Python lint gate for CI (see .github/workflows/tests.yml).
+#
+# Deliberately small: this is the largest rule set that is clean over every
+# tracked *.py today. E501 (line length), E402, E70x, E722, E731 and E741 are
+# not enabled yet; they have hundreds of findings in files other work owns.
+# Widen `select` as those are cleaned up. Do not add per-file ignores.
+[lint]
+select = ["E401", "E9", "F"]
