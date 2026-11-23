@@ -564,7 +564,7 @@ class CheckTest(LinkCase):
 
     def test_check_reports_a_missing_required_tool_instead_of_dying(self):
         bin_dir = self.home / "bin"
-        for tool in ("bash", "sh", "git", "python3", "grep", "find", "sort", "head", "dirname", "readlink", "cat", "date", "basename", "mkdir", "rm", "ln", "mv", "rmdir"):
+        for tool in ("bash", "sh", "git", "python3", "grep", "find", "sort", "head", "dirname", "readlink", "cat", "date", "basename", "mkdir", "rm", "ln", "mv", "rmdir", "mktemp", "awk"):
             found = shutil.which(tool)
             if found:
                 (bin_dir).mkdir(exist_ok=True)
