@@ -1,6 +1,6 @@
 ---
 name: backward-trace
-description: A first-principles investigation method for understanding how something actually works in a codebase. Use it whenever the task is to figure out a mechanism rather than make a known edit — "how does X work?", "where does this value come from?", "what can trigger / cause / produce Y?", "what are all the places that do Z?" — and as a required pre-step before tightening, gating, removing, or otherwise changing any shared or cross-cutting behavior, where missing one caller or one writer would be a bug. Reach for this even when the user doesn't ask for an "investigation" — any comprehension question about an unfamiliar flow qualifies. Do NOT use it for routine edits, renames, or single-file changes where the mechanism is already understood.
+description: 'Trigger: how does X work, where does this value come from, what can trigger/produce Y, all the places that do Z; before changing shared behavior. First-principles mechanism tracing. Not for routine edits, renames or single-file changes.'
 ---
 
 # Backward-trace investigation

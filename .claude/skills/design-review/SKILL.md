@@ -1,18 +1,7 @@
 ---
 name: design-review
 allowed-tools: Bash Read Grep Glob Agent
-description: >
-  High-level design review of a pull request, branch, or diff. Reports the
-  properties of the change rather than line-level defects - the design
-  decisions and the alternatives they rejected, the quality attributes each
-  decision serves, the trade-offs it costs, the invariants and what guards
-  them, and the risks and open questions - so the team can discuss the
-  architecture before or instead of line-by-line review. Use when asked for a
-  "design review", to "review the architecture of this PR", "what are the
-  properties of this PR", to "discuss design decisions", or to write an
-  ADR-style summary of a change. Complements code-review and pr-conventions;
-  does not replace them. Read-only - never edits code or posts to GitHub
-  unless asked.
+description: 'Trigger: design review, review the architecture of this PR, properties of this PR, discuss design decisions, ADR-style summary. Read-only design properties of a change; not line-level defects or posting (use code-review).'
 ---
 
 ## Goal
@@ -30,7 +19,7 @@ Sibling skills, and where the line sits:
 
 | Skill | Question it answers |
 |-------|---------------------|
-| `code-review`, `pr-conventions` | Line-level bugs, project standards, naming, reuse |
+| `code-review` | Line-level bugs, project standards, naming, reuse |
 | `improve-codebase-architecture` | Where the *existing* codebase should be deepened |
 | `design-review` (this) | What *this change* decided, why, and what holds it in place |
 
@@ -251,7 +240,7 @@ could not be opened.>
 - **Name costs honestly.** Every decision costs something. A trade-offs table
   with no cost in it means the analysis stopped early.
 - **Stay at design altitude.** Line-level bugs, naming, and style belong to
-  `code-review` / `pr-conventions`. Mention one only if it breaks an
+  `code-review`. Mention one only if it breaks an
   invariant from section 4.
 - **The principles conflict.** Locality of behaviour pulls against DRY
   (P15 vs. P14), and `principles.md` §2 lists the other common tensions

@@ -1,6 +1,6 @@
 ---
 name: opencode-dual-review
-description: "DEPRECATED, opt-in only: the default reviewer is the herdr Sonnet /code-review session that babysit-prs spawns with scripts/spawn_reviewer.py. Trigger: opencode review, dual review, free-model review, second opinion on a PR. Two free opencode models each post their own untriaged inline-comment review (blocking/non-blocking tiers, full-SHA permalinks) to the PR, with one Claude Sonnet medium-effort review as fallback. Triage happens later, in the address-pr-comments pass."
+description: 'DEPRECATED, opt-in: two free opencode models post untriaged PR reviews. The default is babysit-prs''s herdr review.'
 license: Apache-2.0
 metadata:
   author: "guidodinello"

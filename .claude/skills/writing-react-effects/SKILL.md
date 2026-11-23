@@ -1,7 +1,6 @@
 ---
 name: writing-react-effects
-description: Writes React components without unnecessary useEffect. Use when creating/reviewing React components, refactoring effects, or when code uses useEffect to transform data or handle events.
-disable-model-invocation: false
+description: 'Write React components without unnecessary useEffect; refactor effects that transform data or handle events.'
 ---
 
 # Writing React Effects Skill

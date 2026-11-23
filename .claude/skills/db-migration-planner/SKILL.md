@@ -1,13 +1,6 @@
 ---
 name: db-migration-planner
-description: >
-  Plan a database migration between providers. Use this skill when the user has decided (or is close
-  to deciding) to migrate databases and needs a concrete plan: schema compatibility, data migration
-  steps, ORM changes, connection config updates, and rollback strategy.
-  Trigger when the user says "plan the migration", "how do we move from D1 to Supabase", "migrate
-  the database", "what do we need to do to switch from X to Y", or when a db-scalability-audit
-  finding has recommended a migration and the user wants to act on it.
-  Do NOT trigger for general scalability assessment — use db-scalability-audit for that.
+description: 'Plan a database migration between providers: schema, data move, ORM changes, config, rollback.'
 ---
 
 ## How to Run a Migration Plan

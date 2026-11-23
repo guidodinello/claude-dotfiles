@@ -1,13 +1,6 @@
 ---
 name: db-scalability-audit
-description: >
-  Perform a Database Scalability & Architecture audit on a codebase. Use this skill whenever the
-  user asks about database scalability, architecture review, migration planning, performance
-  bottlenecks, or evaluating whether the current database setup will hold as usage grows.
-  Also trigger when the user asks about switching providers (D1, Neon, Supabase, RDS, PlanetScale,
-  etc.), storage limits, connection limits, or long-term DB strategy. Trigger phrases include:
-  "will this scale", "DB migration", "database bottleneck", "should we move to Postgres",
-  "scalability review", "D1 limits", "evaluate our DB setup".
+description: 'Audit database scalability and architecture: limits, bottlenecks, provider fit, need to migrate.'
 ---
 
 ## How to Run This Audit
@@ -135,7 +128,7 @@ Flag it as HIGH or MEDIUM severity depending on urgency. The `db-migration-plann
 
 ## Reporting Format
 
-Follow the shared structure in `.claude/guidelines/templates/audit-template.md` for document header, findings format, severity levels, dead code rule, effort labels, and remediation tiers. DB-specific additions are below.
+Follow the shared structure in `$HOME/.claude/guidelines/templates/audit-template.md` (when it exists) for document header, findings format, severity levels, dead code rule, effort labels, and remediation tiers. DB-specific additions are below.
 
 ### Document header
 

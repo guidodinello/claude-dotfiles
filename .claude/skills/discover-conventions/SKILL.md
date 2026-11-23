@@ -1,11 +1,6 @@
 ---
 name: discover-conventions
-description: >
-  Explore the whole codebase (frontend + backend), surface de-facto conventions the
-  code follows but that aren't written down, and propose codification — ADR drafts,
-  CLAUDE.md additions, and docs/conventions.md index entries. Use when best practices
-  feel implicit, after a big feature lands, or before onboarding new contributors.
-  Proposes and scaffolds docs/tickets; does NOT refactor application code or auto-commit.
+description: 'Find implicit codebase conventions and propose codifying them as ADR drafts, CLAUDE.md rules and index rows.'
 ---
 
 # Discover Conventions
@@ -17,10 +12,21 @@ A healthy, well-documented codebase should produce **few new findings** — most
 conventions are already documented. The expected output of a run is a short list of
 genuine gaps, not an exhaustive catalogue of what already exists.
 
-> **Adapt for your project**: a few example grep commands below hard-code
-> `fitted_backend` as the backend package name (seeded from the project this
-> skill originated in). Replace it with your project's actual backend source
-> path before relying on those specific examples elsewhere.
+---
+
+## Phase 0 — Discover source roots
+
+Do not assume a layout. Before running any command below, find the roots and
+use them in place of the `<placeholders>`:
+
+- `<frontend-project>`: a directory with a `package.json` (`git ls-files '*package.json'`, ignoring `node_modules`) whose `src/` holds the UI code. `<frontend-src>` is that `src/`.
+- `<backend-project>`: a directory with a `pyproject.toml` (`git ls-files '*pyproject.toml'`). `<backend-src>` is its source root (`src/` or the package directory) and `<backend-pkg>` the importable package under it.
+
+If a root this skill needs cannot be found, stop and ask the user. An empty grep
+result is never a clean audit: confirm each root exists and holds files before
+reporting zero findings.
+
+The grep checks in Phase 2 (`lib/env.ts`, `get_logger`, `privateApi`/`publicApi`, `db/` layer) are examples of conventions one project had; swap in this project's equivalents, or drop the check if the project has no such convention.
 
 ---
 
@@ -55,7 +61,7 @@ exception as a finding.
 
 ```bash
 # Frontend: env access bypassing lib/env.ts
-grep -rn "import\.meta\.env\|process\.env" frontend/web/src \
+grep -rn "import\.meta\.env\|process\.env" <frontend-src> \
   --include="*.ts" --include="*.tsx" \
   | grep -v "src/lib/env\.ts"
 
@@ -65,14 +71,14 @@ grep -rn "import\.meta\.env\|process\.env" frontend/web/src \
 # hide in lib/ and store/. -U is required because a call chain often breaks
 # across lines (`void api\n  .get(...)`). Uses rg, not grep — GNU grep has no
 # --multiline. Replace `privateApi|publicApi` with your HTTP client's names.
-rg -nU --multiline '(privateApi|publicApi)\s*\.' frontend/web/src -g '*.ts' -g '*.tsx' \
+rg -nU --multiline '(privateApi|publicApi)\s*\.' <frontend-src> -g '*.ts' -g '*.tsx' \
   | grep -v "src/lib/api\.ts\|__tests__\|isAxiosError\|HttpStatusCode"
 
 # Frontend: design-token bypasses, part 1 — framework utility literals (e.g.
 # Tailwind palette classes) that the project's token rules forbid. Any hit is a
 # violation, not a candidate. Adjust the pattern to the project's banned set.
 grep -rnE "text-red-|border-red-|bg-red-|text-green-|bg-green-|bg-black/|text-gray-|bg-gray-" \
-  frontend/web/src/screens frontend/web/src/components \
+  <frontend-src>/screens <frontend-src>/components \
   --include="*.tsx" --include="*.ts"
 
 # Frontend: design-token bypasses, part 2 — raw colour literals in inline
@@ -81,39 +87,39 @@ grep -rnE "text-red-|border-red-|bg-red-|text-green-|bg-green-|bg-black/|text-gr
 #
 # 6- and 8-digit hex. Deliberately NOT {3,8}: a 3-digit run matches issue and PR
 # references like `PR #613` in prose, which is the whole false-positive class.
-grep -rnE "#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?\b" frontend/web/src \
+grep -rnE "#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?\b" <frontend-src> \
   --include="*.ts" --include="*.tsx"
 
 # 3-digit hex, but only when it contains a letter — `#fff`/`#a1b` are colours,
 # `#613` is a PR number. Catches the short form without the prose noise.
-grep -rnE "#[0-9a-fA-F]{2}[a-fA-F]\b|#[a-fA-F][0-9a-fA-F]{2}\b" frontend/web/src \
+grep -rnE "#[0-9a-fA-F]{2}[a-fA-F]\b|#[a-fA-F][0-9a-fA-F]{2}\b" <frontend-src> \
   --include="*.ts" --include="*.tsx"
 
 # Colour functions. No false-positive class — there is no other reason for
 # `rgba(` to appear in a .ts/.tsx file.
-grep -rnE "\b(rgba?|hsla?)\(" frontend/web/src --include="*.ts" --include="*.tsx"
+grep -rnE "\b(rgba?|hsla?)\(" <frontend-src> --include="*.ts" --include="*.tsx"
 
 # Every colour hit is a violation unless the token source (theme CSS / tokens
 # file) genuinely has no token for it. Check the numbers against it before
 # believing otherwise — hits are often a token respelled numerically.
 
 # Backend: logging bypassing get_logger
-grep -rn "logging\.getLogger\|print(" backend/src --include="*.py" \
+grep -rn "logging\.getLogger\|print(" <backend-src> --include="*.py" \
   | grep -v "get_logger\|# noqa\|def get_logger"
 
 # Backend: DB access outside db/ layer (raw session.execute in routes/tasks)
-grep -rn "session\.execute\|session\.get\|session\.add" backend/src \
+grep -rn "session\.execute\|session\.get\|session\.add" <backend-src> \
   --include="*.py" \
-  | grep -v "backend/src/fitted_backend/db/"
+  | grep -v "<backend-pkg>/db/"
 ```
 
 ### Backend Explore agent instructions
 
 ```
-You are surveying the backend/ directory for de-facto conventions — patterns the
+You are surveying the `<backend-project>` directory for de-facto conventions — patterns the
 Python code consistently follows that aren't yet written down anywhere.
 
-Scope: backend/src/ only. Do not read frontend/ files.
+Scope: <backend-src>/ only. Do not read frontend files.
 
 Focus only on GAPS — recurring patterns NOT already in the provided inventory.
 Do not surface conventions that are already documented.
@@ -133,10 +139,10 @@ INVESTIGATE rather than proposing codification.
 ### Frontend Explore agent instructions
 
 ```
-You are surveying the frontend/web/ directory for de-facto conventions — patterns the
+You are surveying the `<frontend-project>` directory for de-facto conventions — patterns the
 TypeScript/React code consistently follows that aren't yet written down anywhere.
 
-Scope: frontend/web/src/ only. Do not read backend/ files.
+Scope: <frontend-src>/ only. Do not read backend files.
 
 Focus only on GAPS — recurring patterns NOT already in the provided inventory.
 Do not surface conventions that are already documented.
@@ -183,12 +189,14 @@ For each selected convention, scaffold in this order:
 
 ### 4a. New ADR (cross-cutting decisions)
 
-If the proposed home is a new ADR, delegate to the `product-manager` agent — do not
-call `new-adr` directly (per root `CLAUDE.md`). Provide the agent with the convention
-statement, evidence, and proposed decision so it can scaffold the right artifact:
+If the proposed home is a new ADR, use the project's ADR agent or skill if it
+defines one (check the project's `CLAUDE.md` and `.claude/agents/`, `.claude/skills/`).
+Otherwise draft the ADR inline in the project's ADR folder and show it to the user.
+Give an ADR agent the convention statement, evidence, and proposed decision so it
+can scaffold the right artifact:
 
 ```
-Agent(product-manager): "Create an ADR for the following convention: <statement>.
+Agent(<project ADR agent>): "Create an ADR for the following convention: <statement>.
 Context: <evidence from exploration>. Proposed decision: <one sentence>."
 ```
 
@@ -219,9 +227,10 @@ the Cross-cutting section; otherwise to Backend or Frontend.
 For each convention with active violations, scaffold the appropriate artifact:
 
 - **Issue** (isolated fix, single module): create `docs/process/issues/NNN-<slug>.md`
-  following the existing issue format (see `074-accessibility-skill.md` for the template).
+  following the existing issue format (copy the format of an existing issue file in that folder).
 
-- **PDR** (refactor touching ≥2 modules): invoke the `new-pdr` skill.
+- **PDR** (refactor touching ≥2 modules): use the project's PDR skill if it
+  defines one; otherwise draft the PDR inline and show it.
 
 In the issue/PDR body, include the violation list from Phase 3 so the implementer
 knows exactly what to fix.

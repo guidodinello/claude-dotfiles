@@ -1,19 +1,11 @@
 ---
 name: babysit-prs
-description: >
-  Orchestrate every open PR in this repo toward merge: check the self-hosted
-  CI runner is healthy, triage failed CI runs (flaky vs. real), resolve merge
-  conflicts, get unreviewed PRs reviewed by a herdr Sonnet session running the
-  full /code-review (scripts/spawn_reviewer.py), dispatch address-pr-comments on reviewed PRs with findings, and enable
-  auto-merge on anything clean. Use when the user asks to "babysit the PRs",
-  "clear the PR queue", "orchestrate the open PRs", or "get everything
-  mergeable" for this repo. Requires an interactive herdr session — do not use
-  from a headless/cron context (see the Herdr caveat below).
+description: 'Trigger: babysit the PRs, clear the PR queue, orchestrate the open PRs, get everything mergeable. Drives open PRs to merge: CI triage, conflicts, herdr /code-review, address-pr-comments, auto-merge. Needs herdr; not headless or cron.'
 ---
 
 # Babysit PRs
 
-Runs the full multi-PR merge pipeline this repo uses, end to end, one pass at
+Runs the full multi-PR merge pipeline for the current repo, end to end, one pass at
 a time. This is an orchestration *procedure*, not a single tool call — expect
 to spawn several `Agent` calls and a couple of herdr panes, and to loop back
 after each merge because landing one PR can put another into conflict.
@@ -23,6 +15,36 @@ Sonnet (high effort) session running the full `/code-review` reviews it.**
 You are the orchestrator tying both together with `gh`, never the one
 hand-editing PR branches yourself except for trivial, mechanical
 merge-conflict resolution you're confident about.
+
+## Step −1 — Load the project profile
+
+This skill carries no project policy. Everything that differs per project (base
+branch, merge method, runner, daemon, flake signatures) lives in a per-project
+profile. Where to find it, first match wins:
+
+1. An explicit path argument.
+2. `<root>/my-dev-things/babysit-prs/README.md` when `<root>/my-dev-things/`
+   exists. `<root>` is `git rev-parse --show-toplevel` of the session cwd.
+3. Otherwise ask the user for a path before creating anything.
+
+Read the profile. It holds these fields:
+
+- base branch
+- merge method (`squash`, `merge` or `rebase`) and where it comes from (an ADR
+  or the base branch's ruleset)
+- whether auto-merge is allowed
+- whether the base branch requires review-thread resolution
+- runner kind (`self-hosted` or `hosted`) and, for a self-hosted one, its health
+  command
+- host daemon service the CI jobs depend on, if any
+- known flake signatures (log text plus how to retry)
+- append-prone docs (files several PRs append to, a conflict hint)
+- runner-capacity policy (what to cancel while PRs are queued)
+
+For every field a later step needs and the profile lacks, stop and ask the user
+one question at a time. Never assume a value. After the user confirms, write
+the answers into the profile (create the file and folder if missing) so the next
+run does not ask again.
 
 ## Herdr caveat
 
@@ -34,17 +56,13 @@ user — don't fall back to a headless review fanout or a single-reviewer
 
 ## Step 0 — Runner health check
 
-```bash
-uv run scripts/runner_ctl.py status
-```
+Only when the profile says the runner is self-hosted and gives a health
+command: run that command and confirm the runner is `online`. Otherwise skip
+the health check (a hosted runner has nothing to check).
 
-(Use `uv run`, not bare `python3` — the script has inline `uv` script
-metadata for its deps like `psutil`; running it with plain `python3` fails
-with `ModuleNotFoundError`.)
-
-Confirm the runner is `online`. If queued/executing runs pile up with more
-than one live run per PR, cancel the older ones (`gh run cancel <id>`) —
-keep only the latest run per branch.
+In either case, if queued/executing runs pile up with more than one live run
+per PR, cancel the older ones (`gh run cancel <id>`) — keep only the latest run
+per branch.
 
 ## Step 1 — Triage failed CI runs before retrying
 
@@ -53,18 +71,16 @@ log (`gh run view <run-id> --log-failed`) and classify before touching
 anything:
 
 - **Known transient/runner flake** — retry with `gh run rerun <run-id>
-  --failed`. Recognized signatures so far:
-  - Docker socket connection refused during "Initialize containers" —
-    *but first check if this is transient or the daemon is actually down*
-    (see below).
-  - `gpg: signing failed: Inappropriate ioctl for device` mid-test-suite —
-    a concurrent-job gpg-agent/tty race, unrelated to the code under test.
-- **Real, persistent infra problem** — e.g. `docker version` also fails
-  outside CI (`docker version --format '{{.Server.APIVersion}}'`) and
-  `systemctl --user status docker-desktop` shows `inactive (dead)`. This is
-  not flaky and a retry will not help. **Ask the user before restarting a
-  host-level daemon** (`systemctl --user start docker-desktop` or similar) —
-  it's a host-affecting action, not a repo-scoped one.
+  --failed`. The recognized signatures are the profile's known flake
+  signatures; a failure that matches none of them is not known-transient. If a
+  signature points at a host daemon, *first check if this is transient or the
+  daemon is actually down* (see below).
+- **Real, persistent infra problem** — the failure also reproduces outside CI
+  (for example the profile's host daemon service reports `inactive (dead)`, or
+  the tool it provides fails when run by hand). This is not flaky and a retry
+  will not help. **Ask the user before restarting a host-level daemon** (the
+  profile's host daemon service) — it's a host-affecting action, not a
+  repo-scoped one.
 - **Real, non-transient failure with a fix available** — e.g. `pip-audit`
   failing on a freshly-published CVE against a *transitive* dependency
   pinned in a lockfile. Investigate whether it's fixable with a lockfile
@@ -73,7 +89,7 @@ anything:
   unblocks CI for every other open PR (like a lockfile-pinned CVE), treat it
   as **P0**: branch, fix, review, merge it first via Steps 2–5 below, *then*
   merge it into every other open PR's branch before continuing their triage
-  (`git fetch origin && git merge origin/development`, resolve trivial
+  (`git fetch origin && git merge origin/<base>`, resolve trivial
   conflicts, push) — their own CI won't go green until they have the fix.
 - **Real code failure** — don't retry; treat like any other reviewable
   problem (an actual bug the PR introduced).
@@ -86,7 +102,7 @@ Sonnet `Agent` (subagent_type default, `isolation: "worktree"`) with:
 - The PR number, branch name, and base branch.
 - Instruction to fetch, merge (or rebase) the base branch in, resolve
   conflicts by reading both sides and preserving both intents (don't
-  silently drop either side — this repo's process/issue tracker docs in
+  silently drop either side — the profile's append-prone docs in
   particular tend to get independently-appended-to by multiple PRs; keep
   both additions, ordered sensibly, rather than picking one side), run the
   relevant test suite, and push (normal push, or `--force-with-lease` only
@@ -206,10 +222,12 @@ Once a PR is CLEAN (not DIRTY), CI is green, and it's genuinely
 clean with nothing to address):
 
 ```bash
-gh pr merge <n> --auto --squash
+gh pr merge <n> --auto --<profile merge method>
 ```
 
-Per this repo's ADR-027, feature → `development` is always squash-merged.
+Use the merge method from the profile (`--squash`, `--merge` or `--rebase`). If
+the profile has none, ask the user; do not guess. If the profile says auto-merge
+is not allowed, stop and tell the user instead of merging.
 Never merge directly (`gh pr merge` without `--auto`) unless the user
 explicitly asks for an immediate merge — auto-merge is the default because
 it waits for required checks rather than racing them.
@@ -220,10 +238,10 @@ progresses, don't treat it as a real error.
 
 ### Resolve review threads — a reply is not enough
 
-The `development` ruleset sets `required_review_thread_resolution: true`.
-A PR with green CI and auto-merge enabled will sit `BLOCKED` indefinitely
-if **any** review thread is unresolved, and replying to a thread does not
-resolve it. Whenever a finding is addressed or dismissed (including a
+If the base branch's ruleset requires thread resolution (the profile says so,
+or check `gh api repos/{owner}/{repo}/rules/branches/<base>`), a PR with green
+CI and auto-merge enabled will sit `BLOCKED` indefinitely if **any** review
+thread is unresolved, and replying to a thread does not resolve it. Whenever a finding is addressed or dismissed (including a
 false positive you rebut), resolve the thread explicitly:
 
 ```bash
@@ -247,7 +265,7 @@ PR and the reviewer agents in one process, prints one line per event, and keeps
 watching until every PR reaches a `--until` condition or the timeout:
 
 ```bash
-python3 -I <home>/.claude/skills/babysit-prs/scripts/watch.py -R <owner/repo> \
+python3 -I <this skill's base directory>/scripts/watch.py -R <owner/repo> \
   --pr <n> --pr <m> --agent <reviewer-name> \
   --until merged,closed,check-failed,dirty --timeout 90 --interval 30 \
   --state <durable-dir>/watch-<run>.json --exit-on-first-event
@@ -281,12 +299,13 @@ sub-agents, so confirm completion from the PR (`--until review` or
 If it times out with nothing merged, go through the `BLOCKED` diagnosis above
 rather than just waiting again.
 
-**Keep runner capacity on PRs.** The self-hosted runner only has a couple
-of job slots. While PRs are still queued, cancel every in-flight `CI` run
-on `development` (each intermediate merge triggers one), and cancel any
-PR run whose `headSha` is no longer the PR's head. Let only the
-`development` run triggered by the *last* merge complete, and confirm it
-passes before wrapping up.
+**Keep runner capacity on PRs.** Only when the profile says the runner is
+self-hosted and capacity-limited: it only has a few job slots. While PRs are
+still queued, cancel every in-flight `CI` run on `<base>` (each intermediate
+merge triggers one), and cancel any PR run whose `headSha` is no longer the PR's
+head. Let only the `<base>` run triggered by the *last* merge complete, and
+confirm it passes before wrapping up. The profile's runner-capacity policy
+overrides this default.
 
 After every merge, re-run `gh pr list --state open` — a merge can conflict
 or re-trigger CI on the remaining PRs (Step 2's re-check applies here too).

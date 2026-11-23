@@ -33,9 +33,13 @@ from a `CLAUDE.md`.
 | `guidelines/reasoning-discipline.md` | Verify against primary sources; check the option space |
 | `guidelines/debugging-patterns.md` | Fix-completeness verification in layers |
 | `guidelines/react-native.md` | React Native conventions — see note below |
+| `guidelines/design-principles.md` | Policy code (privacy, security, access) fails closed; don't key behavior on human-readable text |
+| `guidelines/explaining.md` | How to explain a task or mechanism: map first, why second, steps last |
+| `guidelines/long-running-jobs.md` | Long jobs run in a named tmux session with a log, refuse duplicates, write to persistent dirs |
 | `guidelines/tools/engram.md` | Engram persistent-memory protocol |
 | `guidelines/tools/RTK.md` | RTK token-optimizing CLI proxy |
 | `guidelines/tools/github-accounts.md` | Two-GitHub-account setup (personal vs work) |
+| `guidelines/tools/zsh.md` | The Bash tool runs zsh: array vs string commands, pipeline exit status, glob and `=` expansion, BSD tools |
 | `guidelines/tools/1password.md` | 1Password CLI: never print secrets, one `op run` per script |
 | `guidelines/templates/audit-template.md` | Shared reporting contract for the audit skills |
 

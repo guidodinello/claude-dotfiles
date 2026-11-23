@@ -1,12 +1,7 @@
 ---
 name: fix-ignores
 allowed-tools: Bash Read Edit Agent
-description: >
-  Audit all lint and type suppression comments across the codebase and attempt
-  to fix the underlying issues so suppressions can be removed. Covers Python
-  (# noqa, # type: ignore, # pyright: ignore) and TypeScript
-  (eslint-disable, @ts-ignore, @ts-expect-error). Does NOT auto-commit —
-  reports findings and applies fixes to the working tree only.
+description: 'Audit lint and type suppressions (noqa, type: ignore, eslint-disable, ts-ignore) and fix their causes.'
 ---
 
 ## Goal
@@ -23,26 +18,42 @@ or that matches `*.gen.ts`, `*.generated.*`, `alembic/versions/`, or
 
 ---
 
+## Step 0 — Discover source roots
+
+Do not assume a layout. Before running any command below, find the roots and
+use them in place of the `<placeholders>`:
+
+- `<backend-project>`: a directory with a `pyproject.toml` (`git ls-files '*pyproject.toml'`). `<backend-src>` is its source root (`src/` or the package directory) and `<backend-pkg>` the importable package under it.
+- `<frontend-project>`: a directory with a `package.json` (`git ls-files '*package.json'`, ignoring `node_modules`) whose `src/` holds the UI code. `<frontend-src>` is that `src/`.
+- Also scan a top-level `scripts/` directory if the repo has one; drop it from the commands below if it does not.
+- Skip a language entirely when its root does not exist (no `pyproject.toml` means no Python pass).
+
+If a root this skill needs cannot be found, stop and ask the user. An empty grep
+result is never a clean audit: confirm each root exists and holds files before
+reporting zero findings.
+
+---
+
 ## Step 1 — Collect all suppressions
 
 Run these from the repo root:
 
 ```bash
 # Python: noqa comments
-grep -rn "# noqa" backend/src scripts --include="*.py" | sort
+grep -rn "# noqa" <backend-src> scripts --include="*.py" | sort
 
 # Python: type: ignore comments
-grep -rn "# type: ignore" backend/src scripts --include="*.py" | sort
+grep -rn "# type: ignore" <backend-src> scripts --include="*.py" | sort
 
 # Python: pyright: ignore comments
-grep -rn "# pyright: ignore" backend/src scripts --include="*.py" | sort
+grep -rn "# pyright: ignore" <backend-src> scripts --include="*.py" | sort
 
 # TypeScript: eslint-disable (skip generated files)
-grep -rn "eslint-disable" frontend/web/src --include="*.ts" --include="*.tsx" \
+grep -rn "eslint-disable" <frontend-src> --include="*.ts" --include="*.tsx" \
   | grep -v "\.\(gen\|generated\)\." | sort
 
 # TypeScript: @ts-ignore / @ts-expect-error
-grep -rn "@ts-ignore\|@ts-expect-error" frontend/web/src --include="*.ts" --include="*.tsx" \
+grep -rn "@ts-ignore\|@ts-expect-error" <frontend-src> --include="*.ts" --include="*.tsx" \
   | grep -v "\.\(gen\|generated\)\." | sort
 ```
 
@@ -123,7 +134,7 @@ For each FIXABLE suppression:
 3. After editing, verify no new errors are introduced:
    - Python: `uv run --project backend ruff check <file>` and
      `uv run --project backend pyright <file>`
-   - TypeScript: `cd frontend/web && npx tsc --noEmit 2>&1 | grep <file>`
+   - TypeScript: `cd <frontend-project> && npx tsc --noEmit 2>&1 | grep <file>`
 
 If a fix would be a significant refactor (changing function signatures, altering
 call sites across multiple files), do NOT apply it silently — add it to the
@@ -153,10 +164,10 @@ After all edits:
 
 ```bash
 # Backend lint + typecheck
-cd backend && uv run ruff check src/ && uv run pyright
+cd <backend-project> && uv run ruff check src/ && uv run pyright
 
 # Frontend typecheck
-cd frontend/web && npx tsc --noEmit
+cd <frontend-project> && npx tsc --noEmit
 ```
 
 If any new errors appear (i.e. errors that were not present before the skill ran),
@@ -171,9 +182,9 @@ Print a summary table:
 
 | File | Line | Suppression | Category | Action Taken |
 |------|------|-------------|----------|--------------|
-| backend/src/.../file.py | 21 | `# type: ignore[type-arg]` | LEGITIMATE | No change |
-| backend/src/.../auth.py | 48 | `# type: ignore[misc]` | LEGITIMATE | No change |
-| frontend/web/src/.../Button.tsx | 21 | `// eslint-disable-next-line func-style` | INVESTIGATE | Needs manual review |
+| <backend-src>/.../file.py | 21 | `# type: ignore[type-arg]` | LEGITIMATE | No change |
+| <backend-src>/.../auth.py | 48 | `# type: ignore[misc]` | LEGITIMATE | No change |
+| <frontend-src>/.../Button.tsx | 21 | `// eslint-disable-next-line func-style` | INVESTIGATE | Needs manual review |
 | ... | ... | ... | ... | ... |
 
 Then print three sections:
