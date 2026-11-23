@@ -33,7 +33,7 @@ A reminder brings the plan back on its own, in the right session, once it is due
    - Reminders that aren't due yet appear only as one summary line: `N scheduled, next: <date>`.
 5. **Matching the owner.** A reminder stores both `session_id` and `cwd`. The payload goes to the session whose id matches. If only the cwd matches (a forked session gets a new id), that session's digest line is marked `same project`; it gets no payload. A skill doesn't know its own session id, so the `SessionStart` hook prints `session_id: <id> (remind command: python3 -I <abs path>/remind.py)` into the context, and `/remind` reads both from there. The absolute command matters: the permission allow rule matches the literal command, so a `~/` spelling would prompt.
    - **The owner session's transcript can be gone.** Claude Code deletes old transcripts (`cleanupPeriodDays`). Before printing `claude --resume <id>`, the digest checks that the transcript file exists. If it is gone, the digest prints `owner session gone: start fresh in <cwd>` instead. Decision 9 is what makes that fresh start work.
-6. **Deliver once, close explicitly.** Each session gets the payload once. Its id is then added to `delivered_to`, so the reminder never fires again on every prompt. A reminder that was delivered but not closed stays in the digest, marked `delivered, not done`, so it can't disappear silently. It is closed with `remind done <id>` or pushed to a later date with `remind snooze <id> <duration|date>`.
+6. **Deliver once, close explicitly.** Each session gets the payload once. Its id is then added to `delivered_to`, so the reminder never fires again on every prompt. A reminder that was delivered but not closed stays in the digest, marked `delivered, not done`, so it can't disappear silently. (The session receiving the payload doesn't also get a digest line for it.) It is closed with `remind done <id>` or pushed to a later date with `remind snooze <id> <duration|date>`.
 7. **Storage stays on this machine.** `<config dir>/reminders/` is neither synced nor copied by `sync.sh`, because session ids only exist on the machine that created them.
 8. **Scope compared with `PENDING.md`.** Reminders take over the *deferred agent work* items. Items where we wait on *other people* stay as tracker rows, which the team can see. A reminder may point to a tracker row, but the row stays the source of truth.
 9. **The plan must be self-contained.** The owning session may never be reopened, so the plan must be detailed enough for a fresh session to carry it out.
@@ -41,7 +41,7 @@ A reminder brings the plan back on its own, in the right session, once it is due
 
 ## Record
 
-JSON, because the hook uses only the Python standard library, which has no YAML parser.
+JSON, because the hook uses only the Python standard library, which has no YAML parser. Both scripts run on stock macOS `python3` (3.9), so no `@dataclass(slots=True)` (3.10+); a test runs them under `/usr/bin/python3` when it is 3.9.
 
 ```json
 {
@@ -58,9 +58,9 @@ JSON, because the hook uses only the Python standard library, which has no YAML 
 }
 ```
 
-- `due`: a date or a local datetime. A bare date means 09:00 that day.
+- `due`: a date or a local datetime. A bare date means 09:00 that day. A UTC offset is rejected, because an aware datetime can't be compared with the others.
 - `status`: `pending` or `done`. "Delivered" comes from `delivered_to` and isn't a separate status. `snooze` sets a new `due` and clears `delivered_to`.
-- `done` moves the file to `<config dir>/reminders/done/`. Nothing is deleted.
+- `done` moves the file to `<config dir>/reminders/done/`. Nothing is deleted: a reused id is archived as `<id>.2.json`, `<id>.3.json`, and so on.
 - Writes are atomic: the file is written to a temp file and renamed into place.
 
 ## Hook behaviour
@@ -87,7 +87,7 @@ Output goes to stdout with exit 0, which Claude Code adds to the session context
 
 - **Resume keeps the session id.** Two sessions started with `claude --resume <id>` kept appending to `<id>.jsonl` with that `sessionId`. A fork gets a new id (`source: "fork"`), which is why the cwd fallback exists.
 - **Hook input** ([hooks reference](https://code.claude.com/docs/en/hooks.md)): both events get `session_id`, `transcript_path`, `cwd`, `hook_event_name`. `SessionStart` also gets `source`: `startup`, `resume`, `clear`, `compact` or `fork`. The hook doesn't filter on `source`: the digest is useful after clearing the conversation and after compaction too.
-- **Output**: plain stdout on exit 0 is added to context for both events. It is capped at 10,000 characters; past that, Claude only sees a 2,000-character preview. The digest is capped at 20 lines.
+- **Output**: plain stdout on exit 0 is added to context for both events. It is capped at 10,000 characters; past that, Claude only sees a 2,000-character preview. The hook keeps its output under 9,000 characters. A payload that doesn't fit stays undelivered and arrives with the next prompt. Digest lines that don't fit are counted (`...and N more`), not printed.
 - **Transcripts are deleted after 30 days by default** (`cleanupPeriodDays`, [data usage](https://code.claude.com/docs/en/data-usage.md)). The "owner session gone" check looks for `<config>/projects/*/<session_id>.jsonl`; the owner's own `transcript_path` isn't in the hook input of another session.
 
 ## Later (not v1)

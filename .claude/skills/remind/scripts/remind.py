@@ -33,14 +33,14 @@ from pathlib import Path
 # config dir is where the link lives, not the repo file it points to.
 CONFIG_DIR = Path(__file__).absolute().parents[3]
 STORE = CONFIG_DIR / "reminders"
-DONE = STORE / "done"
 DEFAULT_HOUR = 9
 DURATION = re.compile(r"^(\d+)([hdw])$")
 DURATION_UNITS = {"h": "hours", "d": "days", "w": "weeks"}
 SCRIPT = Path(__file__).absolute()
 
 
-@dataclass(slots=True)
+# No slots=True: it needs Python 3.10, and the hook must load on stock macOS python3 (3.9).
+@dataclass
 class Reminder:
     id: str
     title: str
@@ -94,7 +94,11 @@ def parse_when(text: str, now: datetime | None = None) -> datetime:
         return (now or datetime.now()) + timedelta(**{unit: amount})
     if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
         return datetime.fromisoformat(text).replace(hour=DEFAULT_HOUR)
-    return datetime.fromisoformat(text)
+    moment = datetime.fromisoformat(text)
+    if moment.tzinfo is not None:
+        # An aware datetime can't be compared with the naive now(): one would break every sort.
+        raise ValueError(f"use local time without a UTC offset, got {text!r}")
+    return moment
 
 
 def stamp(moment: datetime) -> str:
@@ -133,6 +137,8 @@ def load_all(store: Path = STORE) -> tuple[list[Reminder], list[str]]:
         try:
             reminder = Reminder(**json.loads(path.read_text(encoding="utf-8")))
             validate(reminder)
+            if reminder.id != path.stem:  # write() would update another file
+                raise ValueError(f"id {reminder.id!r} does not match {path.name}")
         except (OSError, ValueError, TypeError):
             broken.append(path.name)
             continue
@@ -206,8 +212,15 @@ def cmd_done(args: argparse.Namespace, store: Path) -> str:
     reminder = load(args.id, store)
     reminder.status = "done"
     write(reminder, store)
-    (store / "done").mkdir(exist_ok=True)
-    os.replace(path_for(reminder.id, store), store / "done" / f"{reminder.id}.json")
+    archive = store / "done"
+    archive.mkdir(exist_ok=True)
+    # An id can be reused once the first reminder is closed; never overwrite its record.
+    target = archive / f"{reminder.id}.json"
+    copy = 2
+    while target.exists():
+        target = archive / f"{reminder.id}.{copy}.json"
+        copy += 1
+    os.replace(path_for(reminder.id, store), target)
     return f"done {reminder.id}"
 
 

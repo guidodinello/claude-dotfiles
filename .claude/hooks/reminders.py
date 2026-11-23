@@ -28,13 +28,36 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
+from types import ModuleType
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from remind import Reminder  # ty: ignore[unresolved-import]
 
 # absolute(), not resolve(): keep the symlinked config-dir path (see remind.CONFIG_DIR).
 SCRIPTS = Path(__file__).absolute().parent.parent / "skills" / "remind" / "scripts"
-MAX_DIGEST_LINES = 20  # plain stdout is capped at 10,000 characters
+# Plain stdout is capped at 10,000 characters; past that Claude sees only a 2,000-character
+# preview. Stay under it with room to spare. A payload that doesn't fit stays undelivered
+# and arrives with the next prompt; digest lines that don't fit are counted, not printed.
+MAX_CHARS = 9_000
 
 
-def payload(reminder, script: Path) -> str:
+class Output:
+    """Lines of hook output that never exceed MAX_CHARS in total."""
+
+    def __init__(self) -> None:
+        self.lines: list[str] = []
+        self.size = 0
+
+    def add(self, line: str) -> bool:
+        if self.size + len(line) + 1 > MAX_CHARS:
+            return False
+        self.lines.append(line)
+        self.size += len(line) + 1
+        return True
+
+
+def payload(reminder: Reminder, script: Path) -> str:
     lines = [f"Reminder `{reminder.id}` is due: {reminder.title}."]
     if reminder.why:
         lines.append(f"Why it waited: {reminder.why}.")
@@ -49,7 +72,7 @@ def payload(reminder, script: Path) -> str:
     return "\n".join(lines)
 
 
-def digest_line(reminder, session_id: str, cwd: str, remind) -> str:
+def digest_line(reminder: Reminder, session_id: str, cwd: str, remind: ModuleType) -> str:
     if reminder.session_id == session_id:
         where = "this session"
     elif remind.transcript_exists(reminder.session_id):
@@ -69,7 +92,7 @@ def digest_line(reminder, session_id: str, cwd: str, remind) -> str:
     )
 
 
-def run(data: dict, remind) -> list[str]:
+def run(data: dict[str, Any], remind: ModuleType) -> list[str]:
     event = data.get("hook_event_name")
     session_id = data.get("session_id") or ""
     cwd = str(Path(data.get("cwd") or ".").resolve())
@@ -77,28 +100,40 @@ def run(data: dict, remind) -> list[str]:
     now = datetime.now()
     due = [r for r in reminders if r.is_due(now)]
 
-    out: list[str] = []
+    out = Output()
+    if event == "SessionStart":
+        out.add(f"session_id: {session_id} (remind command: python3 -I {remind.SCRIPT})")
+    delivered_now: set[str] = set()
     for reminder in due:
-        if reminder.session_id == session_id and session_id not in reminder.delivered_to:
-            out.append(payload(reminder, remind.SCRIPT))
-            reminder.delivered_to.append(session_id)
-            remind.write(reminder)
+        if reminder.session_id != session_id or session_id in reminder.delivered_to:
+            continue
+        if not out.add(payload(reminder, remind.SCRIPT)):
+            continue  # stays undelivered, so the next prompt brings it
+        reminder.delivered_to.append(session_id)
+        remind.write(reminder)
+        delivered_now.add(reminder.id)
     if event != "SessionStart":
-        return out
+        return out.lines
 
-    out.insert(0, f"session_id: {session_id} (remind command: python3 -I {remind.SCRIPT})")
-    if due:
-        lines = [digest_line(r, session_id, cwd, remind) for r in due]
-        if len(lines) > MAX_DIGEST_LINES:
-            extra = len(lines) - MAX_DIGEST_LINES
-            lines = lines[:MAX_DIGEST_LINES] + [f"- ...and {extra} more (remind.py list)"]
-        out.append("Reminders due (awareness only; the owning session does the work):")
-        out.extend(lines)
+    # A reminder this session just received in full needs no digest line as well.
+    digest = [r for r in due if r.id not in delivered_now]
+    if digest:
+        out.add("Reminders due (awareness only; the owning session does the work):")
+        shown = 0
+        for reminder in digest:
+            if not out.add(digest_line(reminder, session_id, cwd, remind)):
+                break
+            shown += 1
+        if shown < len(digest):
+            out.lines.append(f"- ...and {len(digest) - shown} more (remind.py list)")
     later = [r for r in reminders if not r.is_due(now)]
     if later:
-        out.append(f"Reminders: {len(later)} scheduled, next: {later[0].due}")
-    out.extend(f"Unreadable reminder file: {name}" for name in broken)
-    return out
+        out.add(f"Reminders: {len(later)} scheduled, next: {later[0].due}")
+    for name in broken:
+        if not out.add(f"Unreadable reminder file: {name}"):
+            out.lines.append("More unreadable reminder files (remind.py list)")
+            break
+    return out.lines
 
 
 def main() -> int:

@@ -176,6 +176,87 @@ class HookDeliveryTest(ReminderTestCase):
         )
         self.assertEqual(self.hook_run("UserPromptSubmit", OWNER), "")
 
+    def test_first_delivery_has_no_duplicate_digest_line(self) -> None:
+        self.add("2000-01-01")
+        out = self.hook_run("SessionStart", OWNER)
+        self.assertIn("Reminder `r1` is due", out)
+        self.assertNotIn("delivered, not done", out)
+        self.assertNotIn("Reminders due", out)
+
+    def test_a_file_whose_id_differs_from_its_name_is_reported_not_redelivered(self) -> None:
+        self.add("2000-01-01")
+        (self.store / "r1.json").write_text(json.dumps({**self.stored(), "id": "other"}))
+        for _ in range(2):
+            self.assertEqual(self.hook_run("UserPromptSubmit", OWNER), "")
+        self.assertIn("Unreadable reminder file: r1.json", self.hook_run("SessionStart", OWNER))
+        self.assertFalse((self.store / "other.json").exists())
+
+    def test_a_due_with_a_utc_offset_is_reported_and_others_still_work(self) -> None:
+        self.add("2000-01-01", rid="good")
+        self.add("2000-01-01", rid="aware")
+        aware = {**self.stored("aware"), "due": "2000-01-01T09:00Z"}
+        (self.store / "aware.json").write_text(json.dumps(aware))
+
+        out = self.hook_run("SessionStart", OWNER)
+
+        self.assertIn("Reminder `good` is due", out)
+        self.assertIn("Unreadable reminder file: aware.json", out)
+        self.assertNotIn("reminders hook error", out)
+
+    def test_output_stays_under_the_stdout_cap(self) -> None:
+        long_title = "x" * 280
+        for n in range(30):
+            self.remind(
+                "add", "--title", long_title, "--due", "2000-01-01", "--plan", str(self.plan),
+                "--session-id", f"s{n}", "--id", f"d{n}",
+            )  # fmt: skip
+        out = self.hook_run("SessionStart", OTHER)
+        self.assertLess(len(out), 10_000)
+        self.assertRegex(out, r"- \.\.\.and \d+ more \(remind\.py list\)")
+
+    def test_payloads_that_do_not_fit_arrive_with_the_next_prompt(self) -> None:
+        long_why = "w" * 280
+        for n in range(30):
+            self.remind(
+                "add", "--title", "t" * 280, "--due", "2000-01-01", "--plan", str(self.plan),
+                "--session-id", OWNER, "--id", f"p{n}", "--why", long_why,
+            )  # fmt: skip
+        first = self.hook_run("UserPromptSubmit", OWNER)
+        second = self.hook_run("UserPromptSubmit", OWNER)
+        self.assertLess(len(first), 10_000)
+        delivered = first.count("is due:") + second.count("is due:")
+        self.assertGreater(second.count("is due:"), 0)
+        self.assertLessEqual(delivered, 30)
+        self.assertEqual(
+            len({line for line in (first + second).splitlines() if "is due:" in line}), delivered
+        )
+
+    @unittest.skipUnless(
+        Path("/usr/bin/python3").exists()
+        and subprocess.run(
+            ["/usr/bin/python3", "-c", "import sys; sys.exit(sys.version_info >= (3, 10))"]
+        ).returncode
+        == 0,
+        "needs the stock macOS python3 (3.9)",
+    )
+    def test_hook_and_cli_run_on_python_3_9(self) -> None:
+        self.add("2000-01-01")
+        payload = {"hook_event_name": "SessionStart", "session_id": OWNER, "cwd": str(self.project)}
+        result = subprocess.run(
+            ["/usr/bin/python3", "-I", str(self.hook)],
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+        )
+        self.assertNotIn("reminders hook error", result.stdout)
+        self.assertIn("Reminder `r1` is due", result.stdout)
+        listing = subprocess.run(
+            ["/usr/bin/python3", "-I", str(self.remind_script), "list"],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(listing.returncode, 0, listing.stderr)
+
     def test_bad_stdin_exits_cleanly(self) -> None:
         result = subprocess.run(
             [sys.executable, "-I", str(self.hook)], input="nope", capture_output=True, text=True
@@ -279,6 +360,22 @@ class RemindCliTest(ReminderTestCase):
                 result = self.remind(*command)
                 self.assertNotEqual(result.returncode, 0, (tampered, command))
         self.assertEqual(sorted(p.name for p in self.config.rglob("*.json")), ["r1.json"])
+
+    def test_done_keeps_an_earlier_archived_reminder_with_the_same_id(self) -> None:
+        self.add("2000-01-01", session="first")
+        self.remind("done", "r1")
+        self.add("2000-01-01", session="second")
+        self.remind("done", "r1")
+        archived = sorted((self.store / "done").glob("r1*.json"))
+        sessions = {json.loads(p.read_text())["session_id"] for p in archived}
+        self.assertEqual(sessions, {"first", "second"})
+
+    def test_add_rejects_a_utc_offset(self) -> None:
+        result = self.remind(
+            "add", "--title", "t", "--due", "2026-12-01T14:30Z", "--plan", str(self.plan),
+            "--session-id", OWNER,
+        )  # fmt: skip
+        self.assertIn("without a UTC offset", result.stderr)
 
     def test_unknown_id_fails(self) -> None:
         result = self.remind("done", "ghost")
