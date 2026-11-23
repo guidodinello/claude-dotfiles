@@ -309,6 +309,15 @@ class AddAndPromoteTest(LinkCase):
         self.assertEqual((self.cfg / "agents" / "a.md").read_text(), "mine")
         self.assertEqual((self.src / "agents" / "a.md").read_text(), "agent")
 
+    def test_promote_refuses_skipped_names(self):
+        live = self.write(self.cfg / "settings.json", "{}")
+        local = self.write(self.home / "project" / ".claude" / "settings.local.json", "{}")
+        for path in (live, local):
+            result = self.run_script("promote.sh", str(path), check=False)
+            self.assertNotEqual(result.returncode, 0, path)
+            self.assertTrue(path.is_file(), f"{path} stays where it was")
+        self.assertEqual(sorted(p.name for p in self.src.glob("settings*.json")), ["settings.base.json"])
+
     def test_promote_refuses_a_symlinked_skill(self):
         real = self.home / ".agents" / "skills" / "sk"
         self.write(real / "SKILL.md", "sk")
@@ -343,27 +352,44 @@ class CheckTest(LinkCase):
         result = self.sync("--check")
         self.assertIn("Check passed", self.out(result))
 
-    def test_check_on_a_broken_install_reports_and_changes_nothing(self):
-        self.sync()
-        other = self.copy_checkout()
-        (self.cfg / "agents" / "a.md").unlink()  # missing
-        dangling = self.cfg / "hooks" / "h.sh"
-        dangling.unlink()
-        dangling.symlink_to(self.home / "gone.sh")  # dangling
-        elsewhere = self.cfg / "skills" / "s" / "SKILL.md"
-        elsewhere.unlink()
-        elsewhere.symlink_to(other / ".claude" / "skills" / "s" / "SKILL.md")  # another checkout
+    def assert_check_fails_and_changes_nothing(self, *expected_in_output):
         before_home, before_repo = snapshot(self.home), snapshot(self.repo)
-
         result = self.sync("--check", check=False)
-
         self.assertNotEqual(result.returncode, 0)
-        output = self.out(result)
-        self.assertIn("agents/a.md", output)
-        self.assertIn("hooks/h.sh", output)
-        self.assertIn("--relink", output)
+        for text in expected_in_output:
+            self.assertIn(text, self.out(result))
         self.assertEqual(snapshot(self.home), before_home)
         self.assertEqual(snapshot(self.repo), before_repo)
+
+    def test_check_fails_on_a_missing_link(self):
+        self.sync()
+        (self.cfg / "agents" / "a.md").unlink()
+        self.assert_check_fails_and_changes_nothing("agents/a.md: missing")
+
+    def test_check_fails_on_a_dangling_link_of_ours(self):
+        self.sync()
+        link = self.cfg / "hooks" / "h.sh"
+        link.unlink()
+        # ours-shaped (ends in /.claude/hooks/h.sh) but the checkout behind it is gone
+        link.symlink_to(self.repo.parent / "gone" / ".claude" / "hooks" / "h.sh")
+        self.assert_check_fails_and_changes_nothing("hooks/h.sh", "stale")
+
+    def test_check_fails_on_a_link_into_another_existing_checkout(self):
+        self.sync()
+        other = self.copy_checkout()
+        link = self.cfg / "skills" / "s" / "SKILL.md"
+        link.unlink()
+        link.symlink_to(other / ".claude" / "skills" / "s" / "SKILL.md")
+        self.assert_check_fails_and_changes_nothing(str(other), "re-run with --relink")
+
+    def test_check_does_not_fail_on_links_that_are_not_ours(self):
+        self.sync()
+        (self.cfg / "agents" / "a.md").unlink()
+        (self.cfg / "agents" / "a.md").symlink_to(self.write(self.home / "mine.md", "mine"))
+        (self.cfg / "debug").mkdir()
+        (self.cfg / "debug" / "latest").symlink_to(self.home / "not-there.txt")
+        result = self.sync("--check")
+        self.assertIn("points outside the repo", self.out(result))
 
     def test_check_creates_nothing(self):
         result = self.sync("--check", check=False)  # fresh HOME: no ~/.claude at all

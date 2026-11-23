@@ -64,6 +64,14 @@ fi
 claude_root="${src%%/.claude/*}/.claude"
 rel="${src#"${claude_root}"/}"
 
+# sync.sh generates or skips these per config dir (settings.json) or reads them
+# from a project (settings.local.json); moving one here would take the live file
+# and leave nothing linked back.
+if is_skipped "${rel}"; then
+    echo "Error: ${rel} is generated or skipped by sync.sh and cannot be promoted"
+    exit 1
+fi
+
 repo_dst="${DOTFILES_DIR}/.claude/${rel}"
 is_from_global=false
 [[ "${claude_root}" == "${GLOBAL_CLAUDE}" ]] && is_from_global=true
