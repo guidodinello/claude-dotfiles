@@ -92,8 +92,11 @@ case "${lower}" in
     while IFS= read -r word; do
       case "${word}" in
         # Runtime objects, not files: `rg process.env src`, `import.meta.env`.
-        # Only these exact words; `x/process.env` is still a path.
-        process.env | import.meta.env | deno.env | bun.env) continue ;;
+        # Only these exact words, and only when no file of that name exists in
+        # the working directory; `x/process.env` is still a path.
+        process.env | import.meta.env | deno.env | bun.env)
+          [[ -e "${word}" ]] || continue
+          ;;
         *.env* | *.dev.vars* | *.aws* | *.ssh* | *.npmrc*) ;;
         *) continue ;;
       esac

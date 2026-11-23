@@ -172,6 +172,16 @@ class GuardBashTest(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertEqual(run_guard(hook_input(command), "prod").returncode, want)
 
+    def test_runtime_object_word_is_judged_when_a_file_of_that_name_exists(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run = lambda cmd: subprocess.run(  # noqa: E731
+                ["bash", str(GUARD)], input=hook_input(cmd), capture_output=True, text=True, cwd=tmp, timeout=30, check=False
+            )
+            self.assertEqual(run("rg process.env src").returncode, ALLOW)
+            (Path(tmp) / "process.env").write_text("")
+            self.assertEqual(run("cat process.env").returncode, BLOCK)
+            self.assertEqual(run("rg process.env src").returncode, BLOCK)
+
     def test_block_message_goes_to_stderr(self):
         result = run_guard(hook_input("docker volume rm data"))
         self.assertIn("BLOCKED", result.stderr)
