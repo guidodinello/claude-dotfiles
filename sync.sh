@@ -8,9 +8,10 @@
 #   ./sync.sh                     # sync ~/.claude plus every existing ~/.claude-* profile
 #   ./sync.sh ~/.claude-work      # sync only that CLAUDE_CONFIG_DIR
 #
-# settings.json is NOT symlinked: it is generated per config dir by merging
-# settings.base.json with the keys Claude Code writes at runtime, so each dir
-# keeps its own autoMode/enabledPlugins state instead of sharing one file.
+# settings.json is NOT symlinked: it is generated per config dir from
+# settings.base.json plus what is local to that dir (LOCAL_KEYS and entries
+# installers added), so each dir keeps its own autoMode/enabledPlugins state
+# instead of sharing one file. See merge_settings.
 
 set -e
 
@@ -21,17 +22,22 @@ OPENCODE_DST="${HOME}/.config/opencode"
 
 # Keys owned by the config dir, not the repo. Claude Code and installers write
 # these at runtime (learned auto-mode environment, plugin toggles, the output
-# style gentle-ai sets); a sync must not clobber them, and they must not leak
-# between the personal and work dirs.
-LOCAL_KEYS=("autoMode" "enabledPlugins" "outputStyle")
+# style gentle-ai sets, the /model and effort choices); a sync must not clobber
+# them, and they must not leak between the personal and work dirs. The base
+# value of a local key is only the default for a dir that has none. Any other
+# live key is rebuilt from the base, and merge_settings names each one it
+# drops or overrides. Not local on purpose: permissions.defaultMode (policy).
+LOCAL_KEYS=("autoMode" "enabledPlugins" "outputStyle" "model" "effortLevel")
 
 # Lists that both the repo and installers write to: Orca and herdr register
 # hooks, gentle-ai adds engram permissions and secret-file deny rules. Hooks
 # (per event) and these permission lists are unioned with the live file instead
-# of replaced, so a sync never drops an installer's entry. The cost: removing an
-# entry from the base does not remove it from an existing config dir, unless
-# its command is listed in RETIRED_HOOK_COMMANDS (hooks) or
-# RETIRED_PERMISSION_RULES (permission rules) below.
+# of replaced, so a sync never drops an installer's entry. Entries the last sync
+# took from the base (recorded in the manifest, see MANIFEST_NAME) and the base
+# no longer has are removed, and an edited hook replaces its old copy. A dir with
+# no manifest yet subtracts nothing on its first sync; what must go from such a
+# dir is listed in RETIRED_HOOK_COMMANDS (hooks, by command) or
+# RETIRED_PERMISSION_RULES (permission rules) below, which always apply.
 UNION_PERMISSIONS='["allow","deny","ask","additionalDirectories"]'
 
 # Permission rules that must leave the live file. Same mechanism as the retired
@@ -134,9 +140,183 @@ warn_shadowed_carve_outs() {
         | select(test("^(Read|Edit)\\((~/|//)[^)]*\\.env(\\*|\\.\\*)\\)$"))' <<<"$1")
 }
 
-# Merge settings.base.json into <dst>/settings.json, preserving LOCAL_KEYS from
-# whatever is already there. {{CONFIG_DIR}} resolves to the destination dir so
-# each config dir points at its own symlinked scripts.
+# Where the last sync records which entries it took from settings.base.json, so
+# the next sync can tell "ours, since removed from the base" from "added by an
+# installer or the user". A regular file at the root of each config dir: the
+# repo never contains it (so link_under/prune_dangling leave it alone) and
+# Claude Code does not read it. Deleting it is safe: the merge then subtracts
+# nothing, except what RETIRED_* lists.
+MANIFEST_NAME=".sync-settings-manifest.json"
+
+# The jq program behind merge_settings. Inputs (--argjson): base (rendered),
+# live, manifest (object or null), localKeys, retired (hook commands),
+# retiredPerms, unionPerms. It prints one object:
+#   merged        the new settings.json
+#   manifest      what this sync takes from the base (written after the merge)
+#   removedRules  [{list, rule}]  rules the manifest says were ours, no longer in base
+#   removedHooks  ["Event: command"]  same, for hooks
+#   dropped / overrode  live keys the merge discards / replaces (names only)
+#   liveOnly      entries that stay because only the live file has them
+read -r -d '' JQ_MERGE <<'JQ' || true
+# Every inner hook with a non-empty command, as [event, matcher, command]. That
+# triple is a hook's identity: an edit to the same hook keeps it.
+def hook_ids:
+    if type == "object" then
+        [ to_entries[] | .key as $ev
+          | (.value | if type == "array" then .[] else empty end)
+          | select(type == "object") | (.matcher // "") as $m
+          | (.hooks | if type == "array" then .[] else empty end)
+          | select(type == "object" and (.command | type) == "string" and (.command | length) > 0)
+          | [$ev, $m, .command] ]
+    else [] end;
+def union($a; $b): reduce ($b // [])[] as $x (($a // []);
+    if any(.[]; . == $x) then . else . + [$x] end);
+def objs: if type == "object" then . else {} end;
+def lst: if type == "array" then . else [] end;
+
+($base.permissions | objs) as $bp
+| ($live.permissions | objs) as $lp
+| ($manifest.permissions | objs) as $mp
+| ($base.hooks | hook_ids) as $baseIds
+| (($manifest.hooks // []) | map([.event, .matcher, .command])) as $manIds
+# Rules the last sync wrote that the base no longer has.
+| def gone($p): (($mp[$p] | lst) - ($bp[$p] | lst));
+
+# Drop from one event entry every hook that is the base's (an edit replaces it),
+# the manifest's (removed from the base) or retired. An entry goes only when
+# the strip emptied it; one that was empty or is not {hooks: [...]} stays.
+def strip_entry($ev; $ids):
+    if type == "object" and (.hooks | type) == "array" then
+        (.matcher // "") as $m | (.hooks | length) as $n
+        | .hooks |= map(select((type == "object" and (.command | type) == "string" and (.command | length) > 0
+              and (([$ev, $m, .command] | IN($ids[])) or (.command | IN($retired[])))) | not))
+        | if $n > 0 and (.hooks | length) == 0 then empty else . end
+    else . end;
+
+($live
+ | if (.hooks | type) == "object" then
+       .hooks |= (with_entries(.key as $ev | .value |= (if type == "array" then [.[] | strip_entry($ev; $baseIds + $manIds)] else . end))
+                  | with_entries(select((.value | type) != "array" or (.value | length) > 0)))
+   else . end
+ | if (.permissions | type) == "object" then
+       .permissions |= with_entries(.key as $k
+           | if ($unionPerms | index($k)) != null and (.value | type) == "array"
+             then .value |= map(select((IN($retiredPerms[]) or IN(gone($k)[])) | not))
+             else . end)
+   else . end) as $l
+| ($l.permissions | objs) as $lps
+| ($l | with_entries(select(.key as $k | $localKeys | index($k))) | with_entries(select(.value != null))) as $own
+| ($base * $own
+   | .hooks = (reduce ((($base.hooks | objs) + ($l.hooks | objs)) | keys[]) as $ev
+         ({}; .[$ev] = union($base.hooks[$ev]; $l.hooks[$ev])))
+   | reduce $unionPerms[] as $p (.;
+         (union($bp[$p]; $lps[$p])) as $u
+         | if ($u | length) > 0 then .permissions[$p] = $u else . end)
+   | if .hooks == {} then del(.hooks) else . end) as $merged
+| (["hooks", "permissions"] + $localKeys) as $skip
+| {
+    merged: $merged,
+    manifest: {
+        version: 1,
+        permissions: (reduce $unionPerms[] as $p ({}; .[$p] = ($bp[$p] | lst))),
+        hooks: ($baseIds | map({event: .[0], matcher: .[1], command: .[2]}))
+    },
+    removedRules: [ $unionPerms[] as $p | ($lp[$p] | lst)[] | select(IN(gone($p)[])) | {list: $p, rule: .} ],
+    removedHooks: [ ($live.hooks | hook_ids)[] | select(IN($manIds[]) and (IN($baseIds[]) | not)) | "\(.[0]): \(.[2])" ],
+    dropped: ([ ($live | keys[]) as $k | select(($skip | index($k)) == null and ($base | has($k) | not)) | $k ]
+              + [ ($lp | keys[]) as $k | select(($unionPerms | index($k)) == null and ($bp | has($k) | not)) | "permissions.\($k)" ]),
+    overrode: ([ ($live | keys[]) as $k | select(($skip | index($k)) == null and ($base | has($k)) and $live[$k] != $base[$k]) | $k ]
+               + [ ($lp | keys[]) as $k | select(($unionPerms | index($k)) == null and ($bp | has($k)) and $lp[$k] != $bp[$k]) | "permissions.\($k)" ]),
+    liveOnly: (
+        (reduce $unionPerms[] as $p ({}; .[$p] = [ ($lps[$p] | lst)[] | select(IN(($bp[$p] | lst)[]) | not) ]))
+        + {hooks: [ ($l.hooks | objs) | to_entries[] | .key as $ev | (.value | lst)[]
+                    | select(IN(($base.hooks[$ev] | lst)[]) | not)
+                    | if type == "object" and (.hooks | type) == "array"
+                      then .hooks[] | "\($ev): \(if type == "object" then (.command // "(no command)") else "(unrecognised)" end)"
+                      else "\($ev): (no command)" end ] })
+  }
+JQ
+
+# Resolve {{CONFIG_DIR}} in settings.base.json to <dst>. Literal in jq: no regex
+# and no sed escaping, so a path with & or | is safe.
+render_base() {
+    jq --arg dir "$2" 'walk(if type == "string" then split("{{CONFIG_DIR}}") | join($dir) else . end)' "$1"
+}
+
+# Print the manifest of the last sync, or "null" when there is none or it is
+# unusable (merge_settings warns; the merge then subtracts nothing).
+read_manifest() {
+    local file="$1/${MANIFEST_NAME}"
+    if [ ! -f "${file}" ]; then
+        echo null
+        return 0
+    fi
+    if jq -e '.version == 1 and (.permissions | type) == "object"
+              and ([.permissions[] | type == "array"] | all) and (.hooks | type) == "array"' \
+        "${file}" >/dev/null 2>&1; then
+        jq -c . "${file}"
+    else
+        echo null
+    fi
+}
+
+# Write the manifest only when its content changed, so a no-op sync touches nothing.
+write_manifest() {
+    local dst="$1" manifest="$2" file="$1/${MANIFEST_NAME}"
+    if [ -f "${file}" ] && [ "$(jq -S . <<<"${manifest}")" = "$(jq -S . "${file}" 2>/dev/null)" ]; then
+        return 0
+    fi
+    printf '%s\n' "${manifest}" > "${file}"
+}
+
+# Name every entry the merge dropped on purpose. Removed deny rules are WARNs: a
+# deny removal loosens policy. Takes the jq result object.
+report_removals() {
+    local line
+    while IFS= read -r line; do
+        log_warn "Removed deny rule no longer in settings.base.json: ${line}"
+    done < <(jq -r '.removedRules[] | select(.list == "deny") | .rule' <<<"$1")
+    while IFS= read -r line; do
+        log_info "Removed ${line%%$'\t'*} rule no longer in settings.base.json: ${line#*$'\t'}"
+    done < <(jq -r '.removedRules[] | select(.list != "deny") | "\(.list)\t\(.rule)"' <<<"$1")
+    while IFS= read -r line; do
+        log_info "Removed hook no longer in settings.base.json: ${line}"
+    done < <(jq -r '.removedHooks[]' <<<"$1")
+}
+
+# Live keys the merge discards or replaces, by name. Never the value: env may
+# hold tokens.
+report_key_changes() {
+    local key
+    while IFS= read -r key; do
+        log_warn "Dropped live key: ${key}"
+    done < <(jq -r '.dropped[]' <<<"$1")
+    while IFS= read -r key; do
+        log_warn "Overrode live key: ${key}"
+    done < <(jq -r '.overrode[]' <<<"$1")
+}
+
+# One line with the counts of entries that only the live file has (installer or
+# hand additions); SYNC_LIST_LIVE_ONLY=1 also lists each one.
+report_live_only() {
+    log_info "Live-only (not in settings.base.json): $(jq -r --argjson unionPerms "${UNION_PERMISSIONS}" \
+        '[ $unionPerms[] as $p | "\($p) \(.liveOnly[$p] | length)" ] + ["hooks \(.liveOnly.hooks | length)"] | join(", ")' <<<"$1")"
+    if [ "${SYNC_LIST_LIVE_ONLY:-}" = "1" ]; then
+        local entry
+        while IFS= read -r entry; do
+            log_info "  live-only ${entry}"
+        done < <(jq -r '.liveOnly | to_entries[] | .key as $k | .value[] | "\($k): \(.)"' <<<"$1")
+    fi
+}
+
+# Merge settings.base.json into <dst>/settings.json: the base, plus what is
+# genuinely local. LOCAL_KEYS are kept from the live file; permission lists and
+# hooks are unioned, minus what the last sync took from the base and the base
+# no longer has (see MANIFEST_NAME). Every other live key is dropped or
+# overridden, and named in the log. Returns 1 (touching nothing) when it cannot
+# decide; the caller carries on with the other config dirs.
+# Every command here ends in `|| return 1`: sync.sh calls this under `||`,
+# which turns `set -e` off inside the function.
 merge_settings() {
     local dst="$1"
     local base="${CLAUDE_SRC}/settings.base.json"
@@ -144,10 +324,10 @@ merge_settings() {
 
     if [ ! -f "${base}" ]; then
         log_warn "No settings.base.json - skipping settings merge."
-        return
+        return 0
     fi
 
-    # Read the local keys FIRST: in the old layout this path is a symlink into
+    # Read the live file FIRST: in the old layout this path is a symlink into
     # the repo, and Claude Code wrote runtime keys back through it. Reading
     # follows the link; removing it before reading would discard that state.
     local live_json="{}"
@@ -156,80 +336,64 @@ merge_settings() {
             log_err "${current} is not valid JSON - refusing to overwrite it."
             return 1
         fi
-        live_json="$(jq . "${current}")"
+        live_json="$(jq . "${current}")" || return 1
     fi
-    local local_keys_json
-    local_keys_json="$(printf '%s\n' "${LOCAL_KEYS[@]}" | jq -R . | jq -s .)"
+
+    local rendered local_keys_json retired_json retired_perms_json manifest_json
+    rendered="$(render_base "${base}" "${dst}")" || { log_err "Cannot read ${base}."; return 1; }
+    local_keys_json="$(printf '%s\n' "${LOCAL_KEYS[@]}" | jq -R . | jq -s .)" || return 1
+    # select(length > 0): an empty array prints one blank line, which must not
+    # become [""] and match every hook that has no command.
+    retired_json="$(printf '%s\n' "${RETIRED_HOOK_COMMANDS[@]}" | jq -R 'select(length > 0)' | jq -s .)" || return 1
+    retired_perms_json="$(printf '%s\n' "${RETIRED_PERMISSION_RULES[@]}" | jq -R 'select(length > 0)' | jq -s .)" || return 1
+    manifest_json="$(read_manifest "${dst}")" || return 1
+    if [ "${manifest_json}" = null ] && [ -f "${dst}/${MANIFEST_NAME}" ]; then
+        log_warn "${MANIFEST_NAME} is not a valid manifest - ignoring it (removals from the base will not propagate this run)."
+    fi
+
+    local result merged manifest
+    result="$(jq -n \
+        --argjson base "${rendered}" \
+        --argjson live "${live_json}" \
+        --argjson manifest "${manifest_json}" \
+        --argjson localKeys "${local_keys_json}" \
+        --argjson retired "${retired_json}" \
+        --argjson retiredPerms "${retired_perms_json}" \
+        --argjson unionPerms "${UNION_PERMISSIONS}" \
+        "${JQ_MERGE}")" || { log_err "Settings merge failed for ${dst} - leaving settings.json as it is."; return 1; }
+    merged="$(jq '.merged' <<<"${result}")" || return 1
+    manifest="$(jq -c '.manifest' <<<"${result}")" || return 1
+    # Never write what is not a settings object.
+    if ! jq -e 'type == "object"' <<<"${merged}" >/dev/null 2>&1; then
+        log_err "Settings merge for ${dst} produced no valid settings - leaving settings.json as it is."
+        return 1
+    fi
+
+    report_removals "${result}"
+    report_key_changes "${result}"
+    report_live_only "${result}"
+    warn_shadowed_carve_outs "${merged}"
 
     # Now drop the legacy symlink so the generated file is real and per-dir.
     if [ -L "${current}" ]; then
         log_warn "Replacing legacy settings.json symlink with a generated file"
-        cp "${current}" "${current}.bak-$(date +%Y%m%d-%H%M%S)"
-        rm "${current}"
+        cp "${current}" "${current}.bak-$(date +%Y%m%d-%H%M%S)" || return 1
+        rm "${current}" || return 1
     fi
 
-    local retired_json
-    # select(length > 0): an empty array prints one blank line, which must not
-    # become [""] and match every hook that has no command.
-    retired_json="$(printf '%s\n' "${RETIRED_HOOK_COMMANDS[@]}" | jq -R 'select(length > 0)' | jq -s .)"
-    local retired_perms_json
-    retired_perms_json="$(printf '%s\n' "${RETIRED_PERMISSION_RULES[@]}" | jq -R 'select(length > 0)' | jq -s .)"
-
-    local merged
-    merged="$(jq -n \
-        --argjson base "$(sed "s|{{CONFIG_DIR}}|${dst}|g" "${base}")" \
-        --argjson live "${live_json}" \
-        --argjson localKeys "${local_keys_json}" \
-        --argjson retired "${retired_json}" \
-        --argjson retiredPerms "${retired_perms_json}" \
-        --argjson unionPerms "${UNION_PERMISSIONS}" '
-        def union($a; $b): reduce ($b // [])[] as $x (($a // []);
-            if any(.[]; . == $x) then . else . + [$x] end);
-        # Strip retired permission rules from the live lists before the union.
-        def unretire_perms:
-            if (.permissions | type) == "object" then
-                .permissions |= with_entries(
-                    if ((.key as $k | $unionPerms | index($k)) != null) and (.value | type) == "array"
-                    then .value |= map(select(IN($retiredPerms[]) | not))
-                    else . end)
-            else . end;
-        # Strip retired commands from one event entry. Drop the entry only when
-        # the strip emptied it; entries that were already empty, or are not
-        # shaped like {hooks: [...]}, pass through untouched.
-        def unretire_entry:
-            if type == "object" and (.hooks | type) == "array" then
-                (.hooks | length) as $n
-                | .hooks |= map(select((type == "object" and ((.command // "") | IN($retired[]))) | not))
-                | if $n > 0 and (.hooks | length) == 0 then empty else . end
-            else . end;
-        def unretire:
-            if (.hooks | type) == "object" then
-                .hooks |= with_entries(.value |= (if type == "array" then map(unretire_entry) else . end))
-            else . end;
-        ($live | unretire | unretire_perms) as $live
-        | ($live | with_entries(select(.key as $k | $localKeys | index($k)))
-               | with_entries(select(.value != null))) as $own
-        | ($base * $own)
-        | .hooks = (reduce ((($base.hooks // {}) + ($live.hooks // {})) | keys[]) as $ev
-            ({}; .[$ev] = union($base.hooks[$ev]; $live.hooks[$ev])))
-        | reduce $unionPerms[] as $p (.;
-            (union($base.permissions[$p]; $live.permissions[$p])) as $u
-            | if ($u | length) > 0 then .permissions[$p] = $u else . end)
-        | if .hooks == {} then del(.hooks) else . end')"
-
-    warn_shadowed_carve_outs "${merged}"
-
     if [ -f "${current}" ] && [ "$(jq -S . <<<"${merged}")" = "$(jq -S . "${current}")" ]; then
+        write_manifest "${dst}" "${manifest}" || return 1
         log_info "settings.json already up to date"
-        return
+        return 0
     fi
 
     if [ -f "${current}" ]; then
-        cp "${current}" "${current}.bak-$(date +%Y%m%d-%H%M%S)"
+        cp "${current}" "${current}.bak-$(date +%Y%m%d-%H%M%S)" || return 1
         log_warn "Backed up previous settings.json"
     fi
 
-    printf '%s\n' "${merged}" > "${current}"
+    printf '%s\n' "${merged}" > "${current}" || return 1
+    write_manifest "${dst}" "${manifest}" || return 1
     log_info "Merged settings.json (preserved: ${LOCAL_KEYS[*]})"
     prune_settings_backups "${dst}"
 }
@@ -237,6 +401,7 @@ merge_settings() {
 # With an explicit target, sync only that dir. Otherwise sync every config dir
 # on this machine (see config_dirs in lib/link.sh).
 CLAUDE_DSTS=()
+MERGE_FAILED=()
 if [ -n "${1:-}" ]; then
     mkdir -p "$1"
     CLAUDE_DSTS+=("$(cd "$1" && pwd)")
@@ -251,7 +416,7 @@ for CLAUDE_DST in "${CLAUDE_DSTS[@]}"; do
     log_info "Target config dir: ${CLAUDE_DST}"
     prune_dangling "${CLAUDE_SRC}" "${CLAUDE_DST}"
     link_under "${CLAUDE_SRC}" "${CLAUDE_SRC}" "${CLAUDE_DST}" "skip"
-    merge_settings "${CLAUDE_DST}"
+    merge_settings "${CLAUDE_DST}" || MERGE_FAILED+=("${CLAUDE_DST}")
     find "${CLAUDE_DST}/hooks" -type f -name "*.sh" -exec chmod +x {} \; 2>/dev/null || true
 done
 
@@ -260,6 +425,15 @@ done
 if [ "${CLAUDE_DSTS[0]}" = "${HOME}/.claude" ] && [ -d "${OPENCODE_SRC}" ]; then
     prune_dangling "${OPENCODE_SRC}" "${OPENCODE_DST}"
     link_under "${OPENCODE_SRC}" "${OPENCODE_SRC}" "${OPENCODE_DST}"
+fi
+
+# A dir whose settings could not be merged does not stop the others, but the
+# run still fails.
+if [ "${#MERGE_FAILED[@]}" -gt 0 ]; then
+    for failed_dst in "${MERGE_FAILED[@]}"; do
+        log_err "Settings merge failed for: ${failed_dst}"
+    done
+    exit 1
 fi
 
 log_info "Done! Claude Code tools are ready in: ${CLAUDE_DSTS[*]}"
