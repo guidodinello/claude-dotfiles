@@ -473,7 +473,11 @@ run_check() {
         done < <(config_dirs)
     fi
 
-    expected="$(expected_rels "${CLAUDE_SRC}" skip)"
+    warn_untracked_files "${CLAUDE_SRC}"
+    if ! expected="$(expected_rels "${CLAUDE_SRC}" skip)"; then
+        log_err "Cannot list the files this repo links; check refuses to guess."
+        return 1
+    fi
     for dst in "${targets[@]}"; do
         log_info "Checking config dir: ${dst}"
         if [ ! -d "${dst}" ]; then
@@ -496,8 +500,12 @@ run_check() {
         warn_unmarked_config_dirs
         if [ "${targets[0]}" = "${HOME}/.claude" ] && [ -d "${OPENCODE_SRC}" ]; then
             log_info "Checking config dir: ${OPENCODE_DST}"
-            verify_links "${OPENCODE_SRC}" "${OPENCODE_DST}" ".config/opencode" \
-                "$(expected_rels "${OPENCODE_SRC}")" info || status=1
+            if expected="$(expected_rels "${OPENCODE_SRC}")"; then
+                verify_links "${OPENCODE_SRC}" "${OPENCODE_DST}" ".config/opencode" "${expected}" info || status=1
+            else
+                log_err "Cannot list the files this repo links for opencode; check refuses to guess."
+                status=1
+            fi
         fi
     fi
 
@@ -536,24 +544,42 @@ fi
 # Every dir is processed before the run fails, so one broken dir does not hide
 # the state of the others.
 LINK_FAILED=()
-EXPECTED_CLAUDE="$(expected_rels "${CLAUDE_SRC}" skip)"
+# If what the repo tracks cannot be listed (unreadable git index, nothing staged),
+# nothing is linked or pruned: an empty list must never read as "link nothing".
+EXPECTED_OK=1
+EXPECTED_CLAUDE="$(expected_rels "${CLAUDE_SRC}" skip)" || EXPECTED_OK=0
+warn_untracked_files "${CLAUDE_SRC}"
 
 for CLAUDE_DST in "${CLAUDE_DSTS[@]}"; do
     log_info "Target config dir: ${CLAUDE_DST}"
-    link_under "${CLAUDE_SRC}" "${CLAUDE_SRC}" "${CLAUDE_DST}" "skip"
+    # Prune first: a path that turned from a file into a directory (or back) needs
+    # its old link gone before the new one can be written, in this same run.
+    LINKS_OK="${EXPECTED_OK}"
+    if [ "${LINKS_OK}" -eq 1 ]; then
+        prune_links "${CLAUDE_SRC}" "${CLAUDE_DST}" ".claude" "${EXPECTED_CLAUDE}" || LINKS_OK=0
+    fi
+    if [ "${LINKS_OK}" -eq 1 ]; then
+        link_under "${CLAUDE_SRC}" "${CLAUDE_SRC}" "${CLAUDE_DST}" "skip" || LINKS_OK=0
+    fi
     merge_settings "${CLAUDE_DST}" || MERGE_FAILED+=("${CLAUDE_DST}")
-    # After the merge: it converts a legacy settings.json symlink first.
-    prune_links "${CLAUDE_SRC}" "${CLAUDE_DST}" ".claude" "${EXPECTED_CLAUDE}"
-    verify_links "${CLAUDE_SRC}" "${CLAUDE_DST}" ".claude" "${EXPECTED_CLAUDE}" || LINK_FAILED+=("${CLAUDE_DST}")
+    if [ "${LINKS_OK}" -eq 1 ]; then
+        verify_links "${CLAUDE_SRC}" "${CLAUDE_DST}" ".claude" "${EXPECTED_CLAUDE}" || LINK_FAILED+=("${CLAUDE_DST}")
+    else
+        LINK_FAILED+=("${CLAUDE_DST}")
+    fi
 done
 
 # opencode lives at a fixed path, not per profile; sync it once, on runs
 # that include the default ~/.claude.
 if [ "${CLAUDE_DSTS[0]}" = "${HOME}/.claude" ] && [ -d "${OPENCODE_SRC}" ]; then
-    EXPECTED_OPENCODE="$(expected_rels "${OPENCODE_SRC}")"
-    link_under "${OPENCODE_SRC}" "${OPENCODE_SRC}" "${OPENCODE_DST}"
-    prune_links "${OPENCODE_SRC}" "${OPENCODE_DST}" ".config/opencode" "${EXPECTED_OPENCODE}"
-    verify_links "${OPENCODE_SRC}" "${OPENCODE_DST}" ".config/opencode" "${EXPECTED_OPENCODE}" || LINK_FAILED+=("${OPENCODE_DST}")
+    warn_untracked_files "${OPENCODE_SRC}"
+    if EXPECTED_OPENCODE="$(expected_rels "${OPENCODE_SRC}")" &&
+        prune_links "${OPENCODE_SRC}" "${OPENCODE_DST}" ".config/opencode" "${EXPECTED_OPENCODE}" &&
+        link_under "${OPENCODE_SRC}" "${OPENCODE_SRC}" "${OPENCODE_DST}"; then
+        verify_links "${OPENCODE_SRC}" "${OPENCODE_DST}" ".config/opencode" "${EXPECTED_OPENCODE}" || LINK_FAILED+=("${OPENCODE_DST}")
+    else
+        LINK_FAILED+=("${OPENCODE_DST}")
+    fi
 fi
 
 if [ "${#LINK_FAILED[@]}" -gt 0 ]; then

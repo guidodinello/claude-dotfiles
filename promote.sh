@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Moves a skill/agent/file from any project's .claude/ into this repo and symlinks it globally.
-# Usage: ./promote.sh [--delete-original] <path-inside-any-.claude/>
+# Usage: ./promote.sh <path-inside-any-.claude/>
+# (--delete-original is still accepted but deprecated and ignored: the item is always moved.)
 # Examples:
 #   ./promote.sh /path/to/project/.claude/skills/my-skill
 #   ./promote.sh ~/.claude/agents/my-agent.md
-#   ./promote.sh --delete-original /path/to/project/.claude/hooks/my-hook.sh
 
 set -e
 
@@ -23,11 +23,10 @@ fi
 src="${1}"
 
 if [[ -z "${src}" ]]; then
-    echo "Usage: $0 [--delete-original] <path-to-item-in-any-.claude/>"
+    echo "Usage: $0 <path-to-item-in-any-.claude/>"
     echo "Examples:"
     echo "  $0 /path/to/project/.claude/skills/my-skill"
     echo "  $0 ~/.claude/agents/my-agent.md"
-    echo "  $0 --delete-original /path/to/project/.claude/hooks/my-hook.sh"
     exit 1
 fi
 
@@ -93,6 +92,8 @@ log_info "Moved to repo: .claude/${rel}"
 while IFS= read -r dir; do
     link_under "${DOTFILES_DIR}/.claude" "${repo_dst}" "${dir}" skip any
 done < <(config_dirs)
+# An existing profile without the marker is not in that list; say so.
+warn_unmarked_config_dirs
 
 # The item is not tracked yet, so it was linked from disk; stage it so the next
 # sync (tracked files only) keeps the links.

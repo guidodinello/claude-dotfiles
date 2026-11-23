@@ -229,12 +229,140 @@ class PruneTest(LinkCase):
             self.assertTrue((self.src / name).is_file(), f"{name} stays in the repo")
         self.assertTrue((self.cfg / "settings.json").is_file())
 
-    def test_prune_never_removes_a_repo_file(self):
+    def test_prune_removes_only_links_and_never_a_repo_file(self):
+        """Three kinds of pruneable link at once; the repo must come out untouched."""
+        self.git_track()
         self.sync()
+        stray = self.write(self.src / "agents" / "stray.md", "untracked")  # not tracked
+        skipped = self.write(self.src / "settings.local.json", "{}")  # on the skip list
+        (self.cfg / "agents" / "stray.md").symlink_to(stray)
+        (self.cfg / "settings.local.json").symlink_to(skipped)
+        old_checkout = self.repo.parent / "gone" / ".claude" / "agents" / "old.md"
+        (self.cfg / "agents" / "old.md").symlink_to(old_checkout)  # dangling, other checkout
         before = snapshot(self.src)
-        shutil.rmtree(self.cfg / "skills")  # whole dir gone
-        self.sync()
+
+        result = self.sync()
+
+        for name in ("agents/stray.md", "settings.local.json", "agents/old.md"):
+            self.assertFalse((self.cfg / name).is_symlink(), name)
+        self.assertEqual(self.out(result).count("Pruned link"), 3)
         self.assertEqual(snapshot(self.src), before)
+
+
+class FailClosedTest(LinkCase):
+    """A listing that cannot be trusted must never read as "link nothing"."""
+
+    def link_count(self) -> int:
+        return len([p for p in self.cfg.rglob("*") if p.is_symlink()])
+
+    def test_corrupt_git_index_prunes_nothing_and_fails_the_run(self):
+        self.git_track()
+        self.sync()
+        before = self.link_count()
+        self.assertGreater(before, 0)
+        (self.repo / ".git" / "index").write_bytes(b"garbage")
+
+        result = self.sync(check=False)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("Done!", self.out(result))
+        self.assertIn("refusing to guess", self.out(result))
+        self.assertEqual(self.link_count(), before)
+        self.assertEqual(self.dangling_links(self.cfg), [])
+
+    def test_empty_git_index_prunes_nothing_and_fails_the_run(self):
+        self.sync()  # linked from disk first
+        before = self.link_count()
+        subprocess.run(["git", "init", "-q"], cwd=self.repo, check=True)  # nothing staged
+
+        result = self.sync(check=False)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("lists no tracked files", self.out(result))
+        self.assertEqual(self.link_count(), before)
+
+    def test_nothing_staged_on_a_fresh_install_links_nothing_and_fails(self):
+        subprocess.run(["git", "init", "-q"], cwd=self.repo, check=True)
+        result = self.sync(check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(self.link_count() if self.cfg.exists() else 0, 0)
+
+    def test_check_fails_on_a_corrupt_index_instead_of_reporting_a_clean_install(self):
+        self.git_track()
+        self.sync()
+        (self.repo / ".git" / "index").write_bytes(b"garbage")
+        result = self.sync("--check", check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("Check passed", self.out(result))
+
+
+class WholeDirectoryLinkTest(LinkCase):
+    def test_a_whole_directory_link_into_the_repo_is_kept(self):
+        self.cfg.mkdir()
+        link = self.cfg / "skills"
+        link.symlink_to(self.src / "skills")
+
+        result = self.sync()
+
+        self.assertEqual(os.readlink(link), str(self.src / "skills"))
+        self.assertIn("whole-directory link", self.out(result))
+        self.assertEqual(self.out(result).count("Not linking under"), 1, "named once, not per file")
+        self.sync("--check")
+
+
+class OrderingTest(LinkCase):
+    def test_a_file_that_became_a_directory_is_relinked_in_one_run(self):
+        self.write(self.src / "rules" / "r", "a file")
+        self.sync()
+        (self.src / "rules" / "r").unlink()
+        self.write(self.src / "rules" / "r" / "sub.md", "now a directory")
+
+        self.sync()
+
+        self.assertEqual((self.cfg / "rules" / "r" / "sub.md").resolve(), (self.src / "rules" / "r" / "sub.md").resolve())
+
+    def test_a_directory_that_became_a_file_is_relinked_in_one_run(self):
+        self.write(self.src / "rules" / "r" / "sub.md", "a directory")
+        self.sync()
+        shutil.rmtree(self.src / "rules" / "r")
+        self.write(self.src / "rules" / "r", "now a file")
+
+        self.sync()
+
+        self.assertEqual((self.cfg / "rules" / "r").resolve(), (self.src / "rules" / "r").resolve())
+        self.assertEqual(list((self.cfg / "rules").glob("r.*.bak")), [], "the old link tree is pruned, not backed up")
+
+
+class UntrackedVisibilityTest(LinkCase):
+    def test_sync_names_untracked_files_it_skips_but_not_litter(self):
+        self.git_track()
+        self.write(self.src / "rules" / "new.md", "a new rule")
+        self.write(self.src / ".DS_Store", "junk")
+
+        result = self.sync()
+
+        output = self.out(result)
+        self.assertIn("Not linked, untracked", output)
+        self.assertIn("rules/new.md", output)
+        self.assertIn("git add", output)
+        self.assertNotIn(".DS_Store", output)
+        self.assertFalse((self.cfg / "rules" / "new.md").exists())
+
+    def test_check_names_them_too_and_a_git_add_links_the_file(self):
+        self.git_track()
+        self.write(self.src / "rules" / "new.md", "a new rule")
+        self.assertIn("rules/new.md", self.out(self.sync("--check", check=False)))
+
+        subprocess.run(["git", "add", ".claude/rules/new.md"], cwd=self.repo, check=True)
+        self.sync()
+        self.assertTrue((self.cfg / "rules" / "new.md").is_symlink())
+
+    def test_litter_is_not_linked_without_git_either(self):
+        self.write(self.src / ".DS_Store", "junk")
+        self.write(self.src / "agents" / "x.swp", "junk")
+        self.sync()
+        self.assertFalse((self.cfg / ".DS_Store").exists())
+        self.assertFalse((self.cfg / "agents" / "x.swp").exists())
 
 
 class TrackedOnlyTest(LinkCase):
@@ -276,6 +404,21 @@ class TrackedOnlyTest(LinkCase):
         self.sync()
         self.assertEqual((self.cfg / "agents" / "new.md").resolve(), (self.src / "agents" / "new.md").resolve())
 
+    def test_add_file_stages_only_what_it_links_not_litter_in_a_directory(self):
+        self.git_track()
+        self.write(self.cfg / "skills" / "new" / "SKILL.md", "new")
+        self.write(self.cfg / "skills" / "new" / ".DS_Store", "junk")
+        self.write(self.cfg / "skills" / "new" / "x.swp", "junk")
+
+        self.run_script("add_file.sh", str(self.cfg / "skills" / "new"))
+
+        tracked = subprocess.run(
+            ["git", "ls-files", ".claude/skills/new"], cwd=self.repo, capture_output=True, text=True
+        ).stdout.split()
+        self.assertEqual(tracked, [".claude/skills/new/SKILL.md"])
+        self.sync()
+        self.assertFalse((self.cfg / "skills" / "new" / ".DS_Store").exists())
+
     def test_select_offers_tracked_files_only(self):
         self.git_track()
         self.write(self.src / "agents" / "x.swp", "junk")
@@ -308,6 +451,22 @@ class AddAndPromoteTest(LinkCase):
         self.assertNotEqual(refused.returncode, 0)
         self.assertEqual((self.cfg / "agents" / "a.md").read_text(), "mine")
         self.assertEqual((self.src / "agents" / "a.md").read_text(), "agent")
+
+    def test_add_file_and_promote_warn_about_an_unmarked_profile(self):
+        old = self.home / ".claude-old"
+        link = old / "agents" / "a.md"
+        link.parent.mkdir(parents=True)
+        link.symlink_to(self.src / "agents" / "a.md")
+
+        self.write(self.cfg / "agents" / "new.md", "new")
+        added = self.run_script("add_file.sh", str(self.cfg / "agents" / "new.md"))
+        self.assertIn("run ./sync.sh", self.out(added))
+        self.assertIn(".claude-old", self.out(added))
+        self.assertFalse((old / "agents" / "new.md").exists())
+
+        skill = self.write(self.home / "project" / ".claude" / "agents" / "p.md", "p")
+        promoted = self.run_script("promote.sh", str(skill))
+        self.assertIn("run ./sync.sh", self.out(promoted))
 
     def test_promote_refuses_skipped_names(self):
         live = self.write(self.cfg / "settings.json", "{}")

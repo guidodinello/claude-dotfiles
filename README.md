@@ -60,7 +60,7 @@ Pushing first overwrites your edit with the older global version.
 
 Required (`./sync.sh --check` reports a missing one):
 
-- `git`, `jq` and `python3`. `sync.sh` exits on an empty `HOME` without `jq`.
+- `git`, `jq` and `python3`. `sync.sh` refuses to run without `jq`; `--check` reports it instead.
 
 Assumed, not shipped (`--check` warns when one is missing; nothing fails):
 
@@ -76,7 +76,7 @@ cd ~/claude-dotfiles
 bash sync.sh
 ```
 
-`sync.sh` symlinks every file this repo tracks under `.claude/` into `~/.claude/`; untracked files (`.DS_Store`, editor swap files) are never linked. A pre-existing regular file is moved to `<file>.<YYYYMMDD-HHMMSS>.bak` first, and a second clash never overwrites an earlier backup. Safe to re-run any time, e.g. after `git pull`. A run exits non-zero when any config dir's links do not match the repo afterwards.
+`sync.sh` symlinks every file this repo tracks under `.claude/` into `~/.claude/`. A new rule, guideline or skill must be `git add`ed first: untracked files are not linked, and the run lists the ones it skipped. `.DS_Store` and editor swap files are never linked. A pre-existing regular file is moved to `<file>.<YYYYMMDD-HHMMSS>.bak` first, and a second clash never overwrites an earlier backup. Safe to re-run any time, e.g. after `git pull`. A run exits non-zero when any config dir's links do not match the repo afterwards.
 
 **Which links does a sync touch?** Only links of its own: an absolute symlink whose target ends in `/.claude/<same path>` (or `/.config/opencode/<same path>`), in this checkout or any other checkout or old location of this repo. Relative links, such as the `../../.agents/skills/*` ones, and absolute links to anywhere else are never replaced or removed; a link of that kind sitting where the repo wants one gets a warning.
 
@@ -84,7 +84,7 @@ Each run also repairs and cleans up after itself:
 
 - **Stale links are repaired.** A link of ours whose target is gone (the repo was moved or its old checkout deleted) is repointed at this checkout.
 - **A link into another checkout that still exists is not moved.** Running `./sync.sh` from a second clone or a git worktree would otherwise swing the whole live config onto it. The run names both checkouts and fails; add `--relink` to move the links on purpose.
-- **Links the repo no longer asks for are pruned.** Files deleted, moved, untracked or on the skip list (`settings.local.json`, `*.bak`) lose their link; only symlinks in config dirs are ever removed, never a file in the repo.
+- **Links the repo no longer asks for are pruned.** Files deleted, moved, untracked, on the skip list (`settings.json`, `settings.base.json`, `settings.local.json`) or excluded (`*.bak`, `.DS_Store`, editor swap files, `__pycache__`) lose their link; a whole-directory link you made into the repo (`skills -> <repo>/.claude/skills`) is kept; only symlinks in config dirs are ever removed, never a file in the repo.
 - **Old settings backups are trimmed.** A run that changes `settings.json` saves the previous one as `settings.json.bak-<timestamp>`; only the newest 3 of those are kept. Backups with any other name (`.bak`, `.bak-engram`, ...) are never deleted.
 
 ```bash
@@ -111,7 +111,7 @@ bash select.sh
 ./add_file.sh ~/.claude/skills/my-skill        # directories work too
 ```
 
-Moves the file/directory into the repo, stages it with `git add` (no commit; the next sync links tracked files only), and creates file-level symlinks back in `~/.claude/` and in every marked `~/.claude-*` profile. It refuses names `sync.sh` generates or skips (`settings.json`), a source that is already a symlink, and a path that already exists in the repo.
+Moves the file/directory into the repo, stages the files it would link with `git add` (no commit; the next sync links tracked files only), and creates file-level symlinks back in `~/.claude/` and in every marked `~/.claude-*` profile. It refuses names `sync.sh` generates or skips (`settings.json`), a source that is already a symlink, and a path that already exists in the repo.
 
 ### Promote a skill from a project to global
 
@@ -120,7 +120,7 @@ Moves the file/directory into the repo, stages it with `git add` (no commit; the
 ./promote.sh ~/.claude/agents/my-agent.md      # also works for ~/.claude/ sources
 ```
 
-Moves the item into this repo, stages it, and creates symlinks in `~/.claude/` (and every marked `~/.claude-*` profile) so it's immediately available globally. The item is always moved, never copied: for a project-local source the script ends with "Moved out of <project>/.claude; commit the removal in that project." A source that is a symlink is refused (it would move the link, not the skill); promote its target instead. `--delete-original` is still accepted but does nothing now.
+Moves the item into this repo, stages it, and creates symlinks in `~/.claude/` (and every marked `~/.claude-*` profile) so it's immediately available globally. The item is always moved, never copied: for a project-local source the script prints "Moved out of <project>/.claude; commit the removal in that project." before its commit hint. A source that is a symlink is refused (it would move the link, not the skill); promote its target instead. `--delete-original` is still accepted but does nothing now.
 
 After either script, commit what it staged:
 

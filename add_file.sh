@@ -69,6 +69,8 @@ mv "${file_path}" "${dst}"
 while IFS= read -r dir; do
     link_under "${DOTFILES_DIR}/.claude" "${dst}" "${dir}" skip any
 done < <(config_dirs)
+# An existing profile without the marker is not in that list; say so.
+warn_unmarked_config_dirs
 
 stage_in_repo "${DOTFILES_DIR}" "${rel}"
 echo "Remember to commit: git commit -m \"feat: add ${rel}\""

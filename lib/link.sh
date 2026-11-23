@@ -115,34 +115,101 @@ repo_is_checkout() {
     [ "${top}" = "${phys}" ]
 }
 
-# linkable_files <root> <item> [any]: the files to link under <item>, NUL
-# separated. In a git checkout that is what git tracks (so .DS_Store and .swp
-# files are never linked), minus backups and bytecode. With "any", or when the
-# tree is not a checkout, every file on disk (same exclusions): add_file.sh and
-# promote.sh link a file that is not tracked yet.
-linkable_files() {
-    local root="$1" item="$2" any="${3:-}" root_rel repo_dir rel f
+# Never linked, whatever git or the disk says: backups (the timestamped .bak
+# files link_file makes), editor and OS litter, and Python bytecode.
+EXCLUDE_NAMES=('*.bak' '.DS_Store' '*.swp' '*.swo' '*~')
+
+# is_excluded_path <path>: matches EXCLUDE_NAMES or sits under __pycache__.
+is_excluded_path() {
+    local base="${1##*/}" pat
+    case "$1" in
+        */__pycache__/*) return 0 ;;
+    esac
+    for pat in "${EXCLUDE_NAMES[@]}"; do
+        # shellcheck disable=SC2053  # $pat is a glob on purpose
+        if [[ "${base}" == ${pat} ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Does <dir> hold any file a sync would link (same exclusions)?
+tree_has_files() {
+    local f
+    while IFS= read -r -d '' f; do
+        is_excluded_path "${f}" || return 0
+    done < <(find "$1" -type f -print0 2>/dev/null)
+    return 1
+}
+
+# linkable_list <root> <item> <any> <outfile>: write the files to link under
+# <item>, NUL separated, to <outfile>. Returns 1 when it cannot tell, and then
+# nothing may be pruned. In a git checkout the list is what git tracks (so a
+# stray file is never linked), minus EXCLUDE_NAMES. With "any" (add_file.sh and
+# promote.sh link a file that is not tracked yet), or when the tree is not a
+# checkout (the tests copy it), it is every file on disk, same exclusions.
+# It fails closed in a checkout: a failing `git ls-files` (unreadable index) or
+# an empty list for a source tree that has files (nothing staged yet) must never
+# read as "nothing is expected", which would make prune remove every link.
+linkable_list() {
+    local root="$1" item="$2" any="${3:-}" out="$4"
+    local root_rel repo_dir rel raw f pat find_args=()
     root_rel="$(root_rel_of "${root}")"
     repo_dir="${root%/"${root_rel}"}"
+
     if [ "${any}" != "any" ] && repo_is_checkout "${repo_dir}"; then
         rel="${item#"${repo_dir}"/}"
-        while IFS= read -r -d '' f; do
-            f="${repo_dir}/${f}"
-            [ -f "${f}" ] && [ ! -L "${f}" ] || continue
-            case "${f}" in
-                *.bak | */__pycache__/*) continue ;;
-            esac
-            printf '%s\0' "${f}"
-        done < <(git --literal-pathspecs -C "${repo_dir}" ls-files -z -- "${rel}")
+        raw="$(mktemp)" || return 1
+        if ! git --literal-pathspecs -C "${repo_dir}" ls-files -z -- "${rel}" >"${raw}"; then
+            rm -f "${raw}"
+            log_err "git ls-files failed in ${repo_dir}; refusing to guess what is tracked"
+            return 1
+        fi
+        {
+            while IFS= read -r -d '' f; do
+                f="${repo_dir}/${f}"
+                [ -f "${f}" ] && [ ! -L "${f}" ] || continue
+                is_excluded_path "${f}" && continue
+                printf '%s\0' "${f}"
+            done <"${raw}"
+        } >"${out}"
+        rm -f "${raw}"
+        if [ ! -s "${out}" ] && [ "${item}" = "${root}" ] && tree_has_files "${item}"; then
+            log_err "git lists no tracked files under ${item}, but it has files (nothing staged, or the index is unreadable); refusing to continue"
+            return 1
+        fi
     else
-        find "${item}" -type f ! -name '*.bak' ! -path '*/__pycache__/*' -print0
+        for pat in "${EXCLUDE_NAMES[@]}"; do
+            find_args+=('!' -name "${pat}")
+        done
+        find "${item}" -type f "${find_args[@]}" ! -path '*/__pycache__/*' -print0 >"${out}"
     fi
 }
 
+# linkable_files <root> <item> [any]: linkable_list to stdout, for callers that
+# only list (select.sh). Callers that act on the result use linkable_list.
+linkable_files() {
+    local tmp
+    tmp="$(mktemp)" || return 1
+    if ! linkable_list "$1" "$2" "${3:-}" "${tmp}"; then
+        rm -f "${tmp}"
+        return 1
+    fi
+    cat "${tmp}"
+    rm -f "${tmp}"
+}
+
 # expected_rels <root> [skip]: the paths (relative to <root>) a sync links, one
-# per line. The set prune_links and verify_links compare against.
+# per line. The set prune_links and verify_links compare against. Returns 1,
+# printing nothing, when linkable_list cannot tell.
 expected_rels() {
-    local root="$1" apply_skips="${2:-}" file rel
+    local root="$1" apply_skips="${2:-}" tmp file rel
+    tmp="$(mktemp)" || return 1
+    if ! linkable_list "${root}" "${root}" "" "${tmp}"; then
+        rm -f "${tmp}"
+        return 1
+    fi
     {
         while IFS= read -r -d '' file; do
             rel="${file#"${root}"/}"
@@ -150,8 +217,34 @@ expected_rels() {
                 continue
             fi
             printf '%s\n' "${rel}"
-        done < <(linkable_files "${root}" "${root}")
+        done <"${tmp}"
     } | LC_ALL=C sort
+    rm -f "${tmp}"
+}
+
+# warn_untracked_files <root>: in a git checkout, name the untracked files under
+# <root> that a sync will not link, so a new rule that was never `git add`ed is
+# visible when it bites. Litter (EXCLUDE_NAMES) is not worth a line.
+warn_untracked_files() {
+    local root="$1" root_rel repo_dir f shown=0 total=0
+    root_rel="$(root_rel_of "${root}")"
+    repo_dir="${root%/"${root_rel}"}"
+    repo_is_checkout "${repo_dir}" || return 0
+    while IFS= read -r -d '' f; do
+        is_excluded_path "${f}" && continue
+        total=$((total + 1))
+        if [ "${shown}" -lt 10 ]; then
+            shown=$((shown + 1))
+            log_warn "Not linked, untracked: ${f}"
+        fi
+    done < <(git --literal-pathspecs -C "${repo_dir}" ls-files -o --exclude-standard -z -- "${root_rel}" 2>/dev/null)
+    if [ "${total}" -gt "${shown}" ]; then
+        log_warn "... and $((total - shown)) more untracked files under ${root_rel}"
+    fi
+    if [ "${total}" -gt 0 ]; then
+        log_warn "Run git add on the ones you want; only tracked files are linked."
+    fi
+    return 0
 }
 
 # in_list <newline list> <line>: exact whole-line membership (bash 3.2 has no
@@ -160,13 +253,29 @@ in_list() {
     grep -Fxq -- "$2" <<<"$1"
 }
 
+# dir_holds_expected <expected> <rel>: is <rel> a directory that holds expected
+# paths? A link there is a whole-directory link (skills -> <repo>/.claude/skills):
+# the user's way of linking, not a stale per-file link, so it is left alone.
+dir_holds_expected() {
+    awk -v p="$2/" 'index($0, p) == 1 { found = 1 } END { exit !found }' <<<"$1"
+}
+
+# expected_is_suspect <root> <expected>: an empty expected set for a source tree
+# that has files means the listing is wrong, not that nothing is wanted.
+expected_is_suspect() {
+    [ -z "$2" ] && tree_has_files "$1"
+}
+
 # Is a parent directory of <dst>/<rel>, inside <dst>, a symlink? Writing there
 # would go through it (skills/orca-cli -> ../../.agents/skills/orca-cli).
+PARENT_LINK=""
+PARENT_WARNED=""
 parent_is_symlink() {
     local dst="$1" rel="$2" d
     d="$(dirname "${dst}/${rel}")"
     while [ "${d}" != "${dst}" ] && [ "${d}" != "/" ] && [ "${d}" != "." ]; do
         if [ -L "${d}" ]; then
+            PARENT_LINK="${d}"
             return 0
         fi
         d="$(dirname "${d}")"
@@ -212,7 +321,13 @@ link_file() {
     local target="${dst}/${rel}" old old_root backup
 
     if parent_is_symlink "${dst}" "${rel}"; then
-        log_warn "Skipping $(display_path "${target}"): a parent directory is a symlink"
+        case "${PARENT_WARNED}" in
+            *"|${PARENT_LINK}|"*) ;;
+            *)
+                PARENT_WARNED="${PARENT_WARNED}|${PARENT_LINK}|"
+                log_warn "Not linking under $(display_path "${PARENT_LINK}"): it is a symlink"
+                ;;
+        esac
         return 0
     fi
 
@@ -248,8 +363,13 @@ link_file() {
 # With "skip" as the fourth argument, SKIP_FILES are left out. See
 # linkable_files for what is linked and for "any".
 link_under() {
-    local root="$1" item="$2" dst="$3" apply_skips="${4:-}" any="${5:-}" file rel root_rel
+    local root="$1" item="$2" dst="$3" apply_skips="${4:-}" any="${5:-}" file rel root_rel tmp
     root_rel="$(root_rel_of "${root}")"
+    tmp="$(mktemp)" || return 1
+    if ! linkable_list "${root}" "${item}" "${any}" "${tmp}"; then
+        rm -f "${tmp}"
+        return 1
+    fi
 
     while IFS= read -r -d '' file; do
         rel="${file#"${root}"/}"
@@ -257,7 +377,8 @@ link_under() {
             continue
         fi
         link_file "${file}" "${dst}" "${rel}" "${root_rel}"
-    done < <(linkable_files "${root}" "${item}" "${any}")
+    done <"${tmp}"
+    rm -f "${tmp}"
 }
 
 # Remove now-empty directories from <dir> up to (not including) <dst>.
@@ -276,6 +397,10 @@ prune_empty_dirs() {
 prune_links() {
     local root="$1" dst="$2" root_rel="$3" expected="$4" link rel old
     [ -d "${dst}" ] || return 0
+    if expected_is_suspect "${root}" "${expected}"; then
+        log_err "Refusing to prune $(display_path "${dst}"): the repo lists no files to link, but ${root} has files"
+        return 1
+    fi
 
     while IFS= read -r -d '' link; do
         rel="${link#"${dst}"/}"
@@ -283,6 +408,10 @@ prune_links() {
         old="$(readlink "${link}")"
         link_is_ours "${old}" "${root_rel}" "${rel}" || continue
         in_list "${expected}" "${rel}" && continue
+        if dir_holds_expected "${expected}" "${rel}"; then
+            log_warn "Keeping $(display_path "${link}") -> ${old}: a whole-directory link into the repo"
+            continue
+        fi
 
         if [ "${old}" = "${root}/${rel}" ] || [ ! -e "${link}" ] || [ "${RELINK}" = "1" ]; then
             rm "${link}"
@@ -292,6 +421,7 @@ prune_links() {
             log_warn "Keeping $(display_path "${link}") -> ${old}: another checkout still holds it (--relink removes it)"
         fi
     done < <(find "${dst}" -type l -print0)
+    return 0
 }
 
 verify_problem() {
@@ -311,6 +441,10 @@ verify_links() {
     local root="$1" dst="$2" root_rel="$3" expected="$4" info="${5:-}" rel link old
     VERIFY_PROBLEMS=0
     VERIFY_SHOWN=0
+
+    if expected_is_suspect "${root}" "${expected}"; then
+        verify_problem "$(display_path "${dst}"): the repo lists no files to link, but ${root} has files"
+    fi
 
     while IFS= read -r rel; do
         [ -n "${rel}" ] || continue
@@ -344,6 +478,10 @@ verify_links() {
             [ "${rel}" = "settings.json" ] && continue
             in_list "${expected}" "${rel}" && continue
             old="$(readlink "${link}")"
+            if link_is_ours "${old}" "${root_rel}" "${rel}" && dir_holds_expected "${expected}" "${rel}"; then
+                [ -n "${info}" ] && log_warn "$(display_path "${link}") -> ${old}: a whole-directory link into the repo"
+                continue
+            fi
             if ! link_is_ours "${old}" "${root_rel}" "${rel}"; then
                 [ -e "${link}" ] || log_warn "$(display_path "${link}") -> ${old}: dangling, but not a link of ours (kept)"
             elif [ ! -e "${link}" ]; then
@@ -362,18 +500,29 @@ verify_links() {
     [ "${VERIFY_PROBLEMS}" -eq 0 ]
 }
 
-# stage_in_repo <repo_dir> <rel>: `git add` (no commit) a path under .claude
-# that add_file.sh or promote.sh just moved in, so the next sync's tracked-files
-# walk keeps its links. Prints what was staged.
+# stage_in_repo <repo_dir> <rel>: `git add` (no commit) the files of a path
+# under .claude that add_file.sh or promote.sh just moved in, so the next sync's
+# tracked-files walk keeps their links. Stages only what that walk would link,
+# never a whole directory (which would track a .DS_Store inside it). Prints what
+# was staged.
 stage_in_repo() {
-    local repo_dir="$1" rel="$2"
-    if repo_is_checkout "${repo_dir}"; then
-        if git -C "${repo_dir}" add -- ".claude/${rel}"; then
-            log_info "Staged: .claude/${rel}"
-        else
-            log_warn "git add failed for .claude/${rel}; stage it before the next sync or its links are pruned."
-        fi
-    else
+    local repo_dir="$1" rel="$2" tmp f staged=0
+    if ! repo_is_checkout "${repo_dir}"; then
         log_warn "${repo_dir} is not a git checkout; not staging .claude/${rel}."
+        return 0
     fi
+    tmp="$(mktemp)" || return 1
+    if ! linkable_list "${repo_dir}/.claude" "${repo_dir}/.claude/${rel}" any "${tmp}"; then
+        rm -f "${tmp}"
+        return 1
+    fi
+    while IFS= read -r -d '' f; do
+        if git -C "${repo_dir}" add -- "${f}"; then
+            staged=$((staged + 1))
+        else
+            log_warn "git add failed for ${f}; stage it before the next sync or its link is pruned."
+        fi
+    done <"${tmp}"
+    rm -f "${tmp}"
+    log_info "Staged: .claude/${rel} (${staged} file(s))"
 }

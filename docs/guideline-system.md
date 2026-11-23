@@ -244,8 +244,9 @@ global, and `push-guidelines.sh` syncs the whole file with no special handling.
 ### `~/.claude/rules/` — the big win
 
 User-level rules **apply to every project on the machine**, with no per-project wiring at
-all. `sync.sh` symlinks the whole `.claude/` tree, so anything added to
-`claude-dotfiles/.claude/rules/` deploys to `~/.claude/rules/` automatically.
+all. `sync.sh` symlinks every tracked file under `.claude/`, so anything added to
+`claude-dotfiles/.claude/rules/` and `git add`ed deploys to `~/.claude/rules/` on the
+next sync (an untracked file is skipped, and the run says so).
 
 This is why the Model A `@~/.claude/guidelines/python.md` imports were retired: a project
 touching a `.py` file now gets `python.md` regardless of whether anyone remembered to wire
@@ -358,8 +359,9 @@ stay small and current; add a row when you add a rule.
 
 ### Deployment and gotchas
 
-- `sync.sh` symlinks the whole `.config/opencode/` tree, so the index and
-  the `instructions` key deploy to every machine like the rest of this repo.
+- `sync.sh` symlinks every tracked file under `.config/opencode/`, so the index and
+  the `instructions` key deploy to every machine like the rest of this repo (`git add`
+  a new file first; untracked files are not linked).
 - `instructions` paths resolve from the **project directory**, not the
   config directory (verified empirically). A relative path in the global
   config only resolves if the file happens to exist in the project — use the
@@ -388,7 +390,7 @@ succeeds.
    easier than genericizing later — see below. Only use
    `.claude/guidelines/<topic>.md` (no `paths:`, always-on) for content that
    genuinely applies regardless of what file is being touched.
-2. `./sync.sh` to symlink it into `~/.claude/rules/` (or `~/.claude/guidelines/`).
+2. `git add` it, then `./sync.sh` to symlink it into `~/.claude/rules/` (or `~/.claude/guidelines/`); a sync links tracked files only.
    Rules apply to every project on this machine immediately — no per-project
    wiring. A guideline still needs an explicit `@~/.claude/guidelines/<topic>.md`
    import (Model A) or a committed copy imported relatively (Model B) in each
