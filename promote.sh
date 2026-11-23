@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Moves a skill/agent/file from any project's .claude/ into this repo and symlinks it globally.
-# Usage: ./promote.sh [--delete-original] <path-inside-any-.claude/>
+# Usage: ./promote.sh <path-inside-any-.claude/>
+# (--delete-original is still accepted but deprecated and ignored: the item is always moved.)
 # Examples:
 #   ./promote.sh /path/to/project/.claude/skills/my-skill
 #   ./promote.sh ~/.claude/agents/my-agent.md
-#   ./promote.sh --delete-original /path/to/project/.claude/hooks/my-hook.sh
 
 set -e
 
@@ -23,19 +23,26 @@ fi
 src="${1}"
 
 if [[ -z "${src}" ]]; then
-    echo "Usage: $0 [--delete-original] <path-to-item-in-any-.claude/>"
+    echo "Usage: $0 <path-to-item-in-any-.claude/>"
     echo "Examples:"
     echo "  $0 /path/to/project/.claude/skills/my-skill"
     echo "  $0 ~/.claude/agents/my-agent.md"
-    echo "  $0 --delete-original /path/to/project/.claude/hooks/my-hook.sh"
     exit 1
 fi
 
-# Expand ~
+# Expand ~, and drop a trailing slash so a symlink is not seen through.
 src="${src/#\~/$HOME}"
+src="${src%/}"
 
 if [[ ! -e "${src}" ]]; then
     echo "Not found: ${src}"
+    exit 1
+fi
+
+# A symlink is not the item: moving it would take the link, not the content,
+# and the skill would vanish from where the link points.
+if [[ -L "${src}" ]]; then
+    echo "Error: ${src} is a symlink to $(readlink "${src}"); promote the target instead"
     exit 1
 fi
 
@@ -56,6 +63,14 @@ fi
 claude_root="${src%%/.claude/*}/.claude"
 rel="${src#"${claude_root}"/}"
 
+# sync.sh generates or skips these per config dir (settings.json) or reads them
+# from a project (settings.local.json); moving one here would take the live file
+# and leave nothing linked back.
+if is_skipped "${rel}"; then
+    echo "Error: ${rel} is generated or skipped by sync.sh and cannot be promoted"
+    exit 1
+fi
+
 repo_dst="${DOTFILES_DIR}/.claude/${rel}"
 is_from_global=false
 [[ "${claude_root}" == "${GLOBAL_CLAUDE}" ]] && is_from_global=true
@@ -75,18 +90,21 @@ log_info "Moved to repo: .claude/${rel}"
 # Link it into every config dir on this machine, the same way sync.sh would
 # on its next run.
 while IFS= read -r dir; do
-    link_under "${DOTFILES_DIR}/.claude" "${repo_dst}" "${dir}"
+    link_under "${DOTFILES_DIR}/.claude" "${repo_dst}" "${dir}" skip any
 done < <(config_dirs)
+# An existing profile without the marker is not in that list; say so.
+warn_unmarked_config_dirs
 
-# Report on original project location
+# The item is not tracked yet, so it was linked from disk; stage it so the next
+# sync (tracked files only) keeps the links.
+stage_in_repo "${DOTFILES_DIR}" "${rel}"
+
+if $DELETE_ORIGINAL; then
+    log_warn "--delete-original: the item is always moved; this flag does nothing"
+fi
 if ! $is_from_global; then
-    if $DELETE_ORIGINAL; then
-        log_info "Original removed (item was moved, --delete-original acknowledged)"
-    else
-        log_warn "Original path is now empty: ${src}"
-        log_warn "Safe to remove: rm -rf \"${src}\""
-    fi
+    log_info "Moved out of ${claude_root}; commit the removal in that project."
 fi
 
 echo ""
-log_info "Remember to: git add .claude/${rel} && git commit"
+log_info "Remember to commit: git commit -m \"feat: add ${rel}\""

@@ -296,6 +296,7 @@ class FailureIsolationTest(MergeCase):
         work = self.home / ".claude-work"
         self.write(self.cfg / "settings.json", "{ not json")
         work.mkdir()
+        self.write(work / ".dotfiles-config-dir", str(work))  # marked: a sync target
         self.write(self.repo / ".config" / "opencode" / "opencode.json", "{}")
         result = self.sync(check=False)
         self.assertNotEqual(result.returncode, 0)

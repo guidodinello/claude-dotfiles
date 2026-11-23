@@ -92,11 +92,13 @@ class SyncLinksTest(ScriptCase):
         self.write(self.cfg / "agents" / "a.md", "mine")
         self.sync()
         self.assertTrue((self.cfg / "agents" / "a.md").is_symlink())
-        self.assertEqual((self.cfg / "agents" / "a.md.bak").read_text(), "mine")
+        backups = list((self.cfg / "agents").glob("a.md.*.bak"))
+        self.assertEqual([b.read_text() for b in backups], ["mine"])
 
-    def test_syncs_existing_alternate_profiles_only(self):
+    def test_syncs_marked_alternate_profiles_only(self):
         work = self.home / ".claude-work"
         work.mkdir()
+        self.write(work / ".dotfiles-config-dir", str(work))  # marked: a sync target
         self.sync()
         self.assertTrue((work / "agents" / "a.md").is_symlink())
         self.assertEqual(sorted(p.name for p in self.home.glob(".claude*")), [".claude", ".claude-work"])
@@ -412,6 +414,7 @@ class MoveIntoRepoTest(ScriptCase):
         super().setUp()
         self.work = self.home / ".claude-work"
         self.work.mkdir()
+        self.write(self.work / ".dotfiles-config-dir", str(self.work))  # marked: a sync target
         self.sync()
 
     def assert_linked_everywhere(self, rel: str):

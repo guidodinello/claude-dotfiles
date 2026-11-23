@@ -53,7 +53,7 @@ on the wrong files is worse than one that loads too often.
 
 1. Decide: does it only matter for certain files? → `rules/` with `paths:`. Otherwise →
    `guidelines/`.
-2. Write it, then `./sync.sh` to symlink it into `~/.claude/`.
+2. Write it, `git add` it (a sync links tracked files only), then `./sync.sh` to symlink it into `~/.claude/`.
 3. Rules need no further wiring. Guidelines need an `@` import somewhere.
 4. For repos that must work in cloud sessions, `cp` it into their `.claude/rules/` (or
    `.claude/guidelines/`) and let `push-guidelines.sh` keep it current.

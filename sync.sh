@@ -5,8 +5,13 @@
 # Safe to re-run any time to pick up new/updated files after a `git pull`.
 #
 # Usage:
-#   ./sync.sh                     # sync ~/.claude plus every existing ~/.claude-* profile
-#   ./sync.sh ~/.claude-work      # sync only that CLAUDE_CONFIG_DIR
+#   ./sync.sh                     # sync ~/.claude plus every marked ~/.claude-* profile
+#   ./sync.sh ~/.claude-work      # sync only that CLAUDE_CONFIG_DIR, and mark it as a target
+#   ./sync.sh --check             # read-only: report prerequisites and link problems, exit 1 if any
+#   ./sync.sh --relink            # also move links that point into another checkout that still exists
+#
+# A run exits non-zero when any config dir's links do not match this repo's
+# tracked files afterwards.
 #
 # settings.json is NOT symlinked: it is generated per config dir from
 # settings.base.json plus what is local to that dir (LOCAL_KEYS and entries
@@ -96,7 +101,27 @@ RETIRED
 # shellcheck source=lib/link.sh
 source "${DOTFILES_DIR}/lib/link.sh"
 
-command -v jq >/dev/null 2>&1 || { log_err "jq is required but not installed."; exit 1; }
+CHECK_ONLY=0
+TARGET_ARG=""
+for arg in "$@"; do
+    case "${arg}" in
+        --check) CHECK_ONLY=1 ;;
+        --relink) RELINK=1 ;;
+        -*) log_err "Unknown option: ${arg} (usage: ./sync.sh [--check] [--relink] [dir])"; exit 2 ;;
+        *)
+            if [ -n "${TARGET_ARG}" ]; then
+                log_err "Only one config dir can be given (usage: ./sync.sh [--check] [--relink] [dir])"
+                exit 2
+            fi
+            TARGET_ARG="${arg}"
+            ;;
+    esac
+done
+
+# --check reports a missing jq instead of dying on it.
+if [ "${CHECK_ONLY}" -eq 0 ]; then
+    command -v jq >/dev/null 2>&1 || { log_err "jq is required but not installed."; exit 1; }
+fi
 
 # How many timestamped settings.json backups to keep per config dir.
 KEEP_SETTINGS_BACKUPS=3
@@ -432,33 +457,142 @@ merge_settings() {
     prune_settings_backups "${dst}"
 }
 
-# With an explicit target, sync only that dir. Otherwise sync every config dir
-# on this machine (see config_dirs in lib/link.sh).
+# Read-only report for `./sync.sh --check`: required tools, soft prerequisites,
+# and every link problem per target. Writes nothing (no mkdir, no marker, no
+# settings merge, no prune). Exit 1 when a required tool is missing or any
+# link problem exists.
+run_check() {
+    local status=0 tool dst expected targets=()
+
+    for tool in jq python3 git; do
+        if ! command -v "${tool}" >/dev/null 2>&1; then
+            log_err "Required tool missing: ${tool}"
+            status=1
+        fi
+    done
+
+    if [ -n "${TARGET_ARG}" ]; then
+        targets+=("${TARGET_ARG}")
+    else
+        while IFS= read -r dst; do
+            targets+=("${dst}")
+        done < <(config_dirs)
+    fi
+
+    warn_untracked_files "${CLAUDE_SRC}"
+    if ! expected="$(expected_rels "${CLAUDE_SRC}" skip)"; then
+        log_err "Cannot list the files this repo links; check refuses to guess."
+        return 1
+    fi
+    for dst in "${targets[@]}"; do
+        log_info "Checking config dir: ${dst}"
+        if [ ! -d "${dst}" ]; then
+            log_err "${dst} does not exist; run ./sync.sh to create it"
+            status=1
+            continue
+        fi
+        dst="$(cd "${dst}" && pwd)"
+        grep -qs 'engram@' "${dst}/plugins/installed_plugins.json" ||
+            log_warn "engram plugin not installed in ${dst} (the memory instructions assume it)"
+        [ -f "${dst}/output-styles/gentleman.md" ] ||
+            log_warn "gentleman output style not installed in ${dst} (update-gentle-ai.sh installs it)"
+        verify_links "${CLAUDE_SRC}" "${dst}" ".claude" "${expected}" info || status=1
+    done
+
+    [ -d "${HOME}/.agents/skills" ] ||
+        log_warn "$(display_path "${HOME}/.agents/skills") is missing (install ecosystem skills with npx skills)"
+
+    if [ -z "${TARGET_ARG}" ]; then
+        warn_unmarked_config_dirs
+        if [ "${targets[0]}" = "${HOME}/.claude" ] && [ -d "${OPENCODE_SRC}" ]; then
+            log_info "Checking config dir: ${OPENCODE_DST}"
+            if expected="$(expected_rels "${OPENCODE_SRC}")"; then
+                verify_links "${OPENCODE_SRC}" "${OPENCODE_DST}" ".config/opencode" "${expected}" info || status=1
+            else
+                log_err "Cannot list the files this repo links for opencode; check refuses to guess."
+                status=1
+            fi
+        fi
+    fi
+
+    if [ "${status}" -eq 0 ]; then
+        log_info "Check passed."
+    else
+        log_err "Check found problems; ./sync.sh fixes links (add --relink to move links held by another checkout)."
+    fi
+    return "${status}"
+}
+
+if [ "${CHECK_ONLY}" -eq 1 ]; then
+    run_check
+    exit $?
+fi
+
+# With an explicit target, sync only that dir and mark it as a target for later
+# bare runs. Otherwise sync every config dir on this machine (see config_dirs in
+# lib/link.sh).
 CLAUDE_DSTS=()
 MERGE_FAILED=()
-if [ -n "${1:-}" ]; then
-    mkdir -p "$1"
-    CLAUDE_DSTS+=("$(cd "$1" && pwd)")
+if [ -n "${TARGET_ARG}" ]; then
+    mkdir -p "${TARGET_ARG}"
+    CLAUDE_DSTS+=("$(cd "${TARGET_ARG}" && pwd)")
+    if [ "${CLAUDE_DSTS[0]}" != "${HOME}/.claude" ]; then
+        write_config_marker "${CLAUDE_DSTS[0]}"
+    fi
 else
     mkdir -p "${HOME}/.claude"
     while IFS= read -r dir; do
         CLAUDE_DSTS+=("${dir}")
     done < <(config_dirs)
+    warn_unmarked_config_dirs
 fi
+
+# Every dir is processed before the run fails, so one broken dir does not hide
+# the state of the others.
+LINK_FAILED=()
+# If what the repo tracks cannot be listed (unreadable git index, nothing staged),
+# nothing is linked or pruned: an empty list must never read as "link nothing".
+EXPECTED_OK=1
+EXPECTED_CLAUDE="$(expected_rels "${CLAUDE_SRC}" skip)" || EXPECTED_OK=0
+warn_untracked_files "${CLAUDE_SRC}"
 
 for CLAUDE_DST in "${CLAUDE_DSTS[@]}"; do
     log_info "Target config dir: ${CLAUDE_DST}"
-    prune_dangling "${CLAUDE_SRC}" "${CLAUDE_DST}"
-    link_under "${CLAUDE_SRC}" "${CLAUDE_SRC}" "${CLAUDE_DST}" "skip"
+    # Prune first: a path that turned from a file into a directory (or back) needs
+    # its old link gone before the new one can be written, in this same run.
+    LINKS_OK="${EXPECTED_OK}"
+    if [ "${LINKS_OK}" -eq 1 ]; then
+        prune_links "${CLAUDE_SRC}" "${CLAUDE_DST}" ".claude" "${EXPECTED_CLAUDE}" || LINKS_OK=0
+    fi
+    if [ "${LINKS_OK}" -eq 1 ]; then
+        link_under "${CLAUDE_SRC}" "${CLAUDE_SRC}" "${CLAUDE_DST}" "skip" || LINKS_OK=0
+    fi
     merge_settings "${CLAUDE_DST}" || MERGE_FAILED+=("${CLAUDE_DST}")
-    find "${CLAUDE_DST}/hooks" -type f -name "*.sh" -exec chmod +x {} \; 2>/dev/null || true
+    if [ "${LINKS_OK}" -eq 1 ]; then
+        verify_links "${CLAUDE_SRC}" "${CLAUDE_DST}" ".claude" "${EXPECTED_CLAUDE}" || LINK_FAILED+=("${CLAUDE_DST}")
+    else
+        LINK_FAILED+=("${CLAUDE_DST}")
+    fi
 done
 
 # opencode lives at a fixed path, not per profile; sync it once, on runs
 # that include the default ~/.claude.
 if [ "${CLAUDE_DSTS[0]}" = "${HOME}/.claude" ] && [ -d "${OPENCODE_SRC}" ]; then
-    prune_dangling "${OPENCODE_SRC}" "${OPENCODE_DST}"
-    link_under "${OPENCODE_SRC}" "${OPENCODE_SRC}" "${OPENCODE_DST}"
+    warn_untracked_files "${OPENCODE_SRC}"
+    if EXPECTED_OPENCODE="$(expected_rels "${OPENCODE_SRC}")" &&
+        prune_links "${OPENCODE_SRC}" "${OPENCODE_DST}" ".config/opencode" "${EXPECTED_OPENCODE}" &&
+        link_under "${OPENCODE_SRC}" "${OPENCODE_SRC}" "${OPENCODE_DST}"; then
+        verify_links "${OPENCODE_SRC}" "${OPENCODE_DST}" ".config/opencode" "${EXPECTED_OPENCODE}" || LINK_FAILED+=("${OPENCODE_DST}")
+    else
+        LINK_FAILED+=("${OPENCODE_DST}")
+    fi
+fi
+
+if [ "${#LINK_FAILED[@]}" -gt 0 ]; then
+    for failed_dst in "${LINK_FAILED[@]}"; do
+        log_err "Links do not match the repo in: ${failed_dst}"
+    done
+    log_err "Install is broken (see the errors above); run ./sync.sh --check for the full picture."
 fi
 
 # A dir whose settings could not be merged does not stop the others, but the
@@ -467,6 +601,10 @@ if [ "${#MERGE_FAILED[@]}" -gt 0 ]; then
     for failed_dst in "${MERGE_FAILED[@]}"; do
         log_err "Settings merge failed for: ${failed_dst}"
     done
+fi
+
+# Both failures are reported above before the run exits.
+if [ "${#LINK_FAILED[@]}" -gt 0 ] || [ "${#MERGE_FAILED[@]}" -gt 0 ]; then
     exit 1
 fi
 
