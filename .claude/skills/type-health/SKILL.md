@@ -1,13 +1,7 @@
 ---
 name: type-health
 allowed-tools: Bash Read Edit Agent
-description: >
-  Audit and improve type coverage across the codebase on demand — Python
-  backend (Pydantic at every IO boundary), TypeScript frontend (Zod-first
-  types) and TypeScript backend (NestJS/TypeORM: honest vendor and entity
-  types). Use after a big feature lands or as a periodic health check.
-  Does NOT auto-commit — reports findings and applies fixes to the working
-  tree only.
+description: 'Audit type coverage: Pydantic at IO boundaries, Zod-first TypeScript, honest vendor types; fix, don''t commit.'
 ---
 
 ## Goal
@@ -46,13 +40,23 @@ A well-typed codebase should produce few findings.
 
 ---
 
-## Step 0 — Scope
+## Step 0 — Discover source roots and scope
 
-Default scope is `backend/src`, `scripts/`, and `frontend/web/src`. If the user
-passed a path or module as an argument, narrow to it. Note the scope in the
-final report.
+Do not assume a layout. Find the roots first and use them in place of the
+`<placeholders>`:
 
-**Tests are out of scope by default.** `frontend/web/src` contains
+- `<backend-project>`: a directory with a `pyproject.toml` (`git ls-files '*pyproject.toml'`). `<backend-src>` is its source root (`src/` or the package directory). For a TypeScript backend, use its `tsconfig.json` directory instead.
+- `<frontend-project>`: a directory with a `package.json` (`git ls-files '*package.json'`, ignoring `node_modules`) whose `src/` holds the UI code. `<frontend-src>` is that `src/`.
+
+If a root this skill needs cannot be found, stop and ask the user. An empty grep
+result is never a clean audit: confirm each root exists and holds files before
+reporting zero findings.
+
+Default scope is `<backend-src>`, a top-level `scripts/` directory if the repo
+has one, and `<frontend-src>`. If the user passed a path or module as an
+argument, narrow to it. Note the scope in the final report.
+
+**Tests are out of scope by default.** `<frontend-src>` contains
 `src/__tests__`, which dominates several scans (on the first run: 13 of 20
 `noUncheckedIndexedAccess` errors and 58 of the 65 filtered `as` hits).
 Loose types in a test are usually deliberate — fakes, partial fixtures,
@@ -75,8 +79,8 @@ structured list.
 Skip only if Step 0 narrowed the scope to a single module.
 
 Follow [`references/type-checks.md`](references/type-checks.md) §3: read
-`backend/pyproject.toml` `[tool.pyright]` and
-`frontend/web/tsconfig.app.json` (for a TypeScript backend: its `tsconfig.json`
+`<backend-project>/pyproject.toml` `[tool.pyright]` and
+`<frontend-project>/tsconfig.app.json` (for a TypeScript backend: its `tsconfig.json`
 and eslint config), compare against the recommended-flag table,
 and **measure** each missing flag by running the checker with it enabled. Check
 the `exclude` list too — an excluded directory is exempt from every rule at once.
@@ -138,7 +142,7 @@ see the Priority Summary in `references/type-philosophy.md`):
 3. After each file's edits, verify no new errors:
    - Python: `uv run --project backend ruff check <file>` and
      `uv run --project backend pyright <file>`
-   - TypeScript: `cd frontend/web && npx tsc --noEmit 2>&1 | grep <file>`
+   - TypeScript: `cd <frontend-project> && npx tsc --noEmit 2>&1 | grep <file>`
    - TS backend: `npx tsc -p tsconfig.build.json --noEmit --incremental false 2>&1 | grep <file>`
 
 If a fix would ripple across multiple files (shared signature change, new
@@ -153,22 +157,22 @@ After all edits:
 
 ```bash
 # Backend lint + typecheck
-(cd backend && uv run ruff check src/ && uv run pyright)
+(cd <backend-project> && uv run ruff check src/ && uv run pyright)
 
 # Frontend typecheck
-(cd frontend/web && npx tsc --noEmit)
+(cd <frontend-project> && npx tsc --noEmit)
 ```
 
 **Run the test suites too if any fix touched a Pydantic model or Zod schema.**
 Static checks structurally cannot verify those: Pydantic `Field` constraints and
 Zod refinements are *runtime* validation, and in this repo the constrained types
-mostly live under `src/fitted_backend/ml`, which pyright excludes. A green
+mostly live under the paths pyright excludes (see `[tool.pyright] exclude`). A green
 pyright says nothing about whether an H10 constraint just started rejecting real
 data.
 
 ```bash
-(cd backend && uv run pytest -q -m "not integration")
-(cd frontend/web && npx vitest run)
+(cd <backend-project> && uv run pytest -q -m "not integration")
+(cd <frontend-project> && npx vitest run)
 ```
 
 On a TypeScript backend, run its test script whenever a fix touched an entity or
@@ -180,8 +184,8 @@ Postgres; say so rather than implying full coverage).
 If any new error appears that was not present before the skill ran, revert the
 responsible edit and move that finding to INVESTIGATE.
 
-If Step 1b temporarily edited `backend/pyproject.toml` to measure a pyright
-flag, confirm it was restored: `git status --porcelain backend/pyproject.toml`
+If Step 1b temporarily edited `<backend-project>/pyproject.toml` to measure a pyright
+flag, confirm it was restored: `git status --porcelain <backend-project>/pyproject.toml`
 must be empty.
 
 ---

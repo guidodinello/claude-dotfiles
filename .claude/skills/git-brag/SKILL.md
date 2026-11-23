@@ -1,6 +1,6 @@
 ---
 name: git-brag
-description: Find all commits made by the current git user that touched a given path, formatted for a brag/perf-review doc
+description: 'Find all commits made by the current git user that touched a given path, formatted for a brag/perf-review doc'
 ---
 
 # Git Brag Skill

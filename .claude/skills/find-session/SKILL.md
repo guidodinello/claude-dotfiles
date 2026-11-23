@@ -28,7 +28,7 @@ Load when the user wants to find or reopen a past Claude Code session from keywo
 
 | Flag | Effect |
 |---|---|
-| `-p allswell` | project dir name contains the substring |
+| `-p <project-substring>` | project dir name contains the substring |
 | `-d 7` | active in the last 7 days |
 | `-n 10` | show 10 sessions (default 5) |
 | `--tools` | also search tool output (noisier) |

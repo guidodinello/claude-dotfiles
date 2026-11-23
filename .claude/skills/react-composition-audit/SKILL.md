@@ -1,29 +1,19 @@
 ---
 name: react-composition-audit
 allowed-tools: Bash Read Grep Glob Agent
-description: >
-  Audit frontend/web/src for React composition defects that linters and
-  typecheckers can't catch: hand-rolled markup that duplicates an existing
-  components/ui/ primitive, and wrong element/ARIA semantics (clickable divs,
-  navigation-as-button, missing type="button", missing selection-role
-  semantics). Use as a periodic codebase sweep, before a design-system
-  consolidation, or when the user asks whether components correctly reuse
-  design-system primitives. Does NOT auto-commit — reports findings and
-  applies only safe, unambiguous fixes to the working tree; anything requiring
-  judgment is reported, not auto-fixed.
+description: 'Find React markup that duplicates a UI primitive or has wrong element/ARIA semantics; safe fixes only.'
 ---
 
 ## Goal
 
 Find real composition defects — call sites that should be using an existing
-`components/ui/` primitive but aren't, and elements whose semantics don't
+`<ui-dir>/` primitive but aren't, and elements whose semantics don't
 match what they do. This is not a "reuse everything" audit: a raw element is
 often the *correct* choice, and flagging it anyway produces noise the user
 will learn to ignore.
 
-The calibration case: `frontend/web/src/components/PairwiseQuestion.tsx`'s
-`ItemCard` renders a bare `<button>` with a scale/opacity transform for an
-onboarding selection card. It strips every one of `Button`'s base classes
+The calibration case: an onboarding selection card renders a bare `<button>`
+with a scale/opacity transform. It strips every one of `Button`'s base classes
 (background, padding, radius) and needs styling no `Button` variant exposes.
 Reusing `Button` there would mean importing a component only to override
 100% of what it provides — that is worse, not better. A well-calibrated run
@@ -33,7 +23,7 @@ reuse) findings; don't manufacture them to fill out a report.
 This skill covers exactly two things:
 
 1. **Duplicated primitive markup** — a call site hand-rolls styling that an
-   existing `components/ui/` primitive (or one of its variants) already
+   existing `<ui-dir>/` primitive (or one of its variants) already
    provides.
 2. **Element/ARIA semantics** — the DOM element doesn't match the
    interaction it implements (clickable `<div>` instead of `<button>`,
@@ -49,9 +39,24 @@ anchored on reading every `ui/` primitive's actual API first.
 
 ---
 
+## Step 0 — Discover source roots
+
+Do not assume a layout. Before running any command below, find the roots and
+use them in place of the `<placeholders>`:
+
+- `<frontend-project>`: a directory with a `package.json` (`git ls-files '*package.json'`, ignoring `node_modules`) whose `src/` holds the UI code. `<frontend-src>` is that `src/`.
+- `<ui-dir>`: the UI primitives directory (usually `<frontend-src>/components/ui/`; look for the shared `Button`, `Input`, `Dialog` components).
+- `<ui-dir-pattern>`: a path fragment that appears in grep output for every file in `<ui-dir>` and nowhere else, for example `components/ui/`. Use it for the `grep -v` filters below, never `<ui-dir>` itself: a relative `<frontend-src>` plus the added slashes would match no output line.
+
+If a root this skill needs cannot be found, stop and ask the user. An empty grep
+result is never a clean audit: confirm each root exists and holds files before
+reporting zero findings.
+
+---
+
 ## Step 1 — Inventory the primitives
 
-Read every file in `frontend/web/src/components/ui/`. For each primitive,
+Read every file in `<ui-dir>/`. For each primitive,
 record:
 
 - Its base classes (the `tv()` `base` key, or equivalent shared styling).
@@ -66,19 +71,19 @@ API already covers the call site's needs.
 
 ## Step 2 — Scan for candidates
 
-From `frontend/web/src/`, gather candidates (don't judge yet, just collect):
+From `<frontend-src>/`, gather candidates (don't judge yet, just collect):
 
 ```bash
-# Raw interactive elements outside components/ui/ itself
-grep -rn "<button" frontend/web/src --include="*.tsx" | grep -v "/components/ui/"
-grep -rn "onClick" frontend/web/src --include="*.tsx" | grep -v "/components/ui/"
+# Raw interactive elements outside <ui-dir>/ itself
+grep -rn "<button" <frontend-src> --include="*.tsx" | grep -v "<ui-dir-pattern>"
+grep -rn "onClick" <frontend-src> --include="*.tsx" | grep -v "<ui-dir-pattern>"
 
 # Clickable non-interactive elements (likely semantics defect)
-grep -rzn "<div[^>]*onClick" frontend/web/src --include="*.tsx"
-grep -rzn "<span[^>]*onClick" frontend/web/src --include="*.tsx"
+grep -rzn "<div[^>]*onClick" <frontend-src> --include="*.tsx"
+grep -rzn "<span[^>]*onClick" <frontend-src> --include="*.tsx"
 
 # Buttons inside forms (type="button" check)
-grep -rln "<form" frontend/web/src --include="*.tsx"
+grep -rln "<form" <frontend-src> --include="*.tsx"
 ```
 
 For a full audit, spawn one Explore or general-purpose agent per top-level
@@ -173,7 +178,7 @@ markup here risks fighting a primitive's variant API in ways that are hard
 to review as a diff.
 
 After applying any fixes, run `pnpm run lint && pnpm run typecheck` from
-`frontend/web/` to confirm nothing broke, and remind the user no commit was
+`<frontend-project>/` to confirm nothing broke, and remind the user no commit was
 made.
 
 ### Report format

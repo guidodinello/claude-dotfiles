@@ -49,11 +49,11 @@ jobs:
     name: Lint Skills
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Validate SKILL.md frontmatter
         run: |
-          pip install --quiet pyyaml
+          pip install --quiet 'pyyaml==6.0.4'
           python3 - <<'PY'
           import glob, sys, yaml
 

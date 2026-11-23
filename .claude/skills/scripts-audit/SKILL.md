@@ -1,10 +1,7 @@
 ---
 name: scripts-audit
 allowed-tools: Bash Read Grep Glob
-description: >
-  Verify the scripts directory is consistent — every file under scripts/
-  is documented in scripts/CLAUDE.md and every documented script still exists.
-  Does NOT modify code — reports only.
+description: 'Check every file under scripts/ is documented in scripts/CLAUDE.md and every documented script exists.'
 ---
 
 ## Goal

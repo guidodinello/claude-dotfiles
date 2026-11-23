@@ -1,15 +1,6 @@
 ---
 name: write-tests
-description: >
-  Write high-quality tests following a research-backed philosophy: tests as
-  executable specifications of observable behaviour, doubles only at real
-  boundaries, deterministic and order-independent, with oracles that can
-  actually fail. Use this skill whenever the user asks to write tests, add test
-  coverage, review what should be tested, or wants help thinking through a test
-  suite. Also trigger when the user shares code and asks "should I test
-  this?", "how do I test this?", "what am I missing in my tests?", or "write
-  tests for X". Don't wait for the user to say "write-tests" explicitly.
-  For auditing an existing suite, use /test-health instead.
+description: 'Trigger: write tests, add test coverage, should I test this, how do I test this, what am I missing in my tests. Writes tests as executable specs of observable behaviour: doubles only at real boundaries, deterministic. To audit a suite: test-health.'
 ---
 
 # Write Tests

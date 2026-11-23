@@ -1,13 +1,6 @@
 ---
 name: audit-fact-checker
-description: >
-  Verify reported audit findings against the actual codebase to confirm whether each is a real
-  bug or a false positive. Use this skill whenever the user wants to spot-check an audit report,
-  validate specific findings before client delivery, or triage which issues are worth spending
-  engineering time on. Works for any audit type: HIPAA, security, permissions, database, or other.
-  Trigger when the user says things like "is this finding real?", "fact-check the audit",
-  "verify these bugs against the code", "which of these are false positives?", or "validate
-  finding H-1". Can check a single finding, a list of IDs, or all findings of a given severity.
+description: 'Check reported audit findings against the codebase: real bug or false positive.'
 ---
 
 ## What this skill does

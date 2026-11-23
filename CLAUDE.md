@@ -18,11 +18,11 @@ Some skills exist solely to preprocess arguments and then spawn an agent. This i
 
 To implement: set `disable-model-invocation: true` in the skill's frontmatter if the skill itself does no reasoning — it's purely a launcher. No skill in this repo is currently a pure launcher.
 
-If the skill does preprocessing, do NOT set `disable-model-invocation: true`. Examples: `markdown-to-slite` applies style rules before spawning `slite-sync`; `qa-check` discovers the project's lint/typecheck/test commands before spawning `quality-checker`.
+If the skill does preprocessing, do NOT set `disable-model-invocation: true`. Examples (both `off` in `skillOverrides`, kept as reference implementations): `markdown-to-slite` applies style rules before spawning `slite-sync`; `qa-check` discovers the project's lint/typecheck/test commands before spawning `quality-checker`.
 
 ## Audit Skills
 
-All audit skills share a common reporting structure. See `.claude/guidelines/templates/audit-template.md` for the shared contract: document header, findings format (severity IDs, dead code rule), remediation tiers, and key files reference. Each audit skill adds its own discovery steps and domain-specific violation patterns on top.
+Four audit skills (`hipaa-audit`, `security-audit`, `db-scalability-audit`, `test-health`) share a common reporting structure. See `.claude/guidelines/templates/audit-template.md` for the shared contract: document header, findings format (severity IDs, dead code rule), remediation tiers, and key files reference. Each of them adds its own discovery steps and domain-specific violation patterns on top.
 
 ## Cross-Agent Skills (`~/.agents/skills/`)
 

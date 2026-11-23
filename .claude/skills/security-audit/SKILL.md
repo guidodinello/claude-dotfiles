@@ -1,13 +1,6 @@
 ---
 name: security-audit
-description: >
-  Perform a comprehensive application security audit on a codebase. Use this skill whenever the
-  user asks for a security review, vulnerability assessment, OWASP audit, or wants to find injection
-  flaws, broken authentication, insecure data exposure, or access control weaknesses in application
-  code. Also trigger when the user asks about SQL injection, XSS, CSRF, IDOR, secrets exposure,
-  command injection, path traversal, or any OWASP Top 10 category. Do not wait for the user to say
-  "security audit" explicitly — trigger whenever a vulnerability concern is raised about a codebase
-  that handles user input or sensitive data.
+description: 'Application security audit of a codebase: injection, auth, data exposure, access control, OWASP Top 10.'
 ---
 
 ## How to Run This Audit
@@ -134,7 +127,7 @@ A MEDIUM-severity IDOR combined with a MEDIUM-severity missing rate limit can fo
 
 ## Reporting Format
 
-Follow the shared structure in `.claude/guidelines/templates/audit-template.md` for document header, findings format, severity levels, dead code rule, effort labels, and remediation tiers. Security-specific additions are below.
+Follow the shared structure in `$HOME/.claude/guidelines/templates/audit-template.md` (when it exists) for document header, findings format, severity levels, dead code rule, effort labels, and remediation tiers. Security-specific additions are below.
 
 ### Document header
 

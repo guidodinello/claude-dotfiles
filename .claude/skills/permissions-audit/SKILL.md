@@ -1,16 +1,6 @@
 ---
 name: permissions-audit
-description: >
-  Performs a comprehensive authorization audit of a project's codebase — analyzing roles, permissions,
-  and authorization logic across backend and frontend. Generates three structured Markdown files
-  (roles/permissions matrix, permissions usage map, and authorization issues) plus an interactive
-  HTML dashboard for navigating findings. Use this skill whenever the user asks to audit permissions,
-  analyze authorization, review roles and access control, check for permission gaps or inconsistencies,
-  find unprotected endpoints, or any request related to security/authorization review of a codebase.
-  Also trigger when the user mentions "permissions audit", "authorization audit", "roles matrix",
-  "permission gaps", "unprotected endpoints", "access control review", or shares a project and asks
-  about its security posture regarding permissions. This skill works with any backend/frontend stack
-  (Laravel, Django, Express, Rails, React, Vue, Angular, etc.).
+description: 'Audit a project''s roles and authorization logic: permission matrix, usage map, issues, HTML dashboard.'
 ---
 
 # Permissions Audit Skill

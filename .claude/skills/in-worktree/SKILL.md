@@ -1,16 +1,6 @@
 ---
 name: in-worktree
-description: >
-  Run another skill inside an isolated git worktree instead of the current
-  checkout, so multiple agentic tools (or multiple tasks) can work on this
-  repo at the same time without touching each other's files. Supports a
-  fresh branch off the repo's default branch, or checking out an existing PR's branch,
-  and can seed the fresh worktree with an uncommitted local file (e.g. a
-  just-approved PDR) before running the target skill. Use when the user
-  wants to run a skill "in a worktree", "isolated", "on the side", or
-  explicitly asks to work on something in parallel with other
-  terminals/tools. Trigger phrases: "in a worktree", "isolate this", "run
-  it on the PR branch", "don't touch my working tree".
+description: 'Trigger: run a skill in a worktree, isolate this, on the side, run it on the PR branch, work in parallel without touching my working tree. Runs another skill in an isolated git worktree (fresh or PR branch), optionally seeded with a local file.'
 ---
 
 # In Worktree
@@ -229,5 +219,5 @@ The script's docstring (`python3 -I <skill-dir>/scripts/teardown.py --help`) own
 
 ## Notes
 
-- This skill works with any skill that operates on the current working directory — which is all of them, including `feature-workflow` (e.g. `/in-worktree --seed docs/process/pdr/004-my-feature.md /feature-workflow docs/process/pdr/004-my-feature.md`).
+- This skill works with any skill that operates on the current working directory — which is all of them, including `/design-review` (e.g. `/in-worktree --pr 123 /design-review 123`).
 - `--pr`/`--branch` mode assumes the branch already has an upstream on `origin` — it is for continuing work on something that already exists remotely, not for starting something new (use fresh mode for that).

@@ -1,14 +1,6 @@
 ---
 name: audit-consolidation-validator
-description: >
-  Validate and repair a client-facing consolidated audit document against a set of internal
-  audit files. Use this skill whenever the user asks to validate, check, review, consolidate, or
-  prepare any audit for client delivery — especially when internal audit versions exist alongside
-  a consolidated doc. Works for any audit type: HIPAA, security, permissions, database, or other.
-  Trigger when the user says things like "is the consolidated version accurate?",
-  "validate the audit before sending to the client", "does the summary match the findings?",
-  "process the audit docs", or "consolidate these audit files". Also trigger when the user shows
-  you an audit Overall Assessment paragraph and asks if it looks right.
+description: 'Validate a client-facing consolidated audit against the internal audit files and repair it.'
 ---
 
 ## What this skill does

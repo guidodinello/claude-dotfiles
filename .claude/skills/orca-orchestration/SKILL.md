@@ -1,6 +1,6 @@
 ---
 name: orca-orchestration
-description: "Trigger: orchestrate subtasks with orca, implementer sessions or workers in worktrees, supervise waves of PRs, resume an orchestration run. Land a story's technical subtasks through Claude Code implementer sessions in Orca worktrees (a planner session in plan mode, then a fresh coder session per worker), answering their plans from one orchestrator session, supervising via transcripts, reviewing and merging their PRs, with a per-project docs folder."
+description: 'Trigger: orchestrate subtasks with orca, implementer sessions or workers in worktrees, supervise waves of PRs, resume an orchestration run. Lands a story''s subtasks via Claude Code implementer sessions in Orca worktrees (planner in plan mode, fresh coder per worker), answering plans from one orchestrator session and merging their PRs.'
 license: Apache-2.0
 metadata:
   author: "guidodinello"

@@ -1,16 +1,7 @@
 ---
 name: test-health
 allowed-tools: Bash Read Agent
-description: >
-  Audit an existing automated test suite against a research-backed set of
-  heuristics (T1-T40): first whether the harnesses that keep tests honest
-  exist and cover what they claim (network and console guards, random-order
-  and parallel runs, visible retries, merged coverage), then tests that cannot
-  fail, nondeterminism, doubles in the wrong place, and lower-severity smells.
-  Use for a periodic test-suite health check, before a testing push, or when
-  the user asks to "audit the tests", "review the test suite", "how healthy
-  are our tests". Read-only: reports findings and proposes Issues; never edits
-  tests. For writing new tests, use /write-tests.
+description: 'Trigger: audit the tests, review the test suite, how healthy are our tests, test-suite health check. Read-only audit against heuristics T1-T40 (honesty harnesses, tests that cannot fail, nondeterminism); proposes Issues. To write tests: write-tests.'
 ---
 
 # Test Health
