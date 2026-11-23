@@ -55,6 +55,8 @@ Each value is marked `token` (bound to a Figma variable) or `raw` (typed by hand
 
 Fill that map from whatever names you can prove: swatch labels on the design system's Color page (family + step), the Figma MCP `get_variable_defs` on a frame node (it returns names and values; join by value only when the value is unique), or a designer's variables export. `pull` reads it on every run and never overwrites it.
 
+Each screen also gets Component notes: the designer's description of each component defined or used on it (variants, sizes, the code component it maps to), from the `components` and `componentSets` maps of the `/nodes` response. Up to 12 per screen.
+
 `pull` writes a README in every folder it creates, each listing its subfolders. The target folder's own README is created once and then left to you; `pull` only prints a note when it doesn't name a subfolder.
 
 Regenerating the READMEs after a skill update costs no Tier 1 call: `pull --force --nodes-json <dir>/<target>/nodes.json --no-render`. Run it only when `check` says unchanged: otherwise `state.json` records the new file version against the old `nodes.json`, and the next `pull` misses the changes.
