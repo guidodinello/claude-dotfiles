@@ -238,12 +238,16 @@ its own untracked exceptions" for anything in `~/.claude/settings.json` (skills,
 env vars, etc.). Two real options if a machine needs to diverge from the committed baseline:
 
 1. **Edit `~/.claude/settings.json` directly.** It is not a symlink: `sync.sh` generates it
-   by merging `settings.base.json` with the keys Claude Code writes at runtime. Edits to
-   `LOCAL_KEYS` (`autoMode`, `enabledPlugins`, `outputStyle`) survive a re-sync, and so do
-   entries added to `hooks` and to the `permissions` lists (both are unioned with the live
-   file; to remove one on purpose, list it in `RETIRED_HOOK_COMMANDS` or
-   `RETIRED_PERMISSION_RULES` in `sync.sh`). Any other key, such as `env`, is rebuilt from
-   `settings.base.json` on the next `./sync.sh`, so put those in the base instead.
+   from `settings.base.json` plus what is local to the config dir. Edits to `LOCAL_KEYS`
+   (`autoMode`, `enabledPlugins`, `outputStyle`, `model`, `effortLevel`) survive a re-sync, and
+   so do entries added to `hooks` and to the `permissions` lists (both are unioned with the
+   live file; `./sync.sh` prints how many such live-only entries there are, and lists them with
+   `SYNC_LIST_LIVE_ONLY=1`). Entries that the last sync took from the base and the base no longer
+   has are removed, recorded per config dir in `.sync-settings-manifest.json` (safe to delete:
+   the next sync then removes nothing, except what `RETIRED_HOOK_COMMANDS` and
+   `RETIRED_PERMISSION_RULES` in `sync.sh` list). Any other key, such as `env` or
+   `permissions.defaultMode`, is rebuilt from `settings.base.json` on the next `./sync.sh`, which
+   names each key it drops or overrides, so put those in the base instead.
 2. **Don't persist it — use the session-scoped skill picker / `claude plugin enable --scope
    local` for that one session.** Appropriate when the divergence is truly one-off rather than
    a standing per-machine preference.
