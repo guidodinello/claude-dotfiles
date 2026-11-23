@@ -10,6 +10,10 @@
 # so the deny rules in settings.base.json can only list real-file names outside
 # the project. This hook is the fail-closed layer for every other name.
 #
+# Secret files other than env files are blocked too: .dev.vars, anything under
+# .aws, private SSH keys under .ssh, the home .npmrc. Both name rules live in
+# env-names.sh, shared with guard-bash.sh.
+#
 # Like guard-bash.sh, this is a policy control, so it fails closed: if the hook
 # input cannot be read, or has no usable path, the call is blocked.
 #
@@ -21,6 +25,30 @@ block() {
   echo "BLOCKED: $*" >&2
   exit 2
 }
+
+# env-names.sh (is_env_file, is_secret_path) sits next to this script's REAL
+# path. ~/.claude/hooks/ holds per-file symlinks into the checkout, and after a
+# `git pull` but before `./sync.sh` there is no env-names.sh link next to them,
+# so the library is looked up from where the links point. readlink without -f:
+# BSD readlink lacks it. If the library is missing or fails to load, block.
+self="${BASH_SOURCE[0]}"
+hops=0
+while [[ -L "${self}" ]]; do
+  ((hops++ >= 40)) && block "symlink chain from ${BASH_SOURCE[0]} is longer than 40 hops or loops. Refusing to run unchecked."
+  link="$(readlink "${self}")" || block "could not follow the symlink ${self}. Refusing to run unchecked."
+  if [[ "${link}" == /* ]]; then
+    self="${link}"
+  elif [[ "${self}" == */* ]]; then
+    self="${self%/*}/${link}"
+  else
+    self="${link}"
+  fi
+done
+libdir="."
+[[ "${self}" == */* ]] && libdir="${self%/*}"
+[[ -r "${libdir}/env-names.sh" ]] || block "env-names.sh not found next to ${self}. Refusing to run unchecked."
+# shellcheck source=env-names.sh
+source "${libdir}/env-names.sh" || block "could not load ${libdir}/env-names.sh. Refusing to run unchecked."
 
 input="$(cat)"
 if ! tool="$(jq -er '.tool_name | select(type == "string")' 2>/dev/null <<<"${input}")"; then
@@ -61,19 +89,6 @@ else
   done < <(jq -j '[.tool_input.file_path, .tool_input.notebook_path] | map(select(. != null))[] | ., "\u0000"' <<<"${input}")
 fi
 
-# 0 when the basename of $1 is an env file that is not an example. Lowercased
-# first: macOS volumes are case-insensitive, so `.ENV` is the same file.
-is_env_file() {
-  local p="$1" name
-  while [[ "${p}" == */ && "${p}" != "/" ]]; do p="${p%/}"; done
-  name="$(printf '%s' "${p##*/}" | tr '[:upper:]' '[:lower:]')"
-  case "${name}" in
-    .env.example | .env.*.example | .env.sample | .env.template) return 1 ;;
-    .env* | *.env) return 0 ;;
-  esac
-  return 1
-}
-
 # The path itself, then each hop of a symlink chain: a link named `notes` that
 # points at `.env` reads the env file. A relative link target is resolved
 # against the directory of the link, and a leading `~/` against $HOME. If the
@@ -85,6 +100,9 @@ check_path() {
     [[ "${current}" == "${tilde}/"* ]] && current="${HOME}/${current#"${tilde}/"}"
     if is_env_file "${current}"; then
       block "${current##*/} is an env file. Real env files hold secrets and stay off-limits; the example files listed in the header of guard-env-files.sh are allowed. Ask the user to read or change it."
+    fi
+    if is_secret_path "${current}"; then
+      block "${current} is a secret file (.dev.vars, .aws, a private SSH key or ~/.npmrc). Secret files stay off-limits. Ask the user to read or change it."
     fi
     [[ -L "${current}" ]] || return 0
     target="$(readlink "${current}")" || block "could not follow the symlink ${current}. Refusing to run unchecked."

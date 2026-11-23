@@ -55,6 +55,9 @@ UNION_PERMISSIONS='["allow","deny","ask","additionalDirectories"]'
 #     out, so base lists the real-file names (.env.local, .env.production, ...).
 #   - Read(.env), Read(.env.*), Edit(.env), Edit(.env.*): added by gentle-ai,
 #     redundant with .env*.
+#   - Bash(rtk:*), Bash(op read:*), Bash(security find-generic-password:*):
+#     auto-approved secret reads (`op`, `security`) and `rtk run`/`proxy`/`read`,
+#     which bypass the deny rules; listed for dirs with no manifest yet.
 RETIRED_PERMISSION_RULES=(
     'Edit(**/.env)'
     'Bash(echo * > *.env*)'
@@ -63,6 +66,9 @@ RETIRED_PERMISSION_RULES=(
     'Read(.env.*)'
     'Edit(.env)'
     'Edit(.env.*)'
+    'Bash(rtk:*)'
+    'Bash(op read:*)'
+    'Bash(security find-generic-password:*)'
 )
 
 # Hook commands that were removed from settings.base.json on purpose. To retire

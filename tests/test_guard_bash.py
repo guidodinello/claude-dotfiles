@@ -2,7 +2,9 @@
 
 import json
 import os
+import shutil
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -24,6 +26,51 @@ CASES = [
     (ALLOW, "docker compose up -d --verbose"),
     (ALLOW, "docker volume ls"),
     (ALLOW, "docker compose logs download-vfoo"),
+    # Docker variants of the same destruction
+    (BLOCK, "docker-compose down -v"),
+    (BLOCK, "docker compose down -tv"),
+    (BLOCK, "docker system prune --volumes"),
+    (BLOCK, "docker system prune -a --volumes"),
+    (BLOCK, "docker compose rm -sfv"),
+    (BLOCK, "docker compose rm --volumes"),
+    (BLOCK, "docker rm -v -f c1"),
+    (BLOCK, "docker container rm -fv c1"),
+    (ALLOW, "docker compose -f down.yml up -v"),  # false positive: `down` is part of a file name
+    (ALLOW, "docker compose rm -s"),
+    (ALLOW, "docker rm c1"),
+    (ALLOW, "docker system prune"),
+    # wrangler deletes and restores
+    (BLOCK, "wrangler d1 delete db"),
+    (BLOCK, "npx wrangler r2 bucket delete b"),
+    (BLOCK, "wrangler kv namespace delete --namespace-id x"),
+    (BLOCK, "wrangler delete"),
+    (BLOCK, "wrangler d1 time-travel restore db --bookmark x"),
+    (ALLOW, "wrangler d1 time-travel info db"),
+    # env and secret file names, in any word of the command
+    (BLOCK, "cat x/.env.backup"),
+    (BLOCK, "python3 -c \"open('x/.env')\""),
+    (BLOCK, "docker compose --env-file .env up"),
+    (BLOCK, "docker compose --env-file=.env up"),
+    (BLOCK, "cp .env.example .env"),
+    (BLOCK, "cat prod.env"),
+    (BLOCK, "cat x/.ENV"),
+    (BLOCK, "cat .dev.vars"),
+    (BLOCK, "cat .dev.vars.staging"),
+    (BLOCK, "cat ~/.aws/credentials"),
+    (BLOCK, "cat ~/.aws/config"),
+    (BLOCK, "cat ~/.ssh/id_ed25519"),
+    (BLOCK, "cat ~/.ssh/deploy.pem"),
+    (BLOCK, "cat ~/.npmrc"),
+    (BLOCK, "cat $HOME/.npmrc"),
+    (ALLOW, "cat .env.example"),
+    (ALLOW, "cat .env.prod.example"),
+    (ALLOW, "cat .env.sample"),
+    (ALLOW, "cat .env.template"),
+    (ALLOW, "cat ~/.ssh/id_ed25519.pub"),
+    (ALLOW, "cat ~/.ssh/config"),
+    (ALLOW, "cat src/environment.ts"),
+    (ALLOW, "cat packages/app/.npmrc"),
+    (ALLOW, "cat deploy.pem"),  # a .pem outside .ssh is not judged
     # wrangler d1: needs an unquoted call with a standalone --local after it
     (BLOCK, 'wrangler d1 execute db --command "select 1"'),
     (BLOCK, "npx wrangler d1 execute db --remote --command x"),
@@ -80,12 +127,14 @@ CLOUDFLARE_ENV_CASES = [
 ]
 
 
-def run_guard(stdin: str, cloudflare_env: str | None = None) -> subprocess.CompletedProcess:
+def run_guard(
+    stdin: str, cloudflare_env: str | None = None, guard: Path = GUARD
+) -> subprocess.CompletedProcess:
     env = {k: v for k, v in os.environ.items() if k != "CLOUDFLARE_ENV"}
     if cloudflare_env is not None:
         env["CLOUDFLARE_ENV"] = cloudflare_env
     return subprocess.run(
-        ["bash", str(GUARD)], input=stdin, capture_output=True, text=True, env=env, timeout=30
+        ["bash", str(guard)], input=stdin, capture_output=True, text=True, env=env, timeout=30
     )
 
 
@@ -113,6 +162,44 @@ class GuardBashTest(unittest.TestCase):
         for stdin in ("not json", "{}", '{"command": "ls"}', '{"tool_input": {"command": 1}}'):
             with self.subTest(stdin=stdin):
                 self.assertEqual(run_guard(stdin).returncode, BLOCK)
+
+
+class LibraryLoadingTest(unittest.TestCase):
+    """The guard loads env-names.sh from the directory of its REAL path."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp()).resolve()
+        self.addCleanup(shutil.rmtree, self.tmp)
+
+    def test_library_found_through_a_symlink_elsewhere(self):
+        # Like ~/.claude/hooks/ after a pull and before a sync: the link sits where
+        # no env-names.sh does, and points into the checkout that has it.
+        link = self.tmp / "guard-bash.sh"
+        link.symlink_to(GUARD)
+        self.assertEqual(run_guard(hook_input("ls"), guard=link).returncode, ALLOW)
+        self.assertEqual(run_guard(hook_input("cat .env"), guard=link).returncode, BLOCK)
+
+    def test_library_found_through_a_chain_of_relative_links(self):
+        hooks = self.tmp / "hooks"
+        hooks.mkdir()
+        (hooks / "real.sh").symlink_to(GUARD)
+        (self.tmp / "guard-bash.sh").symlink_to("hooks/real.sh")
+        link = self.tmp / "guard-bash.sh"
+        self.assertEqual(run_guard(hook_input("ls"), guard=link).returncode, ALLOW)
+        self.assertEqual(run_guard(hook_input("cat .env"), guard=link).returncode, BLOCK)
+
+    def test_missing_library_blocks(self):
+        alone = self.tmp / "guard-bash.sh"
+        shutil.copy2(GUARD, alone)
+        result = run_guard(hook_input("ls"), guard=alone)
+        self.assertEqual(result.returncode, BLOCK)
+        self.assertIn("env-names.sh", result.stderr)
+
+    def test_library_that_fails_to_load_blocks(self):
+        alone = self.tmp / "guard-bash.sh"
+        shutil.copy2(GUARD, alone)
+        (self.tmp / "env-names.sh").write_text("return 1\n")
+        self.assertEqual(run_guard(hook_input("ls"), guard=alone).returncode, BLOCK)
 
 
 if __name__ == "__main__":

@@ -277,7 +277,12 @@ class SyncSettingsTest(ScriptCase):
 
     def test_anchored_env_rules_match_real_files_and_no_example(self):
         base = json.loads((REPO / ".claude" / "settings.base.json").read_text())
-        anchored = [r[len("Read(//**/"):-1] for r in base["permissions"]["deny"] if r.startswith("Read(//**/")]
+        # .dev.vars* is a Wrangler secrets file, not an env file: not part of this check.
+        anchored = [
+            r[len("Read(//**/") : -1]
+            for r in base["permissions"]["deny"]
+            if r.startswith("Read(//**/") and not r.startswith("Read(//**/.dev.vars")
+        ]
         self.assertEqual(sorted(anchored), sorted(self.ANCHORED_ENV_NAMES))
         matches = lambda name: any(fnmatch.fnmatchcase(name, p) for p in anchored)  # noqa: E731
         for name in (".env", "prod.env", ".env.local", ".env.development.local", ".env.production"):

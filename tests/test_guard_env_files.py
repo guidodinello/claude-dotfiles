@@ -15,6 +15,25 @@ GUARD = Path(__file__).resolve().parent.parent / ".claude" / "hooks" / "guard-en
 BLOCK = 2
 ALLOW = 0
 
+# (expected exit code, path relative to a throwaway HOME). Secret files that are not env files.
+SECRET_PATHS = [
+    (BLOCK, ".dev.vars"),
+    (BLOCK, "proj/.dev.vars"),
+    (BLOCK, "proj/.dev.vars.staging"),
+    (BLOCK, ".aws/credentials"),
+    (BLOCK, ".aws/config"),
+    (BLOCK, ".ssh/id_rsa"),
+    (BLOCK, ".ssh/id_ed25519"),
+    (BLOCK, ".ssh/deploy.pem"),
+    (BLOCK, ".npmrc"),
+    (ALLOW, ".ssh/id_rsa.pub"),
+    (ALLOW, ".ssh/id_ed25519.pub"),
+    (ALLOW, ".ssh/config"),
+    (ALLOW, ".ssh/known_hosts"),
+    (ALLOW, "proj/.npmrc"),
+    (ALLOW, "proj/dev.vars"),
+]
+
 # (expected exit code, basename). Judged wherever the file sits.
 NAMES = [
     (BLOCK, ".env"),
@@ -59,6 +78,26 @@ class GuardEnvFilesTest(unittest.TestCase):
                 with self.subTest(tool=tool, name=name):
                     path = str(self.tmp / "nested" / name)  # does not exist: the name decides
                     self.assertEqual(run_guard(hook_input(tool, file_path=path)).returncode, want)
+
+    def test_secret_files_that_are_not_env_files(self):
+        home = self.tmp / "home"
+        home.mkdir()
+        for want, rel in SECRET_PATHS:
+            with self.subTest(path=rel):
+                path = str(home / rel)
+                self.assertEqual(run_guard(hook_input("Read", file_path=path), home=home).returncode, want)
+
+    def test_tilde_secret_paths(self):
+        home = self.tmp / "home"
+        home.mkdir()
+        for path, want in (("~/.aws/credentials", BLOCK), ("~/.npmrc", BLOCK), ("~/.ssh/config", ALLOW)):
+            with self.subTest(path=path):
+                self.assertEqual(run_guard(hook_input("Read", file_path=path), home=home).returncode, want)
+
+    def test_symlink_to_a_secret_file_is_blocked(self):
+        (self.tmp / ".dev.vars").write_text("")
+        (self.tmp / "notes").symlink_to(".dev.vars")
+        self.assertEqual(run_guard(hook_input("Read", file_path=str(self.tmp / "notes"))).returncode, BLOCK)
 
     def test_relative_and_absolute_paths(self):
         for path, want in (
@@ -173,6 +212,38 @@ class GuardEnvFilesTest(unittest.TestCase):
         result = run_guard(hook_input("Read", file_path="/x/.env.backup"))
         self.assertIn("BLOCKED", result.stderr)
         self.assertEqual(result.stdout, "")
+
+
+class LibraryLoadingTest(unittest.TestCase):
+    """The guard loads env-names.sh from the directory of its REAL path."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp()).resolve()
+        self.addCleanup(shutil.rmtree, self.tmp)
+
+    def run_as(self, guard: Path, stdin: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            ["bash", str(guard)], input=stdin, capture_output=True, text=True, timeout=30, check=False
+        )
+
+    def test_library_found_through_a_symlink_elsewhere(self):
+        link = self.tmp / "guard-env-files.sh"
+        link.symlink_to(GUARD)
+        self.assertEqual(self.run_as(link, hook_input("Read", file_path="/x/a.txt")).returncode, ALLOW)
+        self.assertEqual(self.run_as(link, hook_input("Read", file_path="/x/.env")).returncode, BLOCK)
+
+    def test_missing_library_blocks(self):
+        alone = self.tmp / "guard-env-files.sh"
+        shutil.copy2(GUARD, alone)
+        result = self.run_as(alone, hook_input("Read", file_path="/x/a.txt"))
+        self.assertEqual(result.returncode, BLOCK)
+        self.assertIn("env-names.sh", result.stderr)
+
+    def test_library_that_fails_to_load_blocks(self):
+        alone = self.tmp / "guard-env-files.sh"
+        shutil.copy2(GUARD, alone)
+        (self.tmp / "env-names.sh").write_text("return 1\n")
+        self.assertEqual(self.run_as(alone, hook_input("Read", file_path="/x/a.txt")).returncode, BLOCK)
 
 
 if __name__ == "__main__":
