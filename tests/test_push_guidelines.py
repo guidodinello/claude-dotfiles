@@ -18,7 +18,14 @@ def rsync_is_openrsync() -> bool:
     return "openrsync" in (out.stdout + out.stderr)
 
 
-def snapshot(root: Path) -> dict:
+def known_openrsync_bug(test):
+    """On openrsync (stock macOS) the test is an expected failure: it flips to an
+    "unexpected success" failure the day push-guidelines.sh stops creating
+    directories, which is the cue to drop this decorator."""
+    return unittest.expectedFailure(test) if rsync_is_openrsync() else test
+
+
+def snapshot(root: Path) -> dict[str, bytes | None]:
     """Every path under root mapped to its bytes (None for a directory)."""
     return {
         str(p.relative_to(root)): (p.read_bytes() if p.is_file() else None)
@@ -111,11 +118,9 @@ class PushGuidelinesCase(unittest.TestCase):
         self.assertFalse((self.proj / ".claude/rules/only-in-source.md").exists())
         self.assertFalse((self.proj / ".claude/skills/new-skill/SKILL.md").exists())
 
-    @unittest.skipIf(
-        rsync_is_openrsync(),
-        "openrsync (stock macOS) creates empty directories under --existing; "
-        "see the audit-F report. GNU rsync does not.",
-    )
+    # push-guidelines.sh promises never to create directories, but openrsync's
+    # --existing still does (PR #123). GNU rsync keeps the promise.
+    @known_openrsync_bug
     def test_apply_never_creates_directories(self):
         self.run_script("--apply")
         self.assertFalse((self.proj / ".claude/skills/new-skill").exists())

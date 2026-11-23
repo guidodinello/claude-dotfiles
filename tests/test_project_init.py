@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 
 REPO = Path(__file__).resolve().parent.parent
 TEMPLATES = REPO / "templates" / "claude-settings"
@@ -37,13 +38,13 @@ class ProjectInitCase(unittest.TestCase):
             capture_output=True, text=True, env=env,
         )
 
-    def template(self, stack: str) -> dict:
+    def template(self, stack: str) -> dict[str, Any]:
         return json.loads((TEMPLATES / f"{stack}.json").read_text())
 
-    def settings(self, name: str = "settings.json") -> dict:
+    def settings(self, name: str = "settings.json") -> dict[str, Any]:
         return json.loads((self.project / ".claude" / name).read_text())
 
-    def write_settings(self, data: dict, name: str = "settings.json") -> Path:
+    def write_settings(self, data: dict[str, Any], name: str = "settings.json") -> Path:
         path = self.project / ".claude" / name
         path.parent.mkdir(exist_ok=True)
         path.write_text(json.dumps(data, indent=2) + "\n")
