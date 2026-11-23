@@ -1,7 +1,7 @@
 ---
 name: test-health
 allowed-tools: Bash Read Agent
-description: 'Trigger: audit the tests, review the test suite, how healthy are our tests, test-suite health check. Read-only audit against heuristics T1-T40 (honesty harnesses, tests that cannot fail, nondeterminism); proposes Issues. To write tests use write-tests.'
+description: 'Trigger: audit the tests, review the test suite, how healthy are our tests, test-suite health check. Read-only audit against heuristics T1-T40 (honesty harnesses, tests that cannot fail, nondeterminism); proposes Issues. To write tests: write-tests.'
 ---
 
 # Test Health

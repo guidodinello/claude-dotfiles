@@ -23,8 +23,8 @@ control"; use the first as the bar for "this is a real finding," not a
 nitpick.
 
 This skill is **web-only**, scoped to the project's web frontend source
-(`<frontend-src>`: the `src/` of the directory with a `package.json` that holds
-the React + Tailwind UI; find it first and stop and ask if you cannot, since an
+(`<frontend-src>`: the `src/` of `<frontend-project>`, the directory with a
+`package.json` that holds the React + Tailwind UI; find it first and stop and ask if you cannot, since an
 empty grep is not a clean audit). It audits JSX/TSX markup, ARIA attributes, and utility-class
 color-token contrast — not React Native accessibility props
 (`accessibilityLabel`, `accessibilityRole`, etc.), which are out of scope.

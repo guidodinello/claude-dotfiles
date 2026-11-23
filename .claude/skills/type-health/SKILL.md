@@ -40,11 +40,21 @@ A well-typed codebase should produce few findings.
 
 ---
 
-## Step 0 — Scope
+## Step 0 — Discover source roots and scope
 
-Default scope is `<backend-src>`, `scripts/`, and `<frontend-src>`. If the user
-passed a path or module as an argument, narrow to it. Note the scope in the
-final report.
+Do not assume a layout. Find the roots first and use them in place of the
+`<placeholders>`:
+
+- `<backend-project>`: a directory with a `pyproject.toml` (`git ls-files '*pyproject.toml'`). `<backend-src>` is its source root (`src/` or the package directory). For a TypeScript backend, use its `tsconfig.json` directory instead.
+- `<frontend-project>`: a directory with a `package.json` (`git ls-files '*package.json'`, ignoring `node_modules`) whose `src/` holds the UI code. `<frontend-src>` is that `src/`.
+
+If a root this skill needs cannot be found, stop and ask the user. An empty grep
+result is never a clean audit: confirm each root exists and holds files before
+reporting zero findings.
+
+Default scope is `<backend-src>`, a top-level `scripts/` directory if the repo
+has one, and `<frontend-src>`. If the user passed a path or module as an
+argument, narrow to it. Note the scope in the final report.
 
 **Tests are out of scope by default.** `<frontend-src>` contains
 `src/__tests__`, which dominates several scans (on the first run: 13 of 20

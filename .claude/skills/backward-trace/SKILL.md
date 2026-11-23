@@ -1,6 +1,6 @@
 ---
 name: backward-trace
-description: 'Trigger: how does X work, where does this value come from, what can trigger/produce Y, all the places that do Z; before changing shared behavior. First-principles mechanism tracing. Not for routine edits, renames or single-file changes.'
+description: 'Trigger: how does X work, where does this value come from, what can trigger Y, all the places that do Z; before changing shared behavior. Any comprehension question about an unfamiliar flow. Not for routine edits, renames or single-file changes.'
 ---
 
 # Backward-trace investigation

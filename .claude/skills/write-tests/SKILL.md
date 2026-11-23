@@ -1,6 +1,6 @@
 ---
 name: write-tests
-description: 'Trigger: write tests, add test coverage, should I test this, how do I test this, what am I missing in my tests. Writes tests as executable specs of observable behaviour: doubles only at real boundaries, deterministic. To audit a suite use test-health.'
+description: 'Trigger: write tests, add test coverage, should I test this, how do I test this, what am I missing in my tests. Writes tests as executable specs of observable behaviour: doubles only at real boundaries, deterministic. To audit a suite: test-health.'
 ---
 
 # Write Tests

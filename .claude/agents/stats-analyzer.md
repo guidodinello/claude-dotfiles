@@ -1,6 +1,6 @@
 ---
 name: stats-analyzer
-description: Analyzes ~/.claude/stats-cache.json and history.jsonl to produce a concise usage report with model token breakdown, estimated costs, project activity, and session patterns. Use when the user asks about Claude Code token/cost stats or wants more than the built-in /usage (session cost, plan limits, activity stats): this adds a per-model breakdown from the local cache.
+description: 'Analyzes ~/.claude/stats-cache.json and history.jsonl to produce a concise usage report with model token breakdown, estimated costs, project activity, and session patterns. Use when the user asks about Claude Code token/cost stats or wants more than the built-in /usage (session cost, plan limits, activity stats): this adds a per-model breakdown from the local cache.'
 tools: Bash
 model: haiku
 ---
