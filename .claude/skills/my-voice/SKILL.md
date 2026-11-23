@@ -27,6 +27,7 @@ Load before drafting a Slack message Guido will send under his own name, and whe
 | Guido edits or rejects wording | Step 5 |
 | Guido says he sent it (or a sent version is visible) | Step 6 |
 | Rules contradict or the voice file grows past ~60 rules | Consolidate per `references/method.md` |
+| Guido asks if the skill is working | Run `scripts/measure_edits.py` per `references/method.md` § Measuring |
 
 ## Execution Steps
 
@@ -48,3 +49,4 @@ Load before drafting a Slack message Guido will send under his own name, and whe
 - `references/method.md`: the three layers, the correction-to-rule loop, consolidation, and the research behind it.
 - `scripts/mine_corrections.py`: finds past wording corrections in Claude Code transcripts, to seed or refresh the rules.
 - `scripts/pair_drafts.py`: pairs each message in a sent corpus with the earliest Claude draft that matches it, to find silent edits.
+- `scripts/measure_edits.py`: scores how close each sent message is to Claude's first draft, before vs after a date, to check the rules are working.

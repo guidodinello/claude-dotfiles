@@ -26,6 +26,18 @@ except to X").
 How much he edits a draft before sending is the measure of progress. Fewer edits over time means
 the rules are working.
 
+## Measuring
+
+`scripts/measure_edits.py <sent-corpus> <project-substring> --since "<date of the change>"` scores each
+sent message against Claude's **first** draft (difflib similarity, 0-1) and counts the drafts before
+sending, then compares medians before and after the date. Track the median first-draft score; it should
+rise. The best-draft score is not a measure, because Claude often re-prints Guido's own edit just
+before he sends.
+
+Sent messages must be in the corpus verbatim and in `> ` blockquotes, or both scripts skip them.
+Read a handful of messages per recipient as a direction, not proof. Log each run in the project, next
+to the corpus.
+
 ## Consolidation
 
 Run when rules contradict or the voice file passes about 60 rules:
