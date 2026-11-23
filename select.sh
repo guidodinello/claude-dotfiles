@@ -27,13 +27,28 @@ fi
 # ---------------------------------------------------------------------------
 declare -a CANDIDATES
 
+# Only tracked files are offered (see linkable_files in lib/link.sh), the same
+# set sync.sh links.
+
+# First path component, one per line, of every tracked file under <base> that
+# sits in a subdirectory.
+tracked_subdirs() {
+    local base="$1" f rel
+    while IFS= read -r -d '' f; do
+        rel="${f#"${base}"/}"
+        if [[ "${rel}" == */* ]]; then
+            echo "${rel%%/*}"
+        fi
+    done < <(linkable_files "${CLAUDE_SRC}" "${base}")
+}
+
 collect_dirs() {
-    local category="$1"
+    local category="$1" name
     local base="${CLAUDE_SRC}/${category}"
     [ -d "${base}" ] || return 0
-    for entry in "${base}"/*/; do
-        [ -d "${entry}" ] && CANDIDATES+=("${category}/$(basename "${entry}")")
-    done
+    while IFS= read -r name; do
+        CANDIDATES+=("${category}/${name}")
+    done < <(tracked_subdirs "${base}" | sort -u)
 }
 
 collect_files() {
@@ -43,21 +58,18 @@ collect_files() {
     while IFS= read -r -d '' f; do
         rel="${f#"${CLAUDE_SRC}"/}"
         CANDIDATES+=("${rel}")
-    done < <(find "${base}" -type f -print0 | sort -z)
+    done < <(linkable_files "${CLAUDE_SRC}" "${base}" | sort -z)
 }
 
 collect_flat() {
     local base="${CLAUDE_SRC}"
     while IFS= read -r -d '' f; do
-        [ -d "${f}" ] && continue
         rel="${f#"${base}"/}"
-        # skip anything already handled as a dir-based category
-        local top
-        top="$(echo "${rel}" | cut -d/ -f1)"
-        case "${top}" in skills|agents|rules|hooks|guidelines|scripts) continue ;; esac
+        # top-level files only; every directory is handled by its category
+        [[ "${rel}" == */* ]] && continue
         is_skipped "${rel}" && continue
         CANDIDATES+=("${rel}")
-    done < <(find "${base}" -maxdepth 1 -type f -print0 | sort -z)
+    done < <(linkable_files "${CLAUDE_SRC}" "${base}" | sort -z)
 }
 
 collect_dirs  "skills"
@@ -135,9 +147,6 @@ for item in "${SELECTED[@]}"; do
         log_warn "Not found, skipping: ${item}"
     fi
 done
-
-# Ensure hooks are executable
-find "${CLAUDE_DST}/hooks" -type f -name "*.sh" -exec chmod +x {} \; 2>/dev/null || true
 
 echo
 log_info "Done! Run ./select.sh again to add more items."

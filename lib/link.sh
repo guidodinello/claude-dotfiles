@@ -23,14 +23,55 @@ is_skipped() {
     return 1
 }
 
+# Marker that makes an alternate ~/.claude-* folder a sync target: a file with
+# this name that holds the folder's own absolute path. `./sync.sh <dir>` writes
+# it. A copied backup carries the wrong path, so it is never adopted by accident.
+CONFIG_MARKER=".dotfiles-config-dir"
+
+# Set by `./sync.sh --relink`: allow moving links that point into ANOTHER
+# checkout of this repo that still exists (see link_file).
+RELINK="${RELINK:-0}"
+
+# Cap on the per-link problem lines verify_links prints (the count is exact).
+VERIFY_MAX_LINES=20
+VERIFY_PROBLEMS=0
+VERIFY_SHOWN=0
+
+config_dir_marked() {
+    [ -f "$1/${CONFIG_MARKER}" ] || return 1
+    [ "$(cat "$1/${CONFIG_MARKER}")" = "$(cd "$1" && pwd -P)" ]
+}
+
+# write_config_marker <dir>: make <dir> a sync target for later bare runs.
+write_config_marker() {
+    cd "$1" && pwd -P > "$1/${CONFIG_MARKER}"
+}
+
 # Every CLAUDE_CONFIG_DIR profile on this machine, one per line: the default
-# ~/.claude plus any alternate ~/.claude-* that already exists (e.g. the
-# `claude-work` alias's CLAUDE_CONFIG_DIR=~/.claude-work). Never creates one.
+# ~/.claude plus each alternate ~/.claude-* that carries the marker (e.g. the
+# `claude-work` alias's CLAUDE_CONFIG_DIR=~/.claude-work). Unmarked folders
+# (backups, ~/.claude-mem, ...) are not ours. Never creates a dir.
 config_dirs() {
     local alt
     echo "${HOME}/.claude"
     for alt in "${HOME}"/.claude-*; do
-        [ -d "${alt}" ] && echo "${alt}"
+        if [ -d "${alt}" ] && config_dir_marked "${alt}"; then
+            echo "${alt}"
+        fi
+    done
+    return 0
+}
+
+# WARN about unmarked ~/.claude-* folders that already hold a link of ours, so
+# the one-time `./sync.sh <dir>` migration is not forgotten.
+warn_unmarked_config_dirs() {
+    local alt
+    for alt in "${HOME}"/.claude-*; do
+        [ -d "${alt}" ] || continue
+        config_dir_marked "${alt}" && continue
+        if [ -n "$(find "${alt}" -maxdepth 4 -type l -lname '*/.claude/*' 2>/dev/null | head -n 1)" ]; then
+            log_warn "$(display_path "${alt}") holds links into this repo but is not a sync target; run ./sync.sh $(display_path "${alt}") once to adopt it."
+        fi
     done
     return 0
 }
@@ -45,58 +86,294 @@ display_path() {
     fi
 }
 
-# link_file <src> <target>: symlink <target> -> <src>. An existing symlink is
-# left alone; an existing regular file is moved to <target>.bak first.
+# The path of <root> inside the repo: a link is "ours" only under this name.
+root_rel_of() {
+    case "$1" in
+        */.config/opencode) echo ".config/opencode" ;;
+        *) echo ".claude" ;;
+    esac
+}
+
+# link_is_ours <readlink value> <root_rel> <rel>: ownership rule. A symlink at
+# <dst>/<rel> is ours when its target is absolute and ends in
+# /<root_rel>/<rel>: the current checkout, or any other checkout or old
+# location of this repo. Relative targets (the user's ../../.agents/skills/*
+# links) and absolute targets of any other shape are never ours.
+link_is_ours() {
+    case "$1" in
+        /*"/$2/$3") return 0 ;;
+    esac
+    return 1
+}
+
+# True when <dir> is the top level of a git checkout (not just inside one:
+# the tests copy the tree into a temp dir that may sit inside another repo).
+repo_is_checkout() {
+    local top phys
+    top="$(git -C "$1" rev-parse --show-toplevel 2>/dev/null)" || return 1
+    phys="$(cd "$1" && pwd -P)" || return 1
+    [ "${top}" = "${phys}" ]
+}
+
+# linkable_files <root> <item> [any]: the files to link under <item>, NUL
+# separated. In a git checkout that is what git tracks (so .DS_Store and .swp
+# files are never linked), minus backups and bytecode. With "any", or when the
+# tree is not a checkout, every file on disk (same exclusions): add_file.sh and
+# promote.sh link a file that is not tracked yet.
+linkable_files() {
+    local root="$1" item="$2" any="${3:-}" root_rel repo_dir rel f
+    root_rel="$(root_rel_of "${root}")"
+    repo_dir="${root%/"${root_rel}"}"
+    if [ "${any}" != "any" ] && repo_is_checkout "${repo_dir}"; then
+        rel="${item#"${repo_dir}"/}"
+        while IFS= read -r -d '' f; do
+            f="${repo_dir}/${f}"
+            [ -f "${f}" ] && [ ! -L "${f}" ] || continue
+            case "${f}" in
+                *.bak | */__pycache__/*) continue ;;
+            esac
+            printf '%s\0' "${f}"
+        done < <(git --literal-pathspecs -C "${repo_dir}" ls-files -z -- "${rel}")
+    else
+        find "${item}" -type f ! -name '*.bak' ! -path '*/__pycache__/*' -print0
+    fi
+}
+
+# expected_rels <root> [skip]: the paths (relative to <root>) a sync links, one
+# per line. The set prune_links and verify_links compare against.
+expected_rels() {
+    local root="$1" apply_skips="${2:-}" file rel
+    {
+        while IFS= read -r -d '' file; do
+            rel="${file#"${root}"/}"
+            if [ "${apply_skips}" = "skip" ] && is_skipped "${rel}"; then
+                continue
+            fi
+            printf '%s\n' "${rel}"
+        done < <(linkable_files "${root}" "${root}")
+    } | LC_ALL=C sort
+}
+
+# in_list <newline list> <line>: exact whole-line membership (bash 3.2 has no
+# associative arrays).
+in_list() {
+    grep -Fxq -- "$2" <<<"$1"
+}
+
+# Is a parent directory of <dst>/<rel>, inside <dst>, a symlink? Writing there
+# would go through it (skills/orca-cli -> ../../.agents/skills/orca-cli).
+parent_is_symlink() {
+    local dst="$1" rel="$2" d
+    d="$(dirname "${dst}/${rel}")"
+    while [ "${d}" != "${dst}" ] && [ "${d}" != "/" ] && [ "${d}" != "." ]; do
+        if [ -L "${d}" ]; then
+            return 0
+        fi
+        d="$(dirname "${d}")"
+    done
+    return 1
+}
+
+# Print the refusal once per config dir and old checkout, not once per file.
+REFUSED_SEEN=""
+note_other_checkout() {
+    local dst="$1" old_root="$2" new_root="$3" key
+    key="|${dst}|${old_root}|"
+    case "${REFUSED_SEEN}" in
+        *"${key}"*) return 0 ;;
+    esac
+    REFUSED_SEEN="${REFUSED_SEEN}${key}"
+    log_err "$(display_path "${dst}"): linked to ${old_root}, this run is ${new_root}; re-run with --relink to move it"
+}
+
+# backup_name <file>: <file>.<YYYYMMDD-HHMMSS>.bak, with .<n> before .bak when
+# that name is taken. Still ends in .bak, so it stays gitignored and unlinked.
+backup_name() {
+    local base cand n=1
+    base="$1.$(date +%Y%m%d-%H%M%S)"
+    cand="${base}.bak"
+    while [ -e "${cand}" ] || [ -L "${cand}" ]; do
+        n=$((n + 1))
+        cand="${base}.${n}.bak"
+    done
+    printf '%s\n' "${cand}"
+}
+
+# link_file <src> <dst> <rel> <root_rel>: make <dst>/<rel> a symlink to <src>.
+#   - already a link to <src>: nothing to do
+#   - a link of ours (see link_is_ours) to somewhere else:
+#       old target gone (moved/deleted checkout): repoint, logging the old one
+#       old target still exists in another checkout: refuse unless RELINK=1
+#   - a link that is not ours: kept, with a WARN
+#   - a regular file: moved to a timestamped .bak first
+#   - a parent directory inside <dst> is a symlink: skipped, with a WARN
 link_file() {
-    local src="$1" target="$2"
+    local src="$1" dst="$2" rel="$3" root_rel="$4"
+    local target="${dst}/${rel}" old old_root backup
+
+    if parent_is_symlink "${dst}" "${rel}"; then
+        log_warn "Skipping $(display_path "${target}"): a parent directory is a symlink"
+        return 0
+    fi
 
     mkdir -p "$(dirname "${target}")"
     if [ -L "${target}" ]; then
-        return 0
+        old="$(readlink "${target}")"
+        if [ "${old}" = "${src}" ] || [ "${old}" -ef "${src}" ]; then
+            return 0
+        fi
+        if ! link_is_ours "${old}" "${root_rel}" "${rel}"; then
+            log_warn "Keeping $(display_path "${target}") -> ${old}: points outside this repo"
+            return 0
+        fi
+        if [ -e "${target}" ] && [ "${RELINK}" != "1" ]; then
+            old_root="${old%"/${root_rel}/${rel}"}"
+            note_other_checkout "${dst}" "${old_root}" "${src%"/${root_rel}/${rel}"}"
+            return 0
+        fi
+        rm "${target}"
+        log_warn "Repointing $(display_path "${target}") (was -> ${old})"
     elif [ -e "${target}" ]; then
-        log_warn "Backing up existing file: $(display_path "${target}") -> .bak"
-        mv "${target}" "${target}.bak"
+        backup="$(backup_name "${target}")"
+        log_warn "Backing up existing file: $(display_path "${target}") -> $(basename "${backup}")"
+        mv "${target}" "${backup}"
     fi
 
     ln -s "${src}" "${target}"
     log_info "Linked: $(display_path "${target}")"
 }
 
-# link_under <root> <item> <dst> [skip]: symlink <item> (one file, or every
-# file under a directory) into <dst>, keeping its path relative to <root>.
-# With "skip" as the fourth argument, SKIP_FILES are left out. Backups and
-# Python bytecode (both gitignored) are never linked.
+# link_under <root> <item> <dst> [skip] [any]: symlink <item> (one file, or
+# every file under a directory) into <dst>, keeping its path relative to <root>.
+# With "skip" as the fourth argument, SKIP_FILES are left out. See
+# linkable_files for what is linked and for "any".
 link_under() {
-    local root="$1" item="$2" dst="$3" apply_skips="${4:-}" file rel
+    local root="$1" item="$2" dst="$3" apply_skips="${4:-}" any="${5:-}" file rel root_rel
+    root_rel="$(root_rel_of "${root}")"
 
     while IFS= read -r -d '' file; do
         rel="${file#"${root}"/}"
         if [ "${apply_skips}" = "skip" ] && is_skipped "${rel}"; then
             continue
         fi
-        link_file "${file}" "${dst}/${rel}"
-    done < <(find "${item}" -type f ! -name '*.bak' ! -path '*/__pycache__/*' -print0)
+        link_file "${file}" "${dst}" "${rel}" "${root_rel}"
+    done < <(linkable_files "${root}" "${item}" "${any}")
 }
 
-# prune_dangling <root> <dst>: remove symlinks under <dst> that point into
-# <root> at a file that no longer exists (deleted or moved in the repo), then
-# any directory that this left empty. Links pointing anywhere else are not
-# ours and are left alone, dangling or not.
-prune_dangling() {
-    local root="$1" dst="$2" link dir
+# Remove now-empty directories from <dir> up to (not including) <dst>.
+prune_empty_dirs() {
+    local dst="$1" dir="$2"
+    while [ "${dir}" != "${dst}" ] && rmdir "${dir}" 2>/dev/null; do
+        dir="$(dirname "${dir}")"
+    done
+}
 
+# prune_links <root> <dst> <root_rel> <expected>: remove symlinks of ours under
+# <dst> that a sync no longer links: the repo file was deleted, moved, skipped
+# (settings.local.json) or is untracked. Only ever `rm`s symlinks, never a file
+# in the repo. Links into another checkout that still exists are kept with a
+# WARN, unless RELINK=1. The top-level settings.json is left to merge_settings.
+prune_links() {
+    local root="$1" dst="$2" root_rel="$3" expected="$4" link rel old
     [ -d "${dst}" ] || return 0
+
     while IFS= read -r -d '' link; do
-        [ -e "${link}" ] && continue
-        case "$(readlink "${link}")" in
-            "${root}"/*) ;;
-            *) continue ;;
-        esac
-        rm "${link}"
-        log_warn "Pruned dangling link: $(display_path "${link}")"
-        dir="$(dirname "${link}")"
-        while [ "${dir}" != "${dst}" ] && rmdir "${dir}" 2>/dev/null; do
-            dir="$(dirname "${dir}")"
-        done
+        rel="${link#"${dst}"/}"
+        [ "${rel}" = "settings.json" ] && continue
+        old="$(readlink "${link}")"
+        link_is_ours "${old}" "${root_rel}" "${rel}" || continue
+        in_list "${expected}" "${rel}" && continue
+
+        if [ "${old}" = "${root}/${rel}" ] || [ ! -e "${link}" ] || [ "${RELINK}" = "1" ]; then
+            rm "${link}"
+            log_warn "Pruned link: $(display_path "${link}")"
+            prune_empty_dirs "${dst}" "$(dirname "${link}")"
+        else
+            log_warn "Keeping $(display_path "${link}") -> ${old}: another checkout still holds it (--relink removes it)"
+        fi
     done < <(find "${dst}" -type l -print0)
+}
+
+verify_problem() {
+    VERIFY_PROBLEMS=$((VERIFY_PROBLEMS + 1))
+    if [ "${VERIFY_SHOWN}" -lt "${VERIFY_MAX_LINES}" ]; then
+        VERIFY_SHOWN=$((VERIFY_SHOWN + 1))
+        log_err "$*"
+    fi
+}
+
+# verify_links <root> <dst> <root_rel> <expected> [info]: read-only. Returns 1
+# when <dst> does not match the repo: an expected link is missing, is a plain
+# file, or is a link of ours to the wrong place, or one of ours is dangling.
+# Links that are not ours (user links, Claude Code's debug/latest) never fail
+# it; with a fifth argument they are reported as WARNs.
+verify_links() {
+    local root="$1" dst="$2" root_rel="$3" expected="$4" info="${5:-}" rel link old
+    VERIFY_PROBLEMS=0
+    VERIFY_SHOWN=0
+
+    while IFS= read -r rel; do
+        [ -n "${rel}" ] || continue
+        link="${dst}/${rel}"
+        if parent_is_symlink "${dst}" "${rel}"; then
+            [ -n "${info}" ] && log_warn "$(display_path "${link}"): a parent directory is a symlink, not linked"
+            continue
+        fi
+        if [ -L "${link}" ]; then
+            old="$(readlink "${link}")"
+            if [ "${old}" = "${root}/${rel}" ] || [ "${old}" -ef "${root}/${rel}" ]; then
+                continue
+            elif ! link_is_ours "${old}" "${root_rel}" "${rel}"; then
+                [ -n "${info}" ] && log_warn "$(display_path "${link}") -> ${old}: points outside the repo"
+            elif [ -e "${link}" ]; then
+                VERIFY_PROBLEMS=$((VERIFY_PROBLEMS + 1))
+                note_other_checkout "${dst}" "${old%"/${root_rel}/${rel}"}" "${root%"/${root_rel}"}"
+            else
+                verify_problem "$(display_path "${link}") -> ${old}: stale, the target is gone"
+            fi
+        elif [ -e "${link}" ]; then
+            verify_problem "$(display_path "${link}"): a plain file, not a link into the repo"
+        else
+            verify_problem "$(display_path "${link}"): missing"
+        fi
+    done <<<"${expected}"
+
+    if [ -d "${dst}" ]; then
+        while IFS= read -r -d '' link; do
+            rel="${link#"${dst}"/}"
+            [ "${rel}" = "settings.json" ] && continue
+            in_list "${expected}" "${rel}" && continue
+            old="$(readlink "${link}")"
+            if ! link_is_ours "${old}" "${root_rel}" "${rel}"; then
+                [ -e "${link}" ] || log_warn "$(display_path "${link}") -> ${old}: dangling, but not a link of ours (kept)"
+            elif [ ! -e "${link}" ]; then
+                verify_problem "$(display_path "${link}") -> ${old}: dangling link of ours"
+            elif [ "${old}" = "${root}/${rel}" ]; then
+                verify_problem "$(display_path "${link}"): no longer linked by the repo, a sync prunes it"
+            else
+                [ -n "${info}" ] && log_warn "$(display_path "${link}") -> ${old}: another checkout still holds it"
+            fi
+        done < <(find "${dst}" -type l -print0)
+    fi
+
+    if [ "${VERIFY_PROBLEMS}" -gt 0 ]; then
+        log_err "$(display_path "${dst}"): ${VERIFY_PROBLEMS} link problem(s) in total"
+    fi
+    [ "${VERIFY_PROBLEMS}" -eq 0 ]
+}
+
+# stage_in_repo <repo_dir> <rel>: `git add` (no commit) a path under .claude
+# that add_file.sh or promote.sh just moved in, so the next sync's tracked-files
+# walk keeps its links. Prints what was staged.
+stage_in_repo() {
+    local repo_dir="$1" rel="$2"
+    if repo_is_checkout "${repo_dir}"; then
+        if git -C "${repo_dir}" add -- ".claude/${rel}"; then
+            log_info "Staged: .claude/${rel}"
+        else
+            log_warn "git add failed for .claude/${rel}; stage it before the next sync or its links are pruned."
+        fi
+    else
+        log_warn "${repo_dir} is not a git checkout; not staging .claude/${rel}."
+    fi
 }

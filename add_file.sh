@@ -1,5 +1,5 @@
 #!/bin/bash
-# Moves a ~/.claude/* file or directory into this repo and creates file-level symlinks back.
+# Moves a ~/.claude/* file or directory into this repo, stages it, and creates file-level symlinks back.
 # Usage: ./add_file.sh ~/.claude/agents/my-agent.md
 #        ./add_file.sh ~/.claude/skills/my-skill
 #        ./add_file.sh ~/.claude/hooks/my-hook.sh
@@ -41,13 +41,34 @@ fi
 rel="${file_path#"${CLAUDE_DST}"/}"
 dst="${DOTFILES_DIR}/.claude/${rel}"
 
+# sync.sh generates or skips these per config dir; moving one into the repo
+# would replace the generated file with a stale copy.
+if is_skipped "${rel}"; then
+    echo "Error: ${rel} is generated or skipped by sync.sh and cannot be added to the repo"
+    exit 1
+fi
+
+# A symlink here is already linked (probably into this repo): moving it would
+# put a link to itself in the repo.
+if [ -L "${file_path}" ]; then
+    echo "Error: ${file_path} is a symlink to $(readlink "${file_path}"); nothing to add"
+    exit 1
+fi
+
+if [ -e "${dst}" ]; then
+    echo "Error: already exists in the repo: ${dst}"
+    exit 1
+fi
+
 mkdir -p "$(dirname "${dst}")"
 mv "${file_path}" "${dst}"
 
 # Link it back, and into every other config dir on this machine, the same
-# way sync.sh would on its next run.
+# way sync.sh would on its next run. The item is not tracked yet, so it is
+# linked from disk and then staged: the next sync links tracked files only.
 while IFS= read -r dir; do
-    link_under "${DOTFILES_DIR}/.claude" "${dst}" "${dir}"
+    link_under "${DOTFILES_DIR}/.claude" "${dst}" "${dir}" skip any
 done < <(config_dirs)
 
-echo "Remember to: git add .claude/${rel} && git commit"
+stage_in_repo "${DOTFILES_DIR}" "${rel}"
+echo "Remember to commit: git commit -m \"feat: add ${rel}\""

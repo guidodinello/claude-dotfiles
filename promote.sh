@@ -31,11 +31,19 @@ if [[ -z "${src}" ]]; then
     exit 1
 fi
 
-# Expand ~
+# Expand ~, and drop a trailing slash so a symlink is not seen through.
 src="${src/#\~/$HOME}"
+src="${src%/}"
 
 if [[ ! -e "${src}" ]]; then
     echo "Not found: ${src}"
+    exit 1
+fi
+
+# A symlink is not the item: moving it would take the link, not the content,
+# and the skill would vanish from where the link points.
+if [[ -L "${src}" ]]; then
+    echo "Error: ${src} is a symlink to $(readlink "${src}"); promote the target instead"
     exit 1
 fi
 
@@ -75,18 +83,19 @@ log_info "Moved to repo: .claude/${rel}"
 # Link it into every config dir on this machine, the same way sync.sh would
 # on its next run.
 while IFS= read -r dir; do
-    link_under "${DOTFILES_DIR}/.claude" "${repo_dst}" "${dir}"
+    link_under "${DOTFILES_DIR}/.claude" "${repo_dst}" "${dir}" skip any
 done < <(config_dirs)
 
-# Report on original project location
+# The item is not tracked yet, so it was linked from disk; stage it so the next
+# sync (tracked files only) keeps the links.
+stage_in_repo "${DOTFILES_DIR}" "${rel}"
+
+if $DELETE_ORIGINAL; then
+    log_warn "--delete-original: the item is always moved; this flag does nothing"
+fi
 if ! $is_from_global; then
-    if $DELETE_ORIGINAL; then
-        log_info "Original removed (item was moved, --delete-original acknowledged)"
-    else
-        log_warn "Original path is now empty: ${src}"
-        log_warn "Safe to remove: rm -rf \"${src}\""
-    fi
+    log_info "Moved out of ${claude_root}; commit the removal in that project."
 fi
 
 echo ""
-log_info "Remember to: git add .claude/${rel} && git commit"
+log_info "Remember to commit: git commit -m \"feat: add ${rel}\""
