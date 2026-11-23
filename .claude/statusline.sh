@@ -60,7 +60,8 @@ if git -C "$DIR" rev-parse --git-dir >/dev/null 2>&1; then
     if (umask 077; mkdir -p "$CACHE_DIR") 2>/dev/null; then
       echo "${BRANCH}|${STAGED}|${MODIFIED}" > "$GIT_CACHE" 2>/dev/null
       # Bound the dir: drop per-session files untouched for over a day (BSD and GNU find).
-      find "$CACHE_DIR" -type f -name 'git-*' -mtime +1 -delete 2>/dev/null
+      # -mmin, not -mtime +1: -mtime rounds age down to whole days, so +1 means 48h or more.
+      find "$CACHE_DIR" -type f -name 'git-*' -mmin +1440 -delete 2>/dev/null
     fi
   else
     IFS='|' read -r BRANCH STAGED MODIFIED < "$GIT_CACHE"

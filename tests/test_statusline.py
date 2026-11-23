@@ -87,15 +87,19 @@ class StatuslineTest(unittest.TestCase):
         self.assertFalse((self.home / "evil").exists())
         self.assertFalse((self.home / ".cache" / "evil").exists())
 
-    def test_stale_cache_files_are_pruned(self):
+    def test_cache_files_older_than_a_day_are_pruned(self):
         self.cache_dir().mkdir(parents=True)
-        old = self.cache_dir() / "git-old"
-        old.write_text("main|0|0")
-        three_days_ago = time.time() - 3 * 86400
-        os.utime(old, (three_days_ago, three_days_ago))
+        ages_hours = {"git-3d": 72, "git-25h": 25, "git-23h": 23}
+        for name, hours in ages_hours.items():
+            path = self.cache_dir() / name
+            path.write_text("main|0|0")
+            stamp = time.time() - hours * 3600
+            os.utime(path, (stamp, stamp))
         res = self.render(session_id="fresh")
         self.assertEqual(res.returncode, 0, res.stderr)
-        self.assertFalse(old.exists(), "stale cache file was not pruned")
+        self.assertFalse((self.cache_dir() / "git-3d").exists(), "3-day-old file kept")
+        self.assertFalse((self.cache_dir() / "git-25h").exists(), "25-hour-old file kept")
+        self.assertTrue((self.cache_dir() / "git-23h").exists(), "23-hour-old file pruned")
         self.assertTrue((self.cache_dir() / "git-fresh").exists())
 
 
