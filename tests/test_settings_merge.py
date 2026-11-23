@@ -80,6 +80,16 @@ class RemovalsPropagateTest(MergeCase):
         self.assertIn("INFO", line[0])
         self.assertNotIn("WARN", line[0])
 
+    def test_a_removed_ask_rule_is_a_warning_because_it_loosens_policy(self):
+        self.edit_base(lambda b: b["permissions"].update(ask=["Bash(x:*)", "Bash(y:*)"]))
+        self.sync()
+        self.edit_base(lambda b: b["permissions"]["ask"].remove("Bash(x:*)"))
+        result = self.sync()
+        self.assertNotIn("Bash(x:*)", self.settings()["permissions"]["ask"])
+        warn = [ln for ln in result.stdout.splitlines() if "Bash(x:*)" in ln]
+        self.assertEqual(len(warn), 1, result.stdout)
+        self.assertIn("WARN", warn[0])
+
     def test_without_a_manifest_a_removed_rule_stays_but_retired_rules_still_go(self):
         self.sync()
         self.manifest_path().unlink()
@@ -103,6 +113,86 @@ class RemovalsPropagateTest(MergeCase):
         self.assertIn(MANIFEST, result.stdout)
         self.assertIn(rule, self.settings()["permissions"]["allow"])
         json.loads(self.manifest_path().read_text())  # rewritten as valid JSON
+
+
+class BrokenBaseTest(MergeCase):
+    """A base that lost a list the last sync recorded must not read as "every
+    entry was removed": fail closed, write nothing, keep the manifest."""
+
+    def break_base(self, name: str) -> None:
+        def empty(b):
+            b.clear()
+
+        def no_deny(b):
+            del b["permissions"]["deny"]
+
+        def empty_deny(b):
+            b["permissions"]["deny"] = []
+
+        def renamed_deny(b):
+            b["permissions"]["denied"] = b["permissions"].pop("deny")
+
+        def no_hooks(b):
+            del b["hooks"]
+
+        self.edit_base({"empty": empty, "no_deny": no_deny, "empty_deny": empty_deny,
+                        "renamed_deny": renamed_deny, "no_hooks": no_hooks}[name])
+
+    def assert_refused(self, name: str, names: str) -> None:
+        self.sync()
+        live_before = (self.cfg / "settings.json").read_text()
+        manifest_before = self.manifest_path().read_text()
+        self.break_base(name)
+        result = self.sync(check=False)
+        self.assertNotEqual(result.returncode, 0, name)
+        self.assertIn(names, result.stderr, name)
+        self.assertIn("Refusing to merge", result.stderr, name)
+        self.assertEqual((self.cfg / "settings.json").read_text(), live_before, name)
+        self.assertEqual(self.manifest_path().read_text(), manifest_before, name)
+        self.assertEqual(self.backups(), [], name)
+        self.assertNotIn("Removed", result.stdout, name)
+
+    def test_a_base_with_nothing_in_it_is_refused(self):
+        self.assert_refused("empty", "permissions.allow, permissions.deny, hooks")
+
+    def test_a_base_without_the_deny_list_is_refused(self):
+        self.assert_refused("no_deny", "permissions.deny")
+
+    def test_a_base_with_an_empty_deny_list_is_refused(self):
+        self.assert_refused("empty_deny", "permissions.deny")
+
+    def test_a_base_with_the_deny_list_renamed_is_refused(self):
+        self.assert_refused("renamed_deny", "permissions.deny")
+
+    def test_a_base_without_hooks_is_refused(self):
+        self.assert_refused("no_hooks", "hooks")
+
+    def test_the_guards_and_deny_rules_survive_a_refused_sync(self):
+        self.sync()
+        deny_before = self.settings()["permissions"]["deny"]
+        self.assertGreater(len(deny_before), 0)
+        self.break_base("empty")
+        self.sync(check=False)
+        settings = self.settings()
+        self.assertEqual(settings["permissions"]["deny"], deny_before)
+        self.assertEqual(len(self.guard_hooks(settings)), 1)
+
+    def test_deleting_the_manifest_is_the_way_through_for_a_deliberate_removal(self):
+        self.sync()
+        deny_before = self.settings()["permissions"]["deny"]
+        self.break_base("no_deny")
+        self.manifest_path().unlink()
+        result = self.sync(check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.settings()["permissions"]["deny"], deny_before)
+
+    def test_removing_some_rules_but_not_all_is_still_a_normal_removal(self):
+        self.sync()
+        rule = self.base()["permissions"]["deny"][-1]
+        self.edit_base(lambda b: b["permissions"]["deny"].remove(rule))
+        result = self.sync()
+        self.assertNotIn(rule, self.settings()["permissions"]["deny"])
+        self.assertNotIn("Refusing", result.stderr)
 
 
 class HooksTest(MergeCase):
@@ -135,7 +225,9 @@ class HooksTest(MergeCase):
         self.edit_base(lambda b: b["hooks"].pop("Stop"))
         result = self.sync()
         self.assertNotIn("Stop", self.settings()["hooks"])
-        self.assertIn("dev-docs-index-check.py", result.stdout)
+        removed = [ln for ln in result.stdout.splitlines() if "dev-docs-index-check.py" in ln]
+        self.assertEqual(len(removed), 1, result.stdout)
+        self.assertIn("WARN", removed[0])  # a removed hook may be a guard
 
     def test_a_foreign_hook_in_the_same_event_survives_a_removal(self):
         self.sync()

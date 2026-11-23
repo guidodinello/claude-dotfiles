@@ -42,7 +42,10 @@ UNION_PERMISSIONS='["allow","deny","ask","additionalDirectories"]'
 
 # Permission rules that must leave the live file. Same mechanism as the retired
 # hooks: merge_settings strips these from every UNION_PERMISSIONS list before the
-# union. Entries are exact rule strings. Keep them listed once retired.
+# union. Entries are exact rule strings. Keep them listed once retired. Deleting
+# a rule from the base is enough on a dir that already has a manifest; list it
+# here for a dir with no manifest yet and for rules an installer added that were
+# never in the base.
 # All of these re-deny .env.example (or cannot be carved out of) next to base's
 # `Read(.env*)` / `Edit(.env*)` plus its `!` carve-outs: a `!` rule only carves
 # out of rules listed BEFORE it, and the union puts live extras after base.
@@ -66,6 +69,9 @@ RETIRED_PERMISSION_RULES=(
 # a hook, delete it from the base AND add its exact command here: merge_settings
 # strips these from the live file before the union, so the old entry is not
 # kept next to the new one. Keep entries listed (they are harmless once gone).
+# With a manifest, deleting the hook from the base is enough; the list covers a
+# dir with no manifest yet and hooks an installer added that were never in the
+# base.
 #   "rtk hook claude" - its rewrite voids auto-mode verdicts (Issue 389).
 RETIRED_HOOK_COMMANDS=("rtk hook claude")
 # The two inline Bash guards (Docker volumes, wrangler), replaced by
@@ -155,6 +161,8 @@ MANIFEST_NAME=".sync-settings-manifest.json"
 #   manifest      what this sync takes from the base (written after the merge)
 #   removedRules  [{list, rule}]  rules the manifest says were ours, no longer in base
 #   removedHooks  ["Event: command"]  same, for hooks
+#   refuse        lists the manifest recorded but the base now lacks or empties
+#                 ("permissions.deny", "hooks"): see merge_settings
 #   dropped / overrode  live keys the merge discards / replaces (names only)
 #   liveOnly      entries that stay because only the live file has them
 read -r -d '' JQ_MERGE <<'JQ' || true
@@ -221,6 +229,8 @@ def strip_entry($ev; $ids):
         permissions: (reduce $unionPerms[] as $p ({}; .[$p] = ($bp[$p] | lst))),
         hooks: ($baseIds | map({event: .[0], matcher: .[1], command: .[2]}))
     },
+    refuse: ([ $unionPerms[] as $p | select(($mp[$p] | lst | length) > 0 and ($bp[$p] | lst | length) == 0) | "permissions.\($p)" ]
+             + (if (($manifest.hooks // []) | length) > 0 and ($baseIds | length) == 0 then ["hooks"] else [] end)),
     removedRules: [ $unionPerms[] as $p | ($lp[$p] | lst)[] | select(IN(gone($p)[])) | {list: $p, rule: .} ],
     removedHooks: [ ($live.hooks | hook_ids)[] | select(IN($manIds[]) and (IN($baseIds[]) | not)) | "\(.[0]): \(.[2])" ],
     dropped: ([ ($live | keys[]) as $k | select(($skip | index($k)) == null and ($base | has($k) | not)) | $k ]
@@ -269,18 +279,21 @@ write_manifest() {
     printf '%s\n' "${manifest}" > "${file}"
 }
 
-# Name every entry the merge dropped on purpose. Removed deny rules are WARNs: a
-# deny removal loosens policy. Takes the jq result object.
+# Name every entry the merge dropped on purpose. Removing a deny or ask rule, or
+# a hook (a PreToolUse hook is a guard), loosens policy, so those are WARNs; a
+# removed allow or additionalDirectories rule tightens it and is an INFO. Takes
+# the jq result object.
 report_removals() {
-    local line
+    local line list rule
+    while IFS=$'\t' read -r list rule; do
+        if [ "${list}" = deny ] || [ "${list}" = ask ]; then
+            log_warn "Removed ${list} rule no longer in settings.base.json: ${rule}"
+        else
+            log_info "Removed ${list} rule no longer in settings.base.json: ${rule}"
+        fi
+    done < <(jq -r '.removedRules[] | "\(.list)\t\(.rule)"' <<<"$1")
     while IFS= read -r line; do
-        log_warn "Removed deny rule no longer in settings.base.json: ${line}"
-    done < <(jq -r '.removedRules[] | select(.list == "deny") | .rule' <<<"$1")
-    while IFS= read -r line; do
-        log_info "Removed ${line%%$'\t'*} rule no longer in settings.base.json: ${line#*$'\t'}"
-    done < <(jq -r '.removedRules[] | select(.list != "deny") | "\(.list)\t\(.rule)"' <<<"$1")
-    while IFS= read -r line; do
-        log_info "Removed hook no longer in settings.base.json: ${line}"
+        log_warn "Removed hook no longer in settings.base.json: ${line}"
     done < <(jq -r '.removedHooks[]' <<<"$1")
 }
 
@@ -313,10 +326,14 @@ report_live_only() {
 # genuinely local. LOCAL_KEYS are kept from the live file; permission lists and
 # hooks are unioned, minus what the last sync took from the base and the base
 # no longer has (see MANIFEST_NAME). Every other live key is dropped or
-# overridden, and named in the log. Returns 1 (touching nothing) when it cannot
-# decide; the caller carries on with the other config dirs.
-# Every command here ends in `|| return 1`: sync.sh calls this under `||`,
-# which turns `set -e` off inside the function.
+# overridden, and named in the log. Returns 1 without touching settings.json
+# when it cannot decide (invalid live JSON, a failed merge, a base that lost a
+# list the manifest recorded); the caller carries on with the other config dirs.
+# Every step that decides or writes ends in `|| return 1`, because sync.sh calls
+# this under `||`, which turns `set -e` off inside the function. A failure to
+# write the manifest also returns 1, after settings.json was written. The
+# reports, the carve-out warning and backup pruning are best effort: they never
+# fail the merge.
 merge_settings() {
     local dst="$1"
     local base="${CLAUDE_SRC}/settings.base.json"
@@ -366,6 +383,17 @@ merge_settings() {
     # Never write what is not a settings object.
     if ! jq -e 'type == "object"' <<<"${merged}" >/dev/null 2>&1; then
         log_err "Settings merge for ${dst} produced no valid settings - leaving settings.json as it is."
+        return 1
+    fi
+
+    # Fail closed. A base that is `{}`, half-edited or from a stale branch has no
+    # list where the last sync recorded entries, and subtracting would then drop
+    # every deny rule and guard hook it used to carry. A deliberate removal of a
+    # whole list looks the same, so refuse either way and write nothing.
+    local refused
+    refused="$(jq -r '.refuse | join(", ")' <<<"${result}")" || return 1
+    if [ -n "${refused}" ]; then
+        log_err "settings.base.json has no entries for ${refused}, but the last sync recorded some for ${dst}. Refusing to merge: a broken or stale base would remove every guard. If emptying them is deliberate, delete ${dst}/${MANIFEST_NAME} and sync again."
         return 1
     fi
 
