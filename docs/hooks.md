@@ -50,6 +50,20 @@ It keeps findings about folders that changed: a gap in a folder where a doc or s
 
 ---
 
+## SessionStart and UserPromptSubmit
+
+### reminders.py
+
+Wired globally from `settings.base.json` on both events. It brings back reminders that the `/remind` skill registered (one JSON file each in `<config dir>/reminders/`, local to the machine). It doesn't use a daemon: it checks `now >= due` whenever a session starts or a prompt is sent, so a date that passed while the laptop was off fires at the next session or prompt.
+
+- **SessionStart:** prints `session_id: <id> (remind command: ...)`, which `/remind` uses to register a reminder. It then gives the owning session the "read the plan and do it" message for each of its due reminders, once. Every other session gets a one-line digest with the resume command and no plan content. If the owner transcript was deleted, the digest line says "owner session gone: start fresh in <cwd>" instead. Reminders not yet due appear only as `N scheduled, next: <date>`.
+- **UserPromptSubmit:** gives only that once-only message, to an owner session that was already open when the reminder came due. Otherwise it prints nothing.
+- **Failing safe:** it always exits 0, but it never fails silently. A missing plan file and an unreadable reminder file are named in the output, and an unexpected error at SessionStart prints `reminders hook error: <type>`.
+
+Design and decisions: [reminders.md](reminders.md).
+
+---
+
 ## PreToolUse (Safety Guards)
 
 The two Bash guards live in one script, `.claude/hooks/guard-bash.sh`, registered on the `Bash` matcher. It reads the command from `.tool_input.command` and matches with bash's own `[[ =~ ]]`, so it needs no GNU grep. It fails closed: if the hook input can't be read (no `jq`, or an unexpected shape), the command is blocked.

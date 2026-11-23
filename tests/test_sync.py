@@ -173,7 +173,8 @@ class SyncSettingsTest(ScriptCase):
         self.assertIn("Read(secret)", settings["permissions"]["deny"])
         base = json.loads((self.src / "settings.base.json").read_text())
         for rule in base["permissions"]["allow"]:
-            self.assertIn(rule, settings["permissions"]["allow"])
+            synced = rule.replace("{{CONFIG_DIR}}", str(self.cfg))
+            self.assertIn(synced, settings["permissions"]["allow"])
 
     def test_drops_retired_hook_commands(self):
         kept = {"type": "command", "command": "keep-me"}
