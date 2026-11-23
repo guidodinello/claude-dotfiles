@@ -1,7 +1,8 @@
-## Memory
-You have access to Engram persistent memory via MCP tools.
-- Save proactively after significant work — don't wait to be asked.
-- After any compaction or context reset, call `mem_context` to recover session state before continuing.
-- Engram tools are deferred in Claude Code: load them with `ToolSearch("select:mcp__engram__<tool>")` before the first call. The plugin's SessionStart hook says "no ToolSearch needed"; that is wrong here. A missing tool means "not loaded yet", not "Engram unavailable".
+## Engram (in addition to the Memory block)
+Engram's MCP server instructions own the protocol. Local rules on top of it:
+- Tools are deferred in Claude Code: load them with `ToolSearch("select:mcp__engram__<tool>")` before the first call. The SessionStart hook's "no ToolSearch needed" is wrong here. A missing tool means "not loaded yet", not "Engram unavailable".
+- Save verified, durable conclusions (decisions, bugfixes, discoveries, conventions, config changes), grouped by topic, without waiting to be asked. Not every event. Use `capture_prompt: false` for automated/SDD artifacts.
+- Past work: `mem_context` → `mem_search` → `mem_get_observation`. Search with short single-concept keywords; if the first search misses, retry broader before concluding nothing exists.
+- Call `mem_session_summary` on explicit closure or handoff, not on every "done".
 - `mem_judge_many` takes a `judgments` array.
-- When searching memory, use short single-concept keywords rather than combined phrases. If the first search misses, retry with shorter, broader terms before concluding nothing exists.
+- Memory work is bookkeeping, never the reply. Finish it before the final answer, which has no tool calls after it. A failed or timed-out memory call never blocks or replaces the answer.
