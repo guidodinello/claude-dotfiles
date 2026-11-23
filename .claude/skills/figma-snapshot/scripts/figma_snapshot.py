@@ -188,9 +188,41 @@ def first_hex(paints: list[dict] | None) -> str | None:
     return next((h for p in paints or [] if (h := paint_hex(p))), None)
 
 
-def screen_styles(screen: Node) -> list[str]:
-    """Raw values a build needs and a PNG hides: fonts, hex colors, strokes, radii and auto-layout spacing.
-    Each style is listed once, in the order it first appears, with the layers or copy that use it."""
+def short_var(var_id: str) -> str:
+    """`VariableID:<library key>/2017:416` (from a library) or `VariableID:9003:7035` (local) -> `2017:416`."""
+    return var_id.removeprefix("VariableID:").rsplit("/", 1)[-1]
+
+
+@dataclass(slots=True)
+class Tokens:
+    """Marks each Styles value as bound to a Figma variable or typed by hand. The REST API gives variable ids
+    only (names need an Enterprise plan), so names come from an optional <target>/variables.json
+    ({"VariableID:...": "Gray/700"}), filled from any source: swatch labels, the Figma MCP, a designer export."""
+    names: dict[str, str] = field(default_factory=dict)
+
+    def ref(self, var_id: str) -> str:
+        return clean(self.names.get(var_id) or short_var(var_id), 60)
+
+    def first(self, n: Node, *props: str) -> str | None:
+        for prop in props:
+            bound = (n.get("boundVariables") or {}).get(prop)
+            if isinstance(bound, dict) and "id" not in bound:
+                bound = list(bound.values())
+            for alias in bound if isinstance(bound, list) else [bound]:
+                if isinstance(alias, dict) and isinstance(alias.get("id"), str):
+                    return alias["id"]
+        return None
+
+    def mark(self, n: Node, *props: str) -> str:
+        var_id = self.first(n, *props)
+        return f"token `{self.ref(var_id)}`" if var_id else "raw"
+
+
+def screen_styles(screen: Node, tokens: Tokens | None = None) -> list[str]:
+    """Raw values a build needs and a PNG hides: fonts, hex colors, strokes, radii and auto-layout spacing,
+    each marked as a Figma token or a raw value. Each style is listed once, in the order it first appears,
+    with the layers or copy that use it."""
+    tokens = tokens or Tokens()
     text: dict[str, list[str]] = {}
     other: dict[str, list[str]] = {}
 
@@ -215,24 +247,28 @@ def screen_styles(screen: Node) -> list[str]:
                     key += " italic"
                 if st.get("textCase") in TEXT_CASES:
                     key += f" {st['textCase'].lower()}"
-                key += f"` `{first_hex(n.get('fills')) or 'no fill'}`"
+                key += f"` (size {tokens.mark(n, 'fontSize')})"
+                key += f" `{first_hex(n.get('fills')) or 'no fill'}` ({tokens.mark(n, 'fills')})"
                 add(text, key, '"' + clean(n.get("characters", "")) + '"')
         elif n["type"] in ICON_TYPES:
-            for color in filter(None, (first_hex(n.get("fills")), first_hex(n.get("strokes")))):
-                add(other, f"Icon `{color}`", name)
+            for prop in ("fills", "strokes"):
+                if color := first_hex(n.get(prop)):
+                    add(other, f"Icon `{color}` ({tokens.mark(n, prop)})", name)
         else:
             if fill := first_hex(n.get("fills")):
-                add(other, f"Fill `{fill}`", name)
+                add(other, f"Fill `{fill}` ({tokens.mark(n, 'fills')})", name)
             if (stroke := first_hex(n.get("strokes"))) and n.get("strokeWeight"):
-                add(other, f"Stroke `{stroke}` {round(n['strokeWeight'], 1):g}px", name)
+                add(other, f"Stroke `{stroke}` ({tokens.mark(n, 'strokes')}) {round(n['strokeWeight'], 1):g}px", name)
             if r := n.get("cornerRadius"):
-                add(other, f"Radius {r:g}", name)
+                add(other, f"Radius {r:g} ({tokens.mark(n, 'cornerRadius', 'rectangleCornerRadii', 'topLeftRadius')})",
+                    name)
             if n.get("layoutMode") in ("HORIZONTAL", "VERTICAL"):
                 pad = [n.get(f"padding{side}", 0) or 0 for side in ("Top", "Right", "Bottom", "Left")]
                 if not any(pad) and not n.get("itemSpacing"):
                     return walk_children(n)
                 desc = f"Auto-layout {n['layoutMode'].lower()}, padding {'/'.join(f'{v:g}' for v in pad)}"
                 desc += f", gap {n.get('itemSpacing', 0) or 0:g}"
+                desc += f" ({tokens.mark(n, 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'itemSpacing')})"
                 add(other, desc, name)
         walk_children(n)
 
@@ -303,7 +339,13 @@ def collect_groups(node: Node, out: Path) -> list[Group]:
     return groups
 
 
-def group_readme(g: Group) -> str:
+def subfolder_lines(d: Path, subdirs: list[Path]) -> list[str]:
+    if not subdirs:
+        return []
+    return ["## Subfolders", ""] + [f"- **{c.name}/**: see its [README](./{c.name}/README.md)." for c in subdirs] + [""]
+
+
+def group_readme(g: Group, tokens: Tokens, subdirs: list[Path]) -> str:
     lines = [f"# {one_line(g.node['name'])}", "", UNTRUSTED_BANNER, "",
              f"Figma node `{g.node['id']}`. Screens in reading order, each a {RENDER_SCALE}x PNG next to this file. "
              "Generated by figma_snapshot.py; do not edit by hand.", ""]
@@ -316,10 +358,39 @@ def group_readme(g: Group) -> str:
         if notes := g.notes[s["id"]]:
             lines += ["Designer notes:", ""] + [f"> {n}" for n in notes] + [""]
         lines += ["Copy (top to bottom):", ""] + [f"- {c}" for c in screen_copy(s)] + [""]
-        if styles := screen_styles(s):
-            lines += ["Styles (raw Figma values; map each to the project's closest design token):", ""]
+        if styles := screen_styles(s, tokens):
+            lines += ["Styles (Figma values. `token X`: bound to a Figma variable, use the matching code token. "
+                      "`raw`: typed by hand, map it to the closest code token or ask the designer):", ""]
             lines += styles + [""]
-    return "\n".join(lines)
+    return "\n".join(lines + subfolder_lines(g.dir, subdirs))
+
+
+def folder_readme(d: Path, subdirs: list[Path]) -> str:
+    """A section folder with no loose screens of its own: it only indexes its subfolders."""
+    return "\n".join([f"# {d.name}", "", UNTRUSTED_BANNER, "",
+                      "Generated by figma_snapshot.py; do not edit by hand.", ""] + subfolder_lines(d, subdirs))
+
+
+def write_readmes(troot: Path, groups: dict[Path, Group], tokens: Tokens) -> None:
+    """Write every group README and fill the folders between the target and each group, so each folder
+    names its subfolders. The target's own README is the user's: created once, never overwritten."""
+    dirs = set(groups)
+    for d in list(groups):
+        dirs |= {p for p in d.parents if p.is_relative_to(troot) and p != troot}
+    children = {d: sorted(c for c in dirs if c.parent == d) for d in dirs | {troot}}
+    for d in sorted(dirs):
+        d.mkdir(parents=True, exist_ok=True)
+        text = group_readme(groups[d], tokens, children[d]) if d in groups else folder_readme(d, children[d])
+        (d / "README.md").write_text(text)
+    top = troot / "README.md"
+    if not top.exists():
+        files = [f for f in ("CHANGES.md", "state.json", "nodes.json", "variables.json") if (troot / f).exists()]
+        top.write_text("\n".join([f"# {troot.name} Figma snapshot", "",
+                                  "Written by the `figma-snapshot` skill; edit freely, `pull` never overwrites it.",
+                                  ""] + subfolder_lines(troot, children[troot])
+                                 + ["## Files", ""] + [f"- `{f}`" for f in files] + [""]))
+    elif missing := [c.name for c in children[troot] if f"{c.name}/" not in top.read_text()]:
+        print(f"note: {top} does not name {', '.join(m + '/' for m in missing)}")
 
 
 def snapshot_dir(arg: str | None) -> Path:
@@ -463,11 +534,11 @@ def cmd_pull(client: Client, root: Path, targets: list[dict], force: bool, nodes
             (troot / "nodes.json").write_text(json.dumps(raw))
 
         new: dict[str, dict] = {}
-        readmes: dict[Path, str] = {}
+        groups: dict[Path, Group] = {}
         for nid in t["nodes"]:
             doc = raw["nodes"][nid]["document"]
             for g in collect_groups(doc, troot / slug(doc["name"])):
-                readmes[g.dir] = group_readme(g)
+                groups[g.dir] = g
                 for s in g.screens:
                     new[s["id"]] = {"hash": screen_hash(s), "copy": screen_copy(s), "where": g.node["name"],
                                     "file": str((g.dir / f"{g.names[s['id']]}.png").relative_to(troot))}
@@ -494,9 +565,9 @@ def cmd_pull(client: Client, root: Path, targets: list[dict], force: bool, nodes
                 print(f"WARNING: Figma returned no image for {missing}")
             download_all({urls[i]: troot / new[i]["file"] for i in to_render if urls.get(i)})
 
-        for d, text in readmes.items():
-            d.mkdir(parents=True, exist_ok=True)
-            (d / "README.md").write_text(text)
+        tokens = Tokens(names={k: v for k, v in load_json(troot / "variables.json", {}).items()
+                               if isinstance(k, str) and isinstance(v, str)})
+        write_readmes(troot, groups, tokens)
 
         if added or removed or changed or not old:
             changes = troot / "CHANGES.md"
