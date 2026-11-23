@@ -168,11 +168,12 @@ into any existing settings without clobbering. Stack templates live in
 ## Tests
 
 ```bash
-python3 -m unittest discover -s tests          # one test file per script or hook, see tests/
+python3 -m unittest discover -s tests          # sync.sh, select.sh, add_file.sh, promote.sh (test_sync.py), the hooks, push-guidelines.sh, project-init and .github/scripts/check-skill-docs.py; see tests/
 shellcheck -x -S warning $(git ls-files '*.sh') project-init
+ruff check $(git ls-files '*.py')              # ruff.toml; CI pins the version in tests.yml
 ```
 
-The script tests run against a throwaway copy of the scripts and a throwaway `HOME`, so they never touch the real `~/.claude`. Skill scripts keep their own `test_*.py` next to them; run those from their directory (`python3 -m unittest discover -p 'test_*.py'`). CI runs all three on every PR (`.github/workflows/tests.yml`).
+The script tests run against a throwaway copy of the scripts and a throwaway `HOME`, so they never touch the real `~/.claude`. Skill scripts keep their own `test_*.py` next to them; run those from their directory (`python3 -m unittest discover -p 'test_*.py'`). CI runs these on every PR (`.github/workflows/tests.yml`), and runs the script tests a second time on macOS with `/bin/bash` 3.2.
 
 ## Credits
 
