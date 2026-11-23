@@ -64,6 +64,27 @@ class Reminder:
         return Path(self.plan.split("#", 1)[0])
 
 
+# The hook prints these fields into Claude's context, so a newline or backtick in one
+# could pass for an instruction. Ids are file names and resume arguments: tokens only.
+TOKEN = re.compile(r"[A-Za-z0-9_.-]{1,80}")
+UNSAFE_TEXT = re.compile(r"[\x00-\x1f\x7f`]")
+MAX_TEXT = 300
+
+
+def validate(reminder: Reminder) -> None:
+    """Raise ValueError when a field could not be printed safely into context."""
+    for name in ("id", "session_id"):
+        if not TOKEN.fullmatch(getattr(reminder, name)) or getattr(reminder, name)[0] == ".":
+            raise ValueError(f"{name} must match {TOKEN.pattern} and not start with '.'")
+    if not all(isinstance(s, str) and TOKEN.fullmatch(s) for s in reminder.delivered_to):
+        raise ValueError("delivered_to holds a malformed session id")
+    for name in ("title", "why", "cwd", "plan", "due", "status", "created"):
+        value = getattr(reminder, name)
+        if not isinstance(value, str) or len(value) > MAX_TEXT or UNSAFE_TEXT.search(value):
+            raise ValueError(f"{name} must be one line of at most {MAX_TEXT} chars, no backticks")
+    reminder.due_at  # noqa: B018 - raises ValueError on a malformed date
+
+
 def parse_when(text: str, now: datetime | None = None) -> datetime:
     """A date (09:00 that day), a local ISO datetime, or a duration from now."""
     text = text.strip()
@@ -103,7 +124,7 @@ def write(reminder: Reminder, store: Path = STORE) -> None:
 
 
 def load_all(store: Path = STORE) -> tuple[list[Reminder], list[str]]:
-    """(pending reminders sorted by due, names of files that could not be parsed)."""
+    """(pending reminders sorted by due, names of files that are unparsable or fail validate)."""
     reminders: list[Reminder] = []
     broken: list[str] = []
     if not store.is_dir():
@@ -111,7 +132,7 @@ def load_all(store: Path = STORE) -> tuple[list[Reminder], list[str]]:
     for path in sorted(store.glob("*.json")):
         try:
             reminder = Reminder(**json.loads(path.read_text(encoding="utf-8")))
-            reminder.due_at  # noqa: B018 - validates the date
+            validate(reminder)
         except (OSError, ValueError, TypeError):
             broken.append(path.name)
             continue
@@ -122,6 +143,8 @@ def load_all(store: Path = STORE) -> tuple[list[Reminder], list[str]]:
 
 
 def load(reminder_id: str, store: Path = STORE) -> Reminder:
+    if not TOKEN.fullmatch(reminder_id) or reminder_id.startswith("."):
+        raise SystemExit(f"not a reminder id: {reminder_id!r}")
     path = path_for(reminder_id, store)
     if not path.is_file():
         raise SystemExit(f"no reminder with id {reminder_id!r} in {store}")
@@ -142,20 +165,19 @@ def cmd_add(args: argparse.Namespace, store: Path) -> str:
         raise SystemExit(f"--plan must be an absolute path, got {plan!r}")
     if not Path(plan.split("#", 1)[0]).is_file():
         raise SystemExit(f"--plan file does not exist: {plan.split('#', 1)[0]}")
-    due = parse_when(args.due)
-    reminder_id = args.id or slug(args.title)
-    if path_for(reminder_id, store).exists():
-        raise SystemExit(f"a reminder with id {reminder_id!r} already exists; pass --id")
     reminder = Reminder(
-        id=reminder_id,
+        id=args.id or slug(args.title),
         title=args.title,
-        due=stamp(due),
+        due=stamp(parse_when(args.due)),
         plan=plan,
         session_id=args.session_id,
         cwd=str(Path(args.cwd or os.getcwd()).resolve()),
         why=args.why or "",
         created=stamp(datetime.now()),
     )
+    validate(reminder)
+    if path_for(reminder.id, store).exists():
+        raise SystemExit(f"a reminder with id {reminder.id!r} already exists; pass --id")
     write(reminder, store)
     return f"added {reminder.id}, due {reminder.due}"
 
@@ -211,7 +233,7 @@ def main(argv: list[str] | None = None, store: Path = STORE) -> int:
     try:
         print(handler[args.command](args, store))
     except ValueError as error:
-        raise SystemExit(f"bad date or duration: {error}") from None
+        raise SystemExit(f"invalid reminder: {error}") from None
     return 0
 
 

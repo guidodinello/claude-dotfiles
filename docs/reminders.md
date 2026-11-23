@@ -80,7 +80,8 @@ Output goes to stdout with exit 0, which Claude Code adds to the session context
 
 - `/remind`: the skill a session invokes at the moment it writes a deferred plan. It fills in `session_id` and `cwd` from the session and asks only for `due`, `title` and `plan`. CLAUDE.md gets one line: "When a plan is blocked on a future date or event, register it with /remind." Without that line, using the skill depends on someone remembering, which is the original problem.
 - `remind.py add | list | done <id> | snooze <id> <when>`: the CLI behind it. `list` shows every pending reminder, due ones marked `DUE`.
-- **Permissions**: `settings.base.json` gets an allow rule for `python3 -I {{CONFIG_DIR}}/skills/remind/scripts/remind.py:*`. Without it, every `remind done` the payload asks for stops on a permission prompt.
+- **Permissions**: `settings.base.json` allows `python3 -I {{CONFIG_DIR}}/skills/remind/scripts/remind.py` with `list`, `done` and `snooze`, so closing a reminder doesn't stop on a prompt. `add` is deliberately not allowed: a reminder makes a session carry out a plan later, so creating one needs the user's approval. Without that, a session that read injected text could plant a reminder, with any plan file, in another session.
+- **Validation**: the hook prints reminder fields into Claude's context, so `remind.validate` checks them on `add` and again on every load. `id` and `session_id` must be tokens (`[A-Za-z0-9_.-]`, not starting with `.`). Text fields must be one line, at most 300 characters, with no backticks. A file that fails is reported as unreadable and never printed.
 
 ## Verified during implementation (2026-11-23)
 
