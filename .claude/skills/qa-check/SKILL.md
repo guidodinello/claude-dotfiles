@@ -1,6 +1,6 @@
 ---
 name: qa-check
-description: Discover lint/typecheck/test commands from project config files, then delegate to the quality-checker subagent to run them. Stack-agnostic.
+description: 'Discover lint/typecheck/test commands from project config and run them via the quality-checker subagent.'
 ---
 
 ## Step 1 — Discover commands

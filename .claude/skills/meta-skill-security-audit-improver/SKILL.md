@@ -1,12 +1,6 @@
 ---
 name: meta-skill-security-audit-improver
-description: >
-  Improve and update the security-audit skill by fetching current OWASP cheat sheets, CWE Top 25,
-  and NIST guidelines, then refreshing the three reference files with accurate, cited content.
-  Use this skill when the user wants to refresh the security audit references, check if OWASP
-  guidance has changed, or strengthen the skill with updated vulnerability patterns.
-  Trigger phrases: "update the security audit skill", "refresh the security references",
-  "improve the security skill", "run the security skill updater".
+description: 'Refresh security-audit''s references from current OWASP, CWE Top 25 and NIST guidance.'
 compatibility:
   tools:
     - WebFetch

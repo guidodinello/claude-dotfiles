@@ -1,6 +1,6 @@
 ---
 name: clean-permissions
-description: Cleans up .claude/settings.local.json or settings.json by generalizing overly-specific Bash permission rules, removing hardcoded paths, ensuring Read(./**) is present, and flagging write-capable commands. Use this skill whenever the user asks to clean up, tidy, fix, or simplify their Claude Code permissions or settings file, or when settings.local.json has accumulated specific paths or one-off commands that should be generalized.
+description: 'Generalize over-specific Bash rules in Claude settings files and flag write-capable commands.'
 ---
 
 # Clean Permissions
@@ -61,10 +61,10 @@ To generalize: extract the first word (the command) and replace with `Bash(comma
 **Examples:**
 
 ```
-Bash(grep -n "sys.path" /home/guido/project/**/*.py)  →  Bash(grep:*)
-Bash(find /home/guido/project -type f -exec wc -l {} +)  →  remove (Read covers it)
-Bash(ls -la /home/guido/project/checkpoints/*.zip)  →  Bash(ls:*)
-Bash(tail -50 /home/guido/project/logs/train.log)  →  Bash(tail:*)
+Bash(grep -n "sys.path" /path/to/project/**/*.py)  →  Bash(grep:*)
+Bash(find /path/to/project -type f -exec wc -l {} +)  →  remove (Read covers it)
+Bash(ls -la /path/to/project/checkpoints/*.zip)  →  Bash(ls:*)
+Bash(tail -50 /path/to/project/logs/train.log)  →  Bash(tail:*)
 Bash(awk '{print $1, $2}')  →  Bash(awk:*)
 Bash(python3 -c "import foo; ...")  →  remove (prefer uv run python)
 ```

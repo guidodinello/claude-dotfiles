@@ -1,13 +1,6 @@
 ---
 name: code-health
-description: >
-  Perform a codebase readiness and technical debt analysis covering scale metrics, type safety,
-  dead code, test coverage, complexity hotspots, and dependency vulnerabilities. Use this skill
-  whenever the user asks for a code health check, codebase readiness assessment, technical debt
-  review, pre-launch audit, or wants to understand the overall quality and risk profile of a
-  codebase. Also trigger when the user asks about dead code, test coverage gaps, complexity
-  hotspots, or dependency vulnerabilities as part of a broader audit. Produces 6 structured
-  section files plus a consolidated report ready to include in a client deliverable.
+description: 'Codebase readiness and tech-debt analysis: scale, types, dead code, coverage, complexity, vulnerabilities.'
 ---
 
 ## Overview

@@ -1,10 +1,6 @@
 ---
 name: async-audit
-description: >
-  Detect and fix bad sync/async usage patterns in the Python backend.
-  Use when you suspect blocking calls in async handlers, fire-and-forget tasks,
-  or missing ruff ASYNC rules. Does NOT auto-commit — reports findings and
-  applies fixes to the working tree only.
+description: 'Find and fix bad sync/async usage in a Python backend: blocking calls, fire-and-forget tasks, missing ruff ASYNC.'
 ---
 
 ## Goal
@@ -15,11 +11,24 @@ A well-calibrated run against a healthy codebase should produce few or no findin
 
 ---
 
+## Step 0 — Discover source roots
+
+Do not assume a layout. Before running any command below, find the roots and
+use them in place of the `<placeholders>`:
+
+- `<backend-project>`: a directory with a `pyproject.toml` (`git ls-files '*pyproject.toml'`). `<backend-src>` is its source root (`src/` or the package directory) and `<backend-pkg>` the importable package under it.
+
+If a root this skill needs cannot be found, stop and ask the user. An empty grep
+result is never a clean audit: confirm each root exists and holds files before
+reporting zero findings.
+
+---
+
 ## Step 1 — Check ruff ASYNC config
 
-Read `backend/pyproject.toml`. Check whether `"ASYNC"` appears in `[tool.ruff.lint] select`.
+Read `<backend-project>/pyproject.toml`. Check whether `"ASYNC"` appears in `[tool.ruff.lint] select`.
 
-- If absent: propose adding it. Run `uv run ruff check --select ASYNC --preview backend/`
+- If absent: propose adding it. Run `uv run ruff check --select ASYNC --preview <backend-project>/`
   from the repo root to confirm the current codebase is clean before adding it. If clean,
   add `"ASYNC"` to the select list now. If there are violations, list them first and ask
   the user whether to fix or add the rule anyway.
@@ -29,7 +38,7 @@ Read `backend/pyproject.toml`. Check whether `"ASYNC"` appears in `[tool.ruff.li
 
 ## Step 2 — Semantic scan (what ruff can't catch)
 
-Run these greps from `backend/src/`:
+Run these greps from `<backend-src>/`:
 
 ```bash
 # fire-and-forget create_task — result not stored
@@ -104,7 +113,7 @@ intentional." List INVESTIGATE items with context so the user can decide.
      `await asyncio.sleep(0)` workarounds.
 3. Apply the fix with Edit. Do not fix riskier rewrites (e.g., changing the
    `requests` library to `httpx`) silently — list those as TODOs instead.
-4. Run `uv run ruff check backend/` to verify no new lint errors were introduced.
+4. Run `uv run ruff check <backend-project>/` to verify no new lint errors were introduced.
 
 ---
 
@@ -116,7 +125,7 @@ Print a table:
 |------|------|---------|---------|--------|
 | ... | ... | ... | ... | Fixed / TODO / Correct |
 
-Close by reminding the user: no commits were made, and they should run the `qa` agent before pushing.
+Close by reminding the user: no commits were made, and they should run the project's quality checks (or the `quality-checker` agent) before pushing.
 
 ---
 

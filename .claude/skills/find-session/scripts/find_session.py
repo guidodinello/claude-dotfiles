@@ -232,7 +232,7 @@ def pick(ranked: list[tuple[float, float, Session]], patterns: list[re.Pattern])
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("terms", nargs="+", help="keywords; all must match (case-insensitive)")
-    ap.add_argument("-p", "--project", help="substring of the project dir name, e.g. allswell")
+    ap.add_argument("-p", "--project", help="substring of the project dir name, e.g. <project-substring>")
     ap.add_argument("-d", "--days", type=int, help="only sessions active in the last N days")
     ap.add_argument("-n", "--limit", type=int, default=5, help="sessions to show (default 5)")
     ap.add_argument("--tools", action="store_true", help="also search tool output (noisy)")

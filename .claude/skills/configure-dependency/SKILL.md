@@ -1,6 +1,6 @@
 ---
 name: configure-dependency
-description: 'Fetch official docs and configure a new dependency correctly from the start. Use when adding a new package, service, or external integration to the project. Trigger phrases: "add X", "integrate X", "configure X", "set up X".'
+description: 'Trigger: configure a new dependency, integrate a third-party service or SDK, add a package that needs config or env vars. Not for adding files, skills or features. Fetches the official docs first, then wires it up.'
 allowed-tools: WebFetch WebSearch Read Bash
 ---
 
@@ -8,10 +8,9 @@ allowed-tools: WebFetch WebSearch Read Bash
 
 Before writing any integration code, fetch the official documentation for the dependency so configuration is done correctly from the start. Misconfigurations are the hardest bugs to debug — this skill prevents them.
 
-> **Adapt for your project**: Step 4 below hard-codes paths and conventions
-> (`backend/src/fitted_backend/...`, the `FITTED__<GROUP>__<KEY>` env var
-> prefix) from the project this skill originated in. Replace them with your
-> project's actual config module path and env var convention.
+> **Discover, don't assume**: Step 4 follows the project's own config module and
+> env var scheme. Find them first (`grep -rn 'BaseSettings\|process.env' ...`,
+> existing `.env.example`) and copy what is there.
 
 ## Instructions
 
@@ -22,7 +21,7 @@ The user provides a dependency name as an argument (e.g. `/configure-dependency 
 Determine:
 
 - The canonical package or service name (e.g. `celery`, `redis`, `alembic`)
-- The version currently pinned in the project (check `backend/pyproject.toml`, `docker/docker-compose.yml`, or wherever it's declared). If not yet added, note that it needs to be pinned after this step.
+- The version currently pinned in the project (check `pyproject.toml`, `package.json`, the docker-compose files, or wherever it's declared). If not yet added, note that it needs to be pinned after this step.
 - Which layer it lives in: Python package, Docker service, external API, or OS-level tool.
 
 ### Step 2 — Fetch the official documentation
@@ -44,7 +43,7 @@ Focus on:
 
 Before touching any file, present a short summary:
 
-- What the dependency does and where it fits in the Fitted stack
+- What the dependency does and where it fits in the project's stack
 - Required configuration (env vars, init calls, connection params)
 - Any gotchas or common mistakes found in the docs
 - Recommended version to pin (if not already pinned)
@@ -55,18 +54,18 @@ Ask the user to confirm the approach before proceeding to Step 4.
 
 Apply the configuration following the patterns established in the codebase:
 
-- Settings go in `backend/src/fitted_backend/core/config.py` as a nested `Settings` subclass (e.g. `CelerySettings`)
-- Env vars use the `FITTED__<GROUP>__<KEY>` prefix convention (see existing config for examples)
-- Add the package to `backend/pyproject.toml` under `[project.dependencies]` via `uv add <package>`
-- If it's a Docker service, add it to `docker/docker-compose.yml` and `docker/docker-compose.dev.yml`
+- Settings go in the project's existing settings module, following its pattern (for example a nested settings class per dependency)
+- Env vars copy the existing env-var scheme (for example `<APP>__<GROUP>__<KEY>`); look at the current config and `.env.example`
+- Add the package through the project's package manager (for example `uv add <package>` into `pyproject.toml`, or `npm install`)
+- If it's a Docker service, add it to the project's compose files
 
 ### Step 5 — Verify
 
 Run the relevant checks to confirm the dependency is wired up correctly:
 
-- `cd backend && uv run python -c "import <package>"` to confirm the install
-- If it has a connection (DB, broker, cache), add a health-check call or confirm the existing `/health` endpoint covers it
-- Run `cd backend && uv run pyright` to confirm no type errors were introduced
+- The project's import or install check (for example `uv run python -c "import <package>"`) to confirm the install
+- If it has a connection (DB, broker, cache), add a health-check call or confirm the existing health endpoint covers it
+- Run the project's type checker to confirm no type errors were introduced
 
 ### Step 6 — Confirm and summarize
 

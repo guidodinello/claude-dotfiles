@@ -12,7 +12,14 @@ Only drafts written before the send time count. A message with no draft >= floor
 Lines that are mostly Spanish function words are removed from drafts (chat notes around an English draft).
 Output contains client text: write it inside the project, never into a public repo.
 """
-import argparse, json, glob, os, re, sys, difflib, datetime as dt
+import argparse
+import json
+import glob
+import os
+import re
+import sys
+import difflib
+import datetime as dt
 ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 ap.add_argument("corpus"); ap.add_argument("project")
 ap.add_argument("--since", required=True); ap.add_argument("--utc-offset", type=float, default=-3)
@@ -77,7 +84,7 @@ for t, head, body, era in sorted(sent):
     f = lambda x: f'{x:.2f}' if x is not None else '-'
     print(f"{era:6} | {head[:58]:58} | first={f(first)} best={f(best)} drafts={len({h[2] for h in hits})}")
 med = lambda xs: f'{sorted(xs)[len(xs) // 2]:.2f}' if xs else '-'
-print(f"\n| | msgs | with Claude draft | median first | median drafts |\n|---|---|---|---|---|")
+print("\n| | msgs | with Claude draft | median first | median drafts |\n|---|---|---|---|---|")
 for era in ('before', 'after'):
     rs = [r for r in rows if r[0] == era]; m = [r for r in rs if r[1] is not None]
     print(f"| {era} | {len(rs)} | {len(m)} | {med([r[1] for r in m])} | {med([r[2] for r in m])} |")

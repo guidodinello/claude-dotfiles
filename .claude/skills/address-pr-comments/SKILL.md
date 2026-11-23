@@ -1,12 +1,6 @@
 ---
 name: address-pr-comments
-description: >
-  Address incoming PR review comments end-to-end: fetch all unresolved inline
-  review threads AND PR review summaries, assess their validity, fix valid ones,
-  commit and push, reply to every thread (and each review summary) with the
-  outcome, then resolve every thread that was fixed or declined (the merge
-  ruleset blocks on unresolved threads). Use when a PR has received review
-  feedback that needs to be triaged and responded to.
+description: 'Trigger: address PR review comments, a PR got review feedback, triage review threads. Fetches unresolved inline threads and review summaries, fixes the valid ones, pushes, replies to every thread and resolves it (the merge ruleset may block on unresolved threads).'
 ---
 
 # Address PR Comments
@@ -77,8 +71,8 @@ Classify each thread:
   user that is clearly our own earlier reply, treat the thread as answered earlier.
 
 Do **not** skip bot-authored threads (Copilot included) or outdated threads
-(`isOutdated`): the `development` ruleset blocks merge on ANY unresolved
-conversation, so they are triaged, replied to and resolved like every other thread.
+(`isOutdated`): the base branch's ruleset may block merge on ANY unresolved
+conversation (check it: `gh api repos/{owner}/{repo}/rules/branches/<base>`), so they are triaged, replied to and resolved like every other thread.
 For an outdated thread `line` is null; use `originalLine` to find the code and check
 whether the current code already addresses the comment (then reply with that fact and
 resolve, as FIX or DECLINE as fits).
@@ -194,8 +188,9 @@ Never write: "I've gone ahead and…" or "Let me…" — state the outcome direc
 
 ## Step 6b — Resolve threads (a reply is not enough)
 
-The `development` ruleset sets `required_review_thread_resolution: true`. A PR
-with green CI sits `BLOCKED` while **any** review thread is unresolved, and
+The base branch's ruleset may set `required_review_thread_resolution: true`
+(check it: `gh api repos/{owner}/{repo}/rules/branches/<base>`). A PR
+with green CI then sits `BLOCKED` while **any** review thread is unresolved, and
 replying does not resolve a thread. After replying, resolve explicitly.
 
 Rules:

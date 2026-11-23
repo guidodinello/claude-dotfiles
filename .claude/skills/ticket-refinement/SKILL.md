@@ -1,15 +1,6 @@
 ---
 name: ticket-refinement
-description: >
-  Use this skill whenever the user wants to write, refine, or break down a
-  subtask for a software ticket — especially backend endpoints, frontend
-  components, or API integrations. Trigger when the user shares a user story,
-  acceptance criteria, or ticket scope and asks for a subtask, refinement card,
-  or implementation breakdown. Also trigger when the user says things like
-  "help me refine this", "write a subtask for X", "break this down", or
-  "create a card for the endpoint / component / feature". This skill produces
-  structured, audience-appropriate subtask write-ups for developers, PMs, and
-  QAs alike.
+description: 'Write or refine a ticket subtask (endpoint, component, integration) for developers, PMs and QAs.'
 ---
 
 # Ticket Refinement Skill

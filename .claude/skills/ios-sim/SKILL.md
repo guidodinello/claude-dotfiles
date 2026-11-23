@@ -1,6 +1,6 @@
 ---
 name: ios-sim
-description: "Trigger: check in iOS Safari, iOS simulator, 100vh/100dvh, safe area, Safari toolbar, iOS-only scroll or input bug. Verifies web UI in real iOS Safari inside the Xcode Simulator, measured not eyeballed, base vs PR, with a per-project docs folder."
+description: 'Verify web UI in real iOS Safari in the Xcode Simulator: measured, base vs PR, per-project docs folder.'
 license: Apache-2.0
 metadata:
   author: "guidodinello"

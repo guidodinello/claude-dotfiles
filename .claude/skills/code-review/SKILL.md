@@ -1,10 +1,6 @@
 ---
 name: code-review
-description: >
-  Code review a pull request. Multi-agent review with confidence scoring —
-  checks CLAUDE.md compliance, bugs, git history, previous PR comments, and
-  code comment guidance. Posts blocking findings and a separate non-blocking
-  section on the PR.
+description: 'Trigger: code review, review this PR for bugs, line-level review, post review comments. Multi-agent PR review with confidence scoring; posts the review and labels on GitHub. Not for design/architecture discussion (use design-review).'
 effort: high
 ---
 
@@ -84,7 +80,7 @@ To do this, follow these steps precisely:
 
       `reviewed` (a review happened) and `ready-to-merge` (the merge gate is passed) coexist — never remove `reviewed` when adding `ready-to-merge`.
 
-      Never set `ready-to-merge` when the posted review carries even one finding — it is a standing OK to auto-merge. If the PR doesn't have the `pending-review` label (e.g. it wasn't opened via the feature-workflow skill), it's fine for `--remove-label` to no-op — still add the new label, if the repo has it (see the label list above). Verify with `gh pr view <PR_NUMBER> --json labels -q '[.labels[].name]'` only for labels you actually added; skip the check when the edit was skipped.
+      Never set `ready-to-merge` when the posted review carries even one finding — it is a standing OK to auto-merge. If the PR doesn't have the `pending-review` label (e.g. it was opened without the `pending-review` label), it's fine for `--remove-label` to no-op — still add the new label, if the repo has it (see the label list above). Verify with `gh pr view <PR_NUMBER> --json labels -q '[.labels[].name]'` only for labels you actually added; skip the check when the edit was skipped.
 
    Keep each inline comment body brief. Avoid emojis. Include the permalink to the relevant lines in the comment body.
 
