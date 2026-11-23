@@ -44,7 +44,9 @@ Read the profile. It holds these fields:
 For every field a later step needs and the profile lacks, stop and ask the user
 one question at a time. Never assume a value. After the user confirms, write
 the answers into the profile (create the file and folder if missing) so the next
-run does not ask again.
+run does not ask again. When you create the `babysit-prs/` folder, also name it in
+the parent `my-dev-things/README.md` (one line linking its `README.md`), as the
+`dev-docs-index` convention requires: every folder is indexed by its parent.
 
 ## Herdr caveat
 

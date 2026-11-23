@@ -168,7 +168,7 @@ into any existing settings without clobbering. Stack templates live in
 ## Tests
 
 ```bash
-python3 -m unittest discover -s tests          # sync.sh, select.sh, add_file.sh, promote.sh, guard-bash.sh, guard-env-files.sh, json-lint.sh, dev-docs-index-check.py, reminders.py + remind.py
+python3 -m unittest discover -s tests          # one test file per script or hook, see tests/
 shellcheck -x -S warning $(git ls-files '*.sh') project-init
 ```
 

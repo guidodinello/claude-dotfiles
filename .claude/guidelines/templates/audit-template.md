@@ -1,6 +1,6 @@
 # Audit Report Template
 
-Shared structure for all audit skills (hipaa-audit, security-audit, db-scalability-audit, permissions-audit). Each skill adds its own discovery steps, surface map, and domain-specific violation patterns on top of this shared reporting contract.
+Shared structure for the audit skills that reference it (hipaa-audit, security-audit, db-scalability-audit, test-health). Each skill adds its own discovery steps, surface map, and domain-specific violation patterns on top of this shared reporting contract.
 
 ---
 
@@ -29,7 +29,7 @@ Audit-specific. Each skill defines its own "before findings" tables here:
 - hipaa-audit: PHI-Bearing Tables + External Services Receiving PHI
 - security-audit: Entry Points + User Input → Dangerous Sinks
 - db-scalability-audit: Provider + Schema + Growth trajectory
-- permissions-audit: Roles/Permissions Matrix
+- test-health: Harness table
 
 ---
 

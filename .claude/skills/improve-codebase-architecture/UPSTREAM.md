@@ -3,7 +3,8 @@
 This skill is vendored from [mattpocock/skills](https://github.com/mattpocock/skills),
 path `skills/engineering/improve-codebase-architecture`, MIT license,
 Copyright (c) 2026 Matt Pocock. Attribution and the license apply to every file
-in this directory that came from there.
+in this directory that came from there; the upstream permission notice is vendored
+unmodified as [`LICENSE`](LICENSE).
 
 ## Pinned source
 
@@ -30,12 +31,11 @@ in this directory that came from there.
 
 - `9dada94`: `LANGUAGE.md` emphasis markers changed for markdownlint; `SKILL.md`
   gained the instruction to explore from the integration branch.
-- The skill-integrity PR (audit-E): `SKILL.md` links to the vendored format
+- #126: `SKILL.md` links to the vendored format
   files in this directory instead of a missing `../grill-with-docs/`, and the
   description line is shortened.
 
 ## Updating
 
 Diff each file against the same path in `mattpocock/skills` at the new commit,
-re-apply the local edits above, and update the pinned commit in this file and in
-the `README.md` Credits row.
+re-apply the local edits above, and update the pinned commit in this file.

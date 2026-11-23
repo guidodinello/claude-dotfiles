@@ -46,6 +46,7 @@ use them in place of the `<placeholders>`:
 
 - `<frontend-project>`: a directory with a `package.json` (`git ls-files '*package.json'`, ignoring `node_modules`) whose `src/` holds the UI code. `<frontend-src>` is that `src/`.
 - `<ui-dir>`: the UI primitives directory (usually `<frontend-src>/components/ui/`; look for the shared `Button`, `Input`, `Dialog` components).
+- `<ui-dir-pattern>`: a path fragment that appears in grep output for every file in `<ui-dir>` and nowhere else, for example `components/ui/`. Use it for the `grep -v` filters below, never `<ui-dir>` itself: a relative `<frontend-src>` plus the added slashes would match no output line.
 
 If a root this skill needs cannot be found, stop and ask the user. An empty grep
 result is never a clean audit: confirm each root exists and holds files before
@@ -74,8 +75,8 @@ From `<frontend-src>/`, gather candidates (don't judge yet, just collect):
 
 ```bash
 # Raw interactive elements outside <ui-dir>/ itself
-grep -rn "<button" <frontend-src> --include="*.tsx" | grep -v "/<ui-dir>/"
-grep -rn "onClick" <frontend-src> --include="*.tsx" | grep -v "/<ui-dir>/"
+grep -rn "<button" <frontend-src> --include="*.tsx" | grep -v "<ui-dir-pattern>"
+grep -rn "onClick" <frontend-src> --include="*.tsx" | grep -v "<ui-dir-pattern>"
 
 # Clickable non-interactive elements (likely semantics defect)
 grep -rzn "<div[^>]*onClick" <frontend-src> --include="*.tsx"

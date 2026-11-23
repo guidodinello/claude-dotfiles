@@ -1,7 +1,7 @@
 ---
 name: api-gap-audit
 allowed-tools: Bash Read Write Grep Glob
-description: 'Find backend endpoints with no frontend caller, and frontend calls the backend does not serve.'
+description: 'Find backend endpoints with no frontend caller, and frontend calls the backend does not serve; may write issue stubs.'
 ---
 
 ## Goal
@@ -20,7 +20,7 @@ use them in place of the `<placeholders>`:
 - `<backend-project>`: a directory with a `pyproject.toml` (`git ls-files '*pyproject.toml'`). `<backend-src>` is its source root (`src/` or the package directory) and `<backend-pkg>` the importable package under it.
 - `<routes-dir>`: the directory (or directories) under `<backend-pkg>` that define the route handlers (`grep -rln 'APIRouter\|@router\.' <backend-src>`).
 - `<frontend-project>`: a directory with a `package.json` (`git ls-files '*package.json'`, ignoring `node_modules`) whose `src/` holds the UI code. `<frontend-src>` is that `src/`.
-- `<api-call-dirs>`: the directories and files under `<frontend-src>` that make API calls (`grep -rln 'fetch(\|axios\|apiGet\|apiPost' <frontend-src>`).
+- `<api-call-dirs>`: the directories and files under `<frontend-src>` that make API calls (`grep -rln 'fetch(\|axios\|apiGet\|apiPost\|apiDelete\|privateApi\|publicApi' <frontend-src>`, the same wrapper names the dynamic-URL check below greps for).
 
 If a root this skill needs cannot be found, stop and ask the user. An empty grep
 result is never a clean audit: confirm each root exists and holds files before
@@ -54,14 +54,6 @@ From the repo root, run:
 
 ```bash
 # Find all explicit API path references in the frontend
-grep -rn "'/[a-z]" <api-call-dirs> --include="*.ts" \
-  | grep -v "__tests__" \
-  | grep -o "'/[^']*'" | sort -u
-
-grep -rn "'/[a-z]" <api-call-dirs> --include="*.ts" \
-  | grep -v "__tests__" \
-  | grep -o "'/[^']*'" | sort -u
-
 grep -rn "'/[a-z]" <api-call-dirs> --include="*.ts" \
   | grep -v "__tests__" \
   | grep -o "'/[^']*'" | sort -u
