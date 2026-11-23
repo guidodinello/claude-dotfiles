@@ -271,6 +271,15 @@ class RemindCliTest(ReminderTestCase):
         result = self.remind("done", "../../settings")
         self.assertIn("not a reminder id", result.stderr)
 
+    def test_done_and_snooze_never_write_outside_the_store_from_a_tampered_id(self) -> None:
+        self.add("2000-01-01")
+        for tampered in ("../../escaped", "other-id"):
+            (self.store / "r1.json").write_text(json.dumps({**self.stored(), "id": tampered}))
+            for command in (("done", "r1"), ("snooze", "r1", "2d")):
+                result = self.remind(*command)
+                self.assertNotEqual(result.returncode, 0, (tampered, command))
+        self.assertEqual(sorted(p.name for p in self.config.rglob("*.json")), ["r1.json"])
+
     def test_unknown_id_fails(self) -> None:
         result = self.remind("done", "ghost")
         self.assertNotEqual(result.returncode, 0)

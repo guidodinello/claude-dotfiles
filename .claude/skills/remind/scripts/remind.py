@@ -148,7 +148,15 @@ def load(reminder_id: str, store: Path = STORE) -> Reminder:
     path = path_for(reminder_id, store)
     if not path.is_file():
         raise SystemExit(f"no reminder with id {reminder_id!r} in {store}")
-    return Reminder(**json.loads(path.read_text(encoding="utf-8")))
+    try:
+        reminder = Reminder(**json.loads(path.read_text(encoding="utf-8")))
+        validate(reminder)
+    except (ValueError, TypeError) as error:
+        raise SystemExit(f"unreadable reminder file {path.name}: {error}") from None
+    # write() and done build paths from reminder.id, so it must be the file's own name.
+    if reminder.id != reminder_id:
+        raise SystemExit(f"{path.name} holds id {reminder.id!r}, not {reminder_id!r}")
+    return reminder
 
 
 def transcript_exists(session_id: str, config: Path = CONFIG_DIR) -> bool:
