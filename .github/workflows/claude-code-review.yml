@@ -23,19 +23,24 @@ jobs:
       contents: read
       pull-requests: read
       issues: read
+      # Required: the action exchanges this job's OIDC token for the Claude GitHub
+      # App token (getIDToken in src/github/token.ts of claude-code-action).
       id-token: write
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 1
 
       - name: Run Claude Code Review
         id: claude-review
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@b5e37652b7d48df841bfddfd6520610e19bf3136 # v1.0.287
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Cannot be pinned to a commit: the action only accepts https URLs ending in
+          # `.git` (no `#ref`), and the `code-review` entry inside that marketplace
+          # points at claude-plugins-official@main, so the plugin floats anyway.
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
           prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'

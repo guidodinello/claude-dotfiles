@@ -5,7 +5,13 @@ Usage: pair_drafts.py <sent-corpus.md> <project-substring> [--config-dir DIR]
 The corpus format is `### <header>` sections with the message as `> ` blockquote lines.
 Output contains client text: write it inside the project, never into a public repo.
 """
-import argparse, json, glob, os, re, sys, difflib
+import argparse
+import json
+import glob
+import os
+import re
+import sys
+import difflib
 ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 ap.add_argument("corpus"); ap.add_argument("project")
 ap.add_argument("--config-dir", default=os.environ.get("CLAUDE_CONFIG_DIR", "~/.claude"))
