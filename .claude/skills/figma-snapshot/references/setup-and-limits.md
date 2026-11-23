@@ -29,6 +29,30 @@ Optional `"tier1_monthly_budget": 15` (the default) caps the Tier 1 calls this s
 
 Optional `"token_expires": "YYYY-MM-DD"`: the date the token expires, as shown when it was created. The Figma API never reports it, so without this field an expired token only shows up as an HTTP 403 mid-task. With it, `check` and `pull` warn on stderr from 14 days before.
 
+## Drift check config
+
+Optional `code_tokens` per target turns on `drift` (and the summary at the end of `pull`):
+
+```json
+"code_tokens": {
+  "css": "../../web/src/styles.css",
+  "names": ["--color-{slug}", "--{slug}"],
+  "scales": {"Space/": "--spacing"},
+  "aliases": {"Type/Body": "--text-base"},
+  "extra_tokens": {"--spacing": "0.25rem", "--text-base": "1rem"}
+}
+```
+
+- `css`: the file that declares the tokens, relative to the snapshot dir. Light theme only: the first declaration of each name, outside `@media` and dark selectors. `var()` chains are followed.
+- `names`: templates tried in order to turn a Figma variable name into a CSS custom property. `{slug}` is the name lowercased with `/` and spaces as `-` (`Background/Button/Primary` → `background-button-primary`).
+- `scales`: Figma name prefix → CSS property that the name's trailing number multiplies, for scales with no property per step, such as Tailwind v4 spacing (`Space/3` = 3 × `--spacing`).
+- `aliases`: exact Figma name → CSS property, for names no template fits.
+- `extra_tokens`: values the CSS file doesn't declare, such as framework defaults.
+
+Colors are compared as hex plus alpha: hex, `rgb()`, `hsl()`, bare `H S% L%` triplets and `oklch()` are read. Sizes are compared as px (px or rem). A code value in any other format is listed under "Not compared".
+
+`drift --ref <commit|branch>` reads the CSS with `git show` at that ref instead of the working tree, and writes `DRIFT-<ref>.md`. Use it to check a PR branch before merge, or to replay history: run it on the commit before a fix and on the fix to see that drift reports, then clears, the difference.
+
 ## Budget ledger
 
 - Every successful Tier 1 call is appended to `<dir>/tier1-ledger.json`, grouped by UTC month. Before each Tier 1 call, `pull` refuses once the budget is used up, unless `--over-budget` is passed. `check` and `pull` print the count.
