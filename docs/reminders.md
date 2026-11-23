@@ -86,7 +86,7 @@ Output goes to stdout with exit 0, which Claude Code adds to the session context
 ## Verified during implementation (2026-11-23)
 
 - **Resume keeps the session id.** Two sessions started with `claude --resume <id>` kept appending to `<id>.jsonl` with that `sessionId`. A fork gets a new id (`source: "fork"`), which is why the cwd fallback exists.
-- **Hook input** ([hooks reference](https://code.claude.com/docs/en/hooks.md)): both events get `session_id`, `transcript_path`, `cwd`, `hook_event_name`. `SessionStart` also gets `source`: `startup`, `resume`, `clear`, `compact` or `fork`. The hook doesn't filter on `source`: the digest is useful after `/clear` and compaction too.
+- **Hook input** ([hooks reference](https://code.claude.com/docs/en/hooks.md)): both events get `session_id`, `transcript_path`, `cwd`, `hook_event_name`. `SessionStart` also gets `source`: `startup`, `resume`, `clear`, `compact` or `fork`. The hook doesn't filter on `source`: the digest is useful after clearing the conversation and after compaction too.
 - **Output**: plain stdout on exit 0 is added to context for both events. It is capped at 10,000 characters; past that, Claude only sees a 2,000-character preview. The digest is capped at 20 lines.
 - **Transcripts are deleted after 30 days by default** (`cleanupPeriodDays`, [data usage](https://code.claude.com/docs/en/data-usage.md)). The "owner session gone" check looks for `<config>/projects/*/<session_id>.jsonl`; the owner's own `transcript_path` isn't in the hook input of another session.
 
