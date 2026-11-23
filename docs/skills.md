@@ -86,6 +86,7 @@ Cloudflare set (`cloudflare*`, `durable-objects`, `agents-sdk`, `sandbox-sdk`,
 | `/qa-check` | Runs type-check, linting, and tests via the quality-checker subagent (stack-agnostic) |
 | `/react-composition-audit` | Audits React code for defects linters miss: hand-rolled markup duplicating a design-system primitive, and wrong element/ARIA semantics |
 | `/recap` | Rebuilds your GitHub, git, ClickUp, Slack and engram activity for a day or range, grouped by ticket, for standups |
+| `/remind` | Registers a deferred plan (blocked on a future date) as a reminder that the `reminders.py` hook brings back to the owning session once due; also lists, closes and snoozes reminders |
 | `/release-sim` | Simulates a release locally (prod ref → next ref, optionally a fix PR) with synthetic data shapes to catch migration/backfill bugs; per-project docs folder holds shapes and lessons |
 | `/sandbox-diff` | Verifies a backend PR that touches a vendor integration by running base and PR code on the same vendor-sandbox data: a fail-closed safety gate before any write or send, scoped write scripts, time simulation, a mutation check, and tables that claim only what ran; per-project docs folder holds the profile and scenarios |
 | `/scripts-audit` | Checks that every file under `scripts/` is documented in `scripts/CLAUDE.md` and every documented script still exists. Report only |

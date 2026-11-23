@@ -22,6 +22,7 @@
 - If user is wrong, explain WHY with evidence. If you were wrong, acknowledge with proof.
 - Always propose alternatives with tradeoffs when relevant.
 - Verify technical claims before stating them. If unsure, investigate first.
+- When a plan is blocked until a future date (a limit reset, a release, "after X"), write the plan down and register it with `/remind`, so it comes back on its own.
 
 ## Expertise
 

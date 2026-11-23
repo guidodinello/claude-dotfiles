@@ -5,6 +5,7 @@
       "Bash(op read:*)",
       "Bash(security find-generic-password:*)",
       "Bash(rtk:*)",
+      "Bash(python3 -I {{CONFIG_DIR}}/skills/remind/scripts/remind.py:*)",
       "mcp__plugin_engram_engram__mem_context",
       "mcp__engram__mem_context",
       "mcp__engram__mem_save",
@@ -158,6 +159,26 @@
           {
             "type": "command",
             "command": "python3 -I {{CONFIG_DIR}}/hooks/dev-docs-index-check.py"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -I {{CONFIG_DIR}}/hooks/reminders.py"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -I {{CONFIG_DIR}}/hooks/reminders.py"
           }
         ]
       }
