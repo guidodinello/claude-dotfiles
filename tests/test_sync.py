@@ -141,7 +141,7 @@ class SyncSettingsTest(ScriptCase):
                 "autoMode": {"learned": True},
                 "enabledPlugins": {"p@m": True},
                 "outputStyle": "Gentleman",
-                "model": "something-local",
+                "skipWorkflowUsageWarning": False,
             }
         )
         self.sync()
@@ -150,7 +150,9 @@ class SyncSettingsTest(ScriptCase):
         self.assertEqual(settings["enabledPlugins"], {"p@m": True})
         self.assertEqual(settings["outputStyle"], "Gentleman")
         base = json.loads((self.src / "settings.base.json").read_text())
-        self.assertEqual(settings["model"], base["model"])
+        self.assertEqual(
+            settings["skipWorkflowUsageWarning"], base["skipWorkflowUsageWarning"]
+        )
 
     def test_hides_commit_and_pr_attribution(self):
         self.write_settings({"attribution": {"commit": "Co-Authored-By: x", "pr": "footer"}})
