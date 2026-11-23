@@ -4,6 +4,7 @@
   figma_snapshot.py add <figma-url> [--name NAME]   register a page, section or frame (no API call)
   figma_snapshot.py check [target]                  Tier 3 only: has the file changed since the last pull?
   figma_snapshot.py pull  [target] [--force]        fetch, re-render only the screens that changed
+  figma_snapshot.py drift [target]                  offline: compare the snapshot's tokens with the code's CSS
 
 Tier 1 calls are counted in <dir>/tier1-ledger.json; pull refuses past tier1_monthly_budget (default 15)
 unless --over-budget.
@@ -12,12 +13,14 @@ Snapshot dir: --dir, else $FIGMA_SNAPSHOT_DIR, else ./my-dev-things/designs if .
 else ./designs. Config is <dir>/targets.json. Token: $FIGMA_TOKEN, else `op read` of the config's op_ref.
 """
 import argparse
+import collections
 import concurrent.futures as cf
 import copy
 import datetime as dt
 import difflib
 import hashlib
 import json
+import math
 import os
 import re
 import subprocess
@@ -416,6 +419,280 @@ def write_readmes(troot: Path, groups: dict[Path, Group], tokens: Tokens, docs: 
         print(f"note: {top} does not name {', '.join(m + '/' for m in missing)}")
 
 
+DRIFT_LIST_MAX = 40
+CSS_DECL = re.compile(r"(--[A-Za-z0-9_-]+)\s*:\s*([^;{}]+);")
+CSS_VAR = re.compile(r"^var\(\s*(--[A-Za-z0-9_-]+)\s*(?:,[^)]*)?\)$")
+NUMERIC_PROPS = ("paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "itemSpacing", "cornerRadius",
+                 "strokeWeight", "fontSize", "lineHeight", "letterSpacing")
+
+
+def css_tokens(css: str) -> tuple[dict[str, str], list[str]]:
+    """Custom properties of the light theme: the first declaration of each name, skipping blocks under a
+    dark selector or an @media query. Returns the tokens and the names declared twice with different values."""
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    tokens: dict[str, str] = {}
+    dupes: list[str] = []
+    stack: list[bool] = []
+    pos = 0
+    for m in re.finditer(r"[{}]", css):
+        chunk = css[pos:m.start()]
+        if not any(stack):
+            for name, value in CSS_DECL.findall(chunk + ";"):
+                value = value.strip()
+                if (name in tokens and (css_color(tokens[name]) or tokens[name]) != (css_color(value) or value)
+                        and name not in dupes):
+                    dupes.append(name)
+                tokens.setdefault(name, value)
+        if m.group() == "{":
+            selector = chunk.rsplit(";", 1)[-1].rsplit("}", 1)[-1].strip().lower()
+            stack.append(selector.startswith("@media") or "dark" in selector)
+        elif stack:
+            stack.pop()
+        pos = m.end()
+    return tokens, dupes
+
+
+def css_resolve(name: str, tokens: dict[str, str]) -> tuple[str | None, list[str]]:
+    chain = [name]
+    value = tokens.get(name)
+    while value and (m := CSS_VAR.match(value)) and m.group(1) not in chain:
+        chain.append(m.group(1))
+        value = tokens.get(m.group(1))
+    return value, chain
+
+
+def css_color(value: str | None) -> str | None:
+    """A CSS hex or rgb() color in paint_hex's format (#rrggbb, plus ` NN%` below full opacity)."""
+    if not value:
+        return None
+    v = value.strip().lower()
+    if m := re.fullmatch(r"#([0-9a-f]{3,8})", v):
+        h = m.group(1)
+        if len(h) in (3, 4):
+            h = "".join(c * 2 for c in h)
+        if len(h) not in (6, 8):
+            return None
+        rgb, alpha = h[:6], int(h[6:], 16) / 255 if len(h) == 8 else 1
+    elif m := re.fullmatch(r"rgba?\(\s*([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)(?:\s*[,/]\s*([\d.]+%?))?\s*\)", v):
+        rgb = "".join(f"{round(float(c)):02x}" for c in m.groups()[:3])
+        a = m.group(4) or "1"
+        alpha = float(a[:-1]) / 100 if a.endswith("%") else float(a)
+    elif rgb_alpha := oklch_or_hsl(v):
+        rgb, alpha = rgb_alpha
+    else:
+        return None
+    return f"#{rgb}" if alpha >= 0.995 else f"#{rgb} {alpha:.0%}"
+
+
+def oklch_or_hsl(v: str) -> tuple[str, float] | None:
+    """oklch() (Tailwind v4 defaults) and hsl() or a bare `H S% L%` triplet (shadcn on Tailwind v3)."""
+    num = r"(-?[\d.]+)(%|deg)?"
+    alpha_part = r"(?:\s*/\s*([\d.]+%?))?"
+    if m := re.fullmatch(rf"oklch\(\s*{num}\s+{num}\s+{num}{alpha_part}\s*\)", v):
+        L = float(m.group(1)) / (100 if m.group(2) == "%" else 1)
+        C = float(m.group(3)) * (0.004 if m.group(4) == "%" else 1)
+        h = math.radians(float(m.group(5)))
+        a, b = C * math.cos(h), C * math.sin(h)
+        l_, m_, s_ = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3, (L - 0.1055613458 * a - 0.0638541728 * b) ** 3, \
+            (L - 0.0894841775 * a - 1.2914855480 * b) ** 3
+        lin = (4.0767416621 * l_ - 3.3077115913 * m_ + 0.2309699292 * s_,
+               -1.2684380046 * l_ + 2.6097574011 * m_ - 0.3413193965 * s_,
+               -0.0041960863 * l_ - 0.7034186147 * m_ + 1.7076147010 * s_)
+        srgb = [12.92 * c if c <= 0.0031308 else 1.055 * c ** (1 / 2.4) - 0.055 for c in (max(0.0, x) for x in lin)]
+        raw_alpha = m.group(7)
+    elif m := re.fullmatch(r"(?:hsla?\(\s*)?(-?[\d.]+)(?:deg)?[\s,]+([\d.]+)%[\s,]+([\d.]+)%"
+                           r"(?:\s*[,/]\s*([\d.]+%?))?\s*\)?", v):
+        hue, sat, light = float(m.group(1)) % 360, float(m.group(2)) / 100, float(m.group(3)) / 100
+        k = lambda n: (n + hue / 30) % 12
+        f = lambda n: light - sat * min(light, 1 - light) * max(-1, min(k(n) - 3, 9 - k(n), 1))
+        srgb = [f(0), f(8), f(4)]
+        raw_alpha = m.group(4)
+    else:
+        return None
+    rgb = "".join(f"{round(min(1, max(0, c)) * 255):02x}" for c in srgb)
+    a = raw_alpha or "1"
+    return rgb, float(a[:-1]) / 100 if a.endswith("%") else float(a)
+
+
+def css_px(value: str | None) -> float | None:
+    if value and (m := re.fullmatch(r"\s*(-?[\d.]+)(px|rem)?\s*", value)):
+        return float(m.group(1)) * (16 if m.group(2) == "rem" else 1)
+    return None
+
+
+def figma_slug(name: str) -> str:
+    return re.sub(r"-+", "-", re.sub(r"[^a-z0-9]+", "-", name.lower())).strip("-")
+
+
+def bound_values(raw: dict, node_ids: list[str]) -> tuple[dict[str, collections.Counter], collections.Counter]:
+    """Values the snapshot shows for each bound variable id, and the counts of raw (unbound) colors."""
+    values: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
+    raw_colors: collections.Counter = collections.Counter()
+
+    def walk(n: Node) -> None:
+        if n.get("visible", True) is False:
+            return
+        node_bound = n.get("boundVariables") or {}
+        for prop in ("fills", "strokes"):
+            listed = node_bound.get(prop) if isinstance(node_bound.get(prop), list) else []
+            for i, paint in enumerate(n.get(prop) or []):
+                if not (hex_ := paint_hex(paint)):
+                    continue
+                alias = ((paint.get("boundVariables") or {}).get("color")
+                         or (listed[i] if i < len(listed) else None))
+                if isinstance(alias, dict) and isinstance(alias.get("id"), str):
+                    values[alias["id"]][hex_] += 1
+                elif n["type"] != "TEXT" or prop == "fills":
+                    raw_colors[hex_] += 1
+        for prop in NUMERIC_PROPS:
+            alias = node_bound.get(prop)
+            alias = alias[0] if isinstance(alias, list) and alias else alias
+            number = n.get(prop, (n.get("style") or {}).get(prop if prop != "lineHeight" else "lineHeightPx"))
+            if isinstance(alias, dict) and isinstance(alias.get("id"), str) and isinstance(number, (int, float)):
+                values[alias["id"]][f"{number:g}px"] += 1
+        for c in n.get("children", []):
+            walk(c)
+    for nid in node_ids:
+        walk(raw["nodes"][nid]["document"])
+    return values, raw_colors
+
+
+def code_css(css_path: Path, ref: str | None) -> tuple[str, str]:
+    """The CSS text and a label for where it came from: the working tree, or `git show <ref>:<path>`."""
+    def git(*args: str) -> subprocess.CompletedProcess:
+        return subprocess.run(["git", "-C", str(css_path.parent), *args], capture_output=True, text=True)
+    if ref is None:
+        head, branch = git("log", "-1", "--format=%h %cs"), git("rev-parse", "--abbrev-ref", "HEAD")
+        label = (f"working tree, branch `{branch.stdout.strip()}` at `{head.stdout.strip()}`" if head.returncode == 0
+                 else "working tree, not a git checkout")
+        return css_path.read_text(), label
+    top = git("rev-parse", "--show-toplevel")
+    rel = css_path.relative_to(Path(top.stdout.strip()).resolve()) if top.returncode == 0 else None
+    shown = git("show", f"{ref}:{rel}") if rel else top
+    if shown.returncode != 0:
+        raise ValueError(f"cannot read {css_path.name} at {ref!r}: {shown.stderr.strip()[:200]}")
+    commit = git("log", "-1", "--format=%h %cs", ref)
+    return shown.stdout, f"git `{ref}` at `{commit.stdout.strip()}`"
+
+
+def drift_report(target: dict, troot: Path, root: Path, ref: str | None = None) -> tuple[str, str]:
+    """Offline. Compares the Figma values of every named variable with the code token its name maps to,
+    and lists raw colors and unnamed tokens. Returns (one-line summary, DRIFT.md text)."""
+    cfg = target["code_tokens"]
+    css_path = (root / cfg["css"]).resolve()
+    css_text, code_ref = code_css(css_path, ref)
+    tokens, dupes = css_tokens(css_text)
+    for name, value in (cfg.get("extra_tokens") or {}).items():
+        tokens.setdefault(name, value)
+    templates = cfg.get("names") or ["--color-{slug}", "--{slug}"]
+    aliases = cfg.get("aliases") or {}
+    names = {k: v for k, v in load_json(troot / "variables.json", {}).items() if isinstance(v, str)}
+    values, raw_colors = bound_values(json.loads((troot / "nodes.json").read_text()), target["nodes"])
+
+    resolved = {t: css_resolve(t, tokens) for t in tokens}
+    by_value: dict[str, list[str]] = collections.defaultdict(list)
+    for t, (v, _) in resolved.items():
+        if key := css_color(v) or (f"{px:g}px" if (px := css_px(v)) is not None else None):
+            by_value[key].append(t)
+
+    def same_value(value: str) -> str:
+        found = by_value.get(value, [])
+        return ", ".join(f"`{t}`" for t in found[:4]) + (" …" if len(found) > 4 else "") or "none"
+
+    ok, differ, missing, unnamed, uncompared = [], [], [], [], []
+    for var_id, seen in values.items():
+        figma_value = seen.most_common(1)[0][0]
+        if var_id not in names:
+            unnamed.append((sum(seen.values()), var_id, figma_value))
+            continue
+        name = names[var_id]
+        candidates = [aliases[name]] if name in aliases else [t.replace("{slug}", figma_slug(name)) for t in templates]
+        step = re.fullmatch(r".*?(\d+(?:\.\d+)?)", name)
+        scaled = [(base, float(step.group(1))) for prefix, base in (cfg.get("scales") or {}).items()
+                  if step and name.startswith(prefix) and name not in aliases]
+        code = next((c for c in candidates if c in tokens), None)
+        if code is None and scaled:
+            base, n = scaled[0]
+            value, chain = css_resolve(base, tokens)
+            code_value = f"{px * n:g}px" if (px := css_px(value)) is not None else None
+            if code_value == figma_value:
+                ok.append(name)
+            else:
+                differ.append(f"| {clean(name, 60)} | `{figma_value}` | `{base}` × {n:g} | `{code_value}` "
+                              f"| {same_value(figma_value)} |")
+            continue
+        if code is None:
+            missing.append(f"| {clean(name, 60)} | `{figma_value}` | {', '.join(f'`{c}`' for c in candidates)} "
+                           f"| {same_value(figma_value)} |")
+            continue
+        value, chain = resolved[code]
+        code_value = css_color(value) or (f"{px:g}px" if (px := css_px(value)) is not None else None)
+        if code_value is None:
+            uncompared.append(f"| {clean(name, 60)} | `{figma_value}` | `{code}` | `{clean(value, 60)}` |")
+        elif code_value == figma_value:
+            ok.append(name)
+        else:
+            differ.append(f"| {clean(name, 60)} | `{figma_value}` | {' → '.join(f'`{c}`' for c in chain)} "
+                          f"| `{code_value}` | {same_value(figma_value)} |")
+
+    raw_rows = [f"| `{hex_}` | {n} | {same_value(hex_)} |" for hex_, n in raw_colors.most_common(DRIFT_LIST_MAX)]
+    one_offs = sum(1 for hex_ in raw_colors if hex_ not in by_value)
+    summary = (f"drift: {len(ok)} match, {len(differ)} differ, {len(missing)} missing in code, "
+               f"{len(uncompared)} not compared, "
+               f"{len(unnamed)} unnamed tokens, {len(raw_colors)} raw colors ({one_offs} with no code token)")
+    lines = [f"# Design drift: {target['name']}", "", UNTRUSTED_BANNER, "",
+             f"Generated offline by figma_snapshot.py drift from `nodes.json`, `variables.json` and `{cfg['css']}` "
+             f"({code_ref}). Do not edit by hand.", "", summary, "",
+             "Limits: names come from the hand-filled `variables.json`, so a variable renamed in Figma shows here "
+             "only after the map is refilled. Figma values are the ones bound on the snapshot's layers (one mode). "
+             "Code values are the light theme: the first declaration, outside @media and dark selectors.", ""]
+    if differ:
+        lines += ["## Values that differ", "", "| Figma variable | Figma | Code token (chain) | Code | Code tokens with the Figma value |",
+                  "|---|---|---|---|---|"] + differ + [""]
+    if missing:
+        lines += ["## Named in Figma, missing in code", "", "| Figma variable | Figma | Names tried | Code tokens with that value |",
+                  "|---|---|---|---|"] + missing + [""]
+    if unnamed:
+        lines += ["## Bound but unnamed", "", "Add their names to `variables.json` to check them.", "",
+                  "| Uses | Variable | Figma value | Code tokens with that value |", "|---|---|---|---|"]
+        lines += [f"| {n} | `{short_var(v)}` | `{val}` | {same_value(val)} |"
+                  for n, v, val in sorted(unnamed, reverse=True)[:DRIFT_LIST_MAX]] + [""]
+    if raw_rows:
+        lines += ["## Raw colors (typed by hand in Figma)", "", "\"none\" means a one-off shade: snap it to a token or ask the designer.", "",
+                  "| Color | Uses | Code tokens with that value |", "|---|---|---|"] + raw_rows + [""]
+    if uncompared:
+        lines += ["## Not compared (code value in a format drift doesn't read)", "",
+                  "| Figma variable | Figma | Code token | Code value |", "|---|---|---|---|"] + uncompared + [""]
+    if dupes:
+        lines += ["## Code tokens declared twice with different values", ""] + [f"- `{d}`" for d in dupes] + [""]
+    return summary, "\n".join(lines)
+
+
+def cmd_drift(root: Path, targets: list[dict], ref: str | None) -> int:
+    for t in targets:
+        troot = root / t["name"]
+        if not t.get("code_tokens"):
+            print(f"{t['name']}: no code_tokens in targets.json; skipped")
+            continue
+        if not (troot / "nodes.json").exists():
+            print(f"{t['name']}: no nodes.json yet; run pull first")
+            continue
+        run_drift(t, troot, root, ref)
+    return 0
+
+
+def run_drift(t: dict, troot: Path, root: Path, ref: str | None = None) -> None:
+    """Never fatal: after a pull, a missing CSS file or a bad variables.json must not undo a spent call."""
+    try:
+        summary, text = drift_report(t, troot, root, ref)
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        print(f"{t['name']}: drift skipped: {e}")
+        return
+    out = troot / ("DRIFT.md" if ref is None else f"DRIFT-{slug(ref)}.md")
+    out.write_text(text + "\n")
+    print(f"{t['name']}: {summary} (see {out})")
+
+
 def snapshot_dir(arg: str | None) -> Path:
     if arg:
         return Path(arg).resolve()
@@ -607,6 +884,8 @@ def cmd_pull(client: Client, root: Path, targets: list[dict], force: bool, nodes
              "pulled_at": utc_stamp(), "screens": new}, indent=1))
         print(f"{t['name']}: {len(new)} screens. added {len(added)}, changed {len(changed)}, "
               f"removed {len(removed)}, rendered {len(to_render) if render else 0}")
+        if t.get("code_tokens"):
+            run_drift(t, troot, root)
     print(client.ledger.summary())
     return 0
 
@@ -620,6 +899,9 @@ def main() -> None:
     a.add_argument("--name")
     c = sub.add_parser("check")
     c.add_argument("target", nargs="?")
+    dr = sub.add_parser("drift")
+    dr.add_argument("target", nargs="?")
+    dr.add_argument("--ref", help="read the CSS at this git commit or branch instead of the working tree")
     p = sub.add_parser("pull")
     p.add_argument("target", nargs="?")
     p.add_argument("--force", action="store_true", help="fetch even if the file version is unchanged")
@@ -632,6 +914,8 @@ def main() -> None:
         if args.cmd == "add":
             sys.exit(cmd_add(root, args.url, args.name))
         cfg = load_config(root)
+        if args.cmd == "drift":
+            sys.exit(cmd_drift(root, select_targets(cfg, args.target), args.ref))
         warn_token_expiry(cfg)
         ledger = Ledger(path=root / "tier1-ledger.json",
                         budget=cfg.get("tier1_monthly_budget", DEFAULT_TIER1_BUDGET),
