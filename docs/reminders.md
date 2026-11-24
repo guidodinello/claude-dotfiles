@@ -14,12 +14,12 @@ A reminder brings the plan back on its own, in the right session, once it is due
  /remind skill ──writes──▶ <config>/reminders/<id>.json ◀──reads/updates── reminders.py (hook)
        │                          │                                            │
        │                          └──points to (absolute path)──▶ plan doc     ├─ SessionStart
-       └─ remind.py CLI: add | list | done | snooze                            └─ UserPromptSubmit
+       └─ remind.py CLI: add | plan-path | list | done | snooze                └─ UserPromptSubmit
 ```
 
 - **Reminder file**: one JSON file per reminder in `<config dir>/reminders/` (usually `~/.claude`; each `CLAUDE_CONFIG_DIR` keeps its own, next to the transcripts its session ids refer to). It holds a trigger and a pointer. It never holds the plan itself.
-- **Plan doc**: the file that already describes the work (for example `my-dev-things/designs/README.md#after-mcp-reset`). It stays the only source of truth.
-- **`remind.py`**: the CLI behind the `/remind` skill (add, list, done, snooze). It lives in `.claude/skills/remind/scripts/`.
+- **Plan doc**: the file that already describes the work (for example `my-dev-things/designs/README.md#after-mcp-reset`). It stays the only source of truth. When no project doc describes the work, the plan goes in `<config dir>/reminders/plans/<id>.md` (decision 11), never in a folder a session picks itself.
+- **`remind.py`**: the CLI behind the `/remind` skill (add, plan-path, list, done, snooze). It lives in `.claude/skills/remind/scripts/`.
 - **`reminders.py`**: the hook, in `.claude/hooks/`. It imports the reading code from `remind.py`, the same way `dev-docs-index-check.py` reuses `check_index.py`.
 
 ## Decisions
@@ -38,6 +38,8 @@ A reminder brings the plan back on its own, in the right session, once it is due
 8. **Scope compared with `PENDING.md`.** Reminders take over the *deferred agent work* items. Items where we wait on *other people* stay as tracker rows, which the team can see. A reminder may point to a tracker row, but the row stays the source of truth.
 9. **The plan must be self-contained.** The owning session may never be reopened, so the plan must be detailed enough for a fresh session to carry it out.
 10. **Failures are loud.** If the plan file is missing when the reminder fires, the digest and the payload say `PLAN MISSING: <path>`; the reminder is never dropped. A reminder file that can't be parsed is reported by name. The hook always exits 0, so a broken reminder store never blocks a prompt, but it is never silent: on an unexpected error at `SessionStart` it prints `reminders hook error: <ExceptionType>`. A hook that crashes without saying anything would mean reminders never fire, which is the original problem. At `UserPromptSubmit` it stays quiet, so the error isn't repeated on every prompt.
+
+11. **One home for plans without a project doc.** Before this rule each session picked its own durable folder (a profile dir, a routines log dir), so plans ended up scattered and were never cleaned up. Now `remind.py plan-path <id>` prints `<config dir>/reminders/plans/<id>.md` and creates the folder, and `done` moves that plan to `done/plans/` with its reminder. It is per profile, like the reminders that point to it. A plan that lives in a project doc is never moved or archived.
 
 ## Record
 
@@ -60,7 +62,7 @@ JSON, because the hook uses only the Python standard library, which has no YAML 
 
 - `due`: a date or a local datetime. A bare date means 09:00 that day. A UTC offset is rejected, because an aware datetime can't be compared with the others.
 - `status`: `pending` or `done`. "Delivered" comes from `delivered_to` and isn't a separate status. `snooze` sets a new `due` and clears `delivered_to`.
-- `done` moves the file to `<config dir>/reminders/done/`. Nothing is deleted: a reused id is archived as `<id>.2.json`, `<id>.3.json`, and so on.
+- `done` moves the file to `<config dir>/reminders/done/`, and a plan in `<config dir>/reminders/plans/` to `done/plans/`. Nothing is deleted: a reused id is archived as `<id>.2.json` (`<id>.2.md`), `<id>.3.json`, and so on.
 - Writes are atomic: the file is written to a temp file and renamed into place.
 
 ## Hook behaviour
@@ -79,8 +81,8 @@ Output goes to stdout with exit 0, which Claude Code adds to the session context
 ## Interfaces
 
 - `/remind`: the skill a session invokes at the moment it writes a deferred plan. It fills in `session_id` and `cwd` from the session and asks only for `due`, `title` and `plan`. CLAUDE.md gets one line: "When a plan is blocked on a future date or event, register it with /remind." Without that line, using the skill depends on someone remembering, which is the original problem.
-- `remind.py add | list | done <id> | snooze <id> <when>`: the CLI behind it. `list` shows every pending reminder, due ones marked `DUE`.
-- **Permissions**: `settings.base.json` allows `python3 -I {{CONFIG_DIR}}/skills/remind/scripts/remind.py` with `list`, `done` and `snooze`, so closing a reminder doesn't stop on a prompt. `add` is deliberately not allowed: a reminder makes a session carry out a plan later, so creating one needs the user's approval. Without that, a session that read injected text could plant a reminder, with any plan file, in another session.
+- `remind.py add | plan-path <id> | list | done <id> | snooze <id> <when>`: the CLI behind it. `plan-path` prints where to write a plan that no project doc holds. `list` shows every pending reminder, due ones marked `DUE`.
+- **Permissions**: `settings.base.json` allows `python3 -I {{CONFIG_DIR}}/skills/remind/scripts/remind.py` with `plan-path`, `list`, `done` and `snooze`, so getting a plan path or closing a reminder doesn't stop on a prompt. `add` is deliberately not allowed: a reminder makes a session carry out a plan later, so creating one needs the user's approval. Without that, a session that read injected text could plant a reminder, with any plan file, in another session.
 - **Validation**: the hook prints reminder fields into Claude's context, so `remind.validate` checks them on `add` and again on every load. `id` and `session_id` must be tokens (`[A-Za-z0-9_.-]`, not starting with `.`). Text fields must be one line, at most 300 characters, with no backticks. A file that fails is reported as unreadable and never printed.
 
 ## Verified during implementation (2026-11-23)

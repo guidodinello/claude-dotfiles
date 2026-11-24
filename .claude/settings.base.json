@@ -4,6 +4,7 @@
       "Read(./**)",
       "Bash(rtk gain:*)",
       "Bash(python3 -I {{CONFIG_DIR}}/skills/remind/scripts/remind.py list:*)",
+      "Bash(python3 -I {{CONFIG_DIR}}/skills/remind/scripts/remind.py plan-path:*)",
       "Bash(python3 -I {{CONFIG_DIR}}/skills/remind/scripts/remind.py done:*)",
       "Bash(python3 -I {{CONFIG_DIR}}/skills/remind/scripts/remind.py snooze:*)",
       "mcp__plugin_engram_engram__mem_context",
