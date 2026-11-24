@@ -318,6 +318,43 @@ class RemindCliTest(ReminderTestCase):
         self.assertEqual(done["status"], "done")
         self.assertNotIn("r1", self.hook_run("SessionStart", OTHER).replace(OTHER, ""))
 
+    def test_plan_path_names_a_file_in_the_store_plans_folder(self) -> None:
+        result = self.remind("plan-path", "r1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        path = Path(result.stdout.strip())
+        self.assertEqual(path, self.store / "plans" / "r1.md")
+        self.assertTrue(path.parent.is_dir())
+
+    def test_plan_path_refuses_a_taken_or_unsafe_id(self) -> None:
+        self.add("1d")
+        self.assertIn("already exists", self.remind("plan-path", "r1").stderr)
+        self.assertIn("not a reminder id", self.remind("plan-path", "../x").stderr)
+
+    def test_done_archives_a_plan_kept_in_the_store(self) -> None:
+        plan = Path(self.remind("plan-path", "r1").stdout.strip())
+        plan.write_text("# Plan\n\n## After reset\n\nDo it.\n")
+        self.add("2000-01-01", plan=plan)
+        self.assertEqual(self.remind("done", "r1").returncode, 0)
+
+        self.assertFalse(plan.exists())
+        self.assertIn("Do it.", (self.store / "done" / "plans" / "r1.md").read_text())
+
+    def test_done_leaves_a_project_plan_where_it_is(self) -> None:
+        self.add("2000-01-01")
+        self.remind("done", "r1")
+        self.assertTrue(self.plan.exists())
+        self.assertFalse((self.store / "done" / "plans").exists())
+
+    def test_done_keeps_an_earlier_archived_plan_with_the_same_id(self) -> None:
+        for text in ("first", "second"):
+            plan = Path(self.remind("plan-path", "r1").stdout.strip())
+            plan.write_text(text)
+            self.add("2000-01-01", plan=plan)
+            self.remind("done", "r1")
+        archive = self.store / "done" / "plans"
+        self.assertEqual((archive / "r1.md").read_text(), "first")
+        self.assertEqual((archive / "r1.2.md").read_text(), "second")
+
     def test_snooze_moves_the_date_and_redelivers(self) -> None:
         self.add("2000-01-01")
         self.hook_run("SessionStart", OWNER)

@@ -28,7 +28,13 @@ tracker row, but the row stays the source of truth.
 1. **Write the plan first, self-contained.** The owning session may never be reopened,
    so a fresh session must be able to carry the plan out from the doc alone. Include ids,
    commands and the order of steps. Give the plan a heading so the pointer can use an
-   `#anchor`.
+   `#anchor`. Where it goes:
+   - If a project doc already describes the work (a README, a `my-dev-things/` doc), add
+     the plan there and point to it. That doc stays the only source of truth.
+   - Otherwise, never pick a folder yourself. Pick the reminder id first, then get the path
+     with `REMIND plan-path <id>` (see step 3 for `REMIND`). It prints
+     `<config dir>/reminders/plans/<id>.md` and creates the folder. Write the plan there and
+     pass the same `--id` to `add`. `done` archives that plan along with the reminder.
 2. **Get this session's id and the remind command.** At the top of the session's context,
    the hook prints `session_id: <id> (remind command: python3 -I /abs/.../remind.py)`.
    If you can't see that line (for example, after compaction), ask the user for the id

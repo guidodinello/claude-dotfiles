@@ -4,11 +4,13 @@
 One JSON file per reminder in <config dir>/reminders/ (local to this machine, never
 synced). The config dir is derived from this file's location (skills/remind/scripts/), so
 each CLAUDE_CONFIG_DIR keeps its own reminders, next to the session transcripts they
-point to. Spec: docs/reminders.md in claude-dotfiles.
+point to. A plan that no project doc already holds goes in <config dir>/reminders/plans/,
+and `done` archives it with its reminder. Spec: docs/reminders.md in claude-dotfiles.
 
 CLI:
   remind.py add --title T --due WHEN --plan /abs/path[#anchor] --session-id ID
                 [--cwd DIR] [--why W] [--id ID]
+  remind.py plan-path ID
   remind.py list
   remind.py done ID
   remind.py snooze ID WHEN
@@ -113,6 +115,27 @@ def path_for(reminder_id: str, store: Path = STORE) -> Path:
     return store / f"{reminder_id}.json"
 
 
+def check_id(reminder_id: str) -> None:
+    if not TOKEN.fullmatch(reminder_id) or reminder_id.startswith("."):
+        raise SystemExit(f"not a reminder id: {reminder_id!r}")
+
+
+def plan_path_for(reminder_id: str, store: Path = STORE) -> Path:
+    """Where a plan goes when no project doc already describes the work."""
+    return store / "plans" / f"{reminder_id}.md"
+
+
+def archive_path(directory: Path, stem: str, suffix: str) -> Path:
+    """A free name in directory: an id can be reused once closed; never overwrite a record."""
+    directory.mkdir(parents=True, exist_ok=True)
+    target = directory / f"{stem}{suffix}"
+    copy = 2
+    while target.exists():
+        target = directory / f"{stem}.{copy}{suffix}"
+        copy += 1
+    return target
+
+
 def write(reminder: Reminder, store: Path = STORE) -> None:
     """Atomic: write a temp file in the same dir, then rename it into place."""
     store.mkdir(parents=True, exist_ok=True)
@@ -149,8 +172,7 @@ def load_all(store: Path = STORE) -> tuple[list[Reminder], list[str]]:
 
 
 def load(reminder_id: str, store: Path = STORE) -> Reminder:
-    if not TOKEN.fullmatch(reminder_id) or reminder_id.startswith("."):
-        raise SystemExit(f"not a reminder id: {reminder_id!r}")
+    check_id(reminder_id)
     path = path_for(reminder_id, store)
     if not path.is_file():
         raise SystemExit(f"no reminder with id {reminder_id!r} in {store}")
@@ -196,6 +218,15 @@ def cmd_add(args: argparse.Namespace, store: Path) -> str:
     return f"added {reminder.id}, due {reminder.due}"
 
 
+def cmd_plan_path(args: argparse.Namespace, store: Path) -> str:
+    check_id(args.id)
+    path = plan_path_for(args.id, store)
+    if path_for(args.id, store).exists():
+        raise SystemExit(f"a reminder with id {args.id!r} already exists; pick another id")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return str(path)
+
+
 def cmd_list(_: argparse.Namespace, store: Path) -> str:
     reminders, broken = load_all(store)
     now = datetime.now()
@@ -212,15 +243,11 @@ def cmd_done(args: argparse.Namespace, store: Path) -> str:
     reminder = load(args.id, store)
     reminder.status = "done"
     write(reminder, store)
-    archive = store / "done"
-    archive.mkdir(exist_ok=True)
-    # An id can be reused once the first reminder is closed; never overwrite its record.
-    target = archive / f"{reminder.id}.json"
-    copy = 2
-    while target.exists():
-        target = archive / f"{reminder.id}.{copy}.json"
-        copy += 1
-    os.replace(path_for(reminder.id, store), target)
+    os.replace(path_for(reminder.id, store), archive_path(store / "done", reminder.id, ".json"))
+    # Only a plan in the store's own plans/ is archived; a project doc stays where it is.
+    plan = reminder.plan_file()
+    if plan.is_file() and plan.resolve().parent == (store / "plans").resolve():
+        os.replace(plan, archive_path(store / "done" / "plans", plan.stem, ".md"))
     return f"done {reminder.id}"
 
 
@@ -243,6 +270,8 @@ def main(argv: list[str] | None = None, store: Path = STORE) -> int:
     add.add_argument("--cwd")
     add.add_argument("--why")
     add.add_argument("--id")
+    plan_path = sub.add_parser("plan-path")
+    plan_path.add_argument("id")
     sub.add_parser("list")
     done = sub.add_parser("done")
     done.add_argument("id")
@@ -250,7 +279,7 @@ def main(argv: list[str] | None = None, store: Path = STORE) -> int:
     snooze.add_argument("id")
     snooze.add_argument("when")
     args = parser.parse_args(argv)
-    handler = {"add": cmd_add, "list": cmd_list, "done": cmd_done, "snooze": cmd_snooze}
+    handler = {"add": cmd_add, "plan-path": cmd_plan_path, "list": cmd_list, "done": cmd_done, "snooze": cmd_snooze}
     try:
         print(handler[args.command](args, store))
     except ValueError as error:
