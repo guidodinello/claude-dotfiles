@@ -109,7 +109,7 @@ class PushGuidelinesCase(unittest.TestCase):
     def run_with_fake_rsync(self, line: str) -> subprocess.CompletedProcess:
         """Run a dry run with an rsync on PATH that prints one itemized line."""
         shim = self.home / "bin"
-        shim.mkdir(parents=True)
+        shim.mkdir(parents=True, exist_ok=True)
         fake = shim / "rsync"
         fake.write_text(f"#!/bin/sh\necho '{line}'\n")
         fake.chmod(0o755)
@@ -125,22 +125,20 @@ class PushGuidelinesCase(unittest.TestCase):
         )
 
     def test_timestamp_only_lines_are_not_drift(self):
-        # openrsync sometimes itemizes `.f..T....` (mtime differs, content
-        # equal) under -c with no -t; GNU rsync writes the same note with 11
-        # columns and a lowercase t.
+        # openrsync itemizes `.f..T....` (mtime differs, content equal) under
+        # -c with no -t. The 11-column lowercase form is what GNU rsync prints
+        # with --times; the script never passes it, so that case is defensive.
         for line in (".f..T.... php.md", ".f..t...... php.md"):
             with self.subTest(line=line):
-                self.home.joinpath("bin").exists() and shutil.rmtree(self.home / "bin")
                 result = self.run_with_fake_rsync(line)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertIn("Everything already in sync", result.stdout)
                 self.assertNotIn(line, result.stdout)
 
-    def test_other_attribute_changes_still_count_as_drift(self):
-        # A permission change is something --apply would write: keep it visible.
+    def test_lines_that_are_not_timestamp_only_still_count_as_drift(self):
+        # A permission note, a transfer and a created directory must stay visible.
         for line in (".f...p... php.md", ">f.st.... php.md", "cd+++++++ skills/new/"):
             with self.subTest(line=line):
-                self.home.joinpath("bin").exists() and shutil.rmtree(self.home / "bin")
                 result = self.run_with_fake_rsync(line)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertNotIn("Everything already in sync", result.stdout)

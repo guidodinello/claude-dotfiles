@@ -137,8 +137,11 @@ fi
 #   without -c:  dropping -t leaves destination mtimes newer than source, and
 #                rsync's default quick-check compares size+mtime — so all five
 #                files report `>f..T......` and get re-copied on every run.
-#   -rlpc:       compare by checksum, ignoring mtime entirely. Only real content
-#                drift is reported, and mtimes of "now" don't matter in a git repo.
+#   -rlpc:       compare by checksum, so mtime never decides whether a file is
+#                copied, and mtimes of "now" don't matter in a git repo. GNU rsync
+#                then reports only content drift. openrsync (stock macOS) still
+#                itemizes a content-equal file with a different mtime as
+#                `.f..T....`; the loop below drops those timestamp-only notes.
 # --existing  never create files or directories the project didn't already have.
 # No --delete: project-specific files in that directory must survive.
 RSYNC_OPTS=(-rlpc --existing --itemize-changes)
@@ -163,11 +166,11 @@ for target in "${targets[@]}"; do
     log_warn "$label — rsync failed (exit $rc), skipping"
     continue
   fi
-  # Drop timestamp-only notes: with -c and no -t, openrsync (stock macOS)
-  # sometimes itemizes a file whose content already matches as `.f..T....`
-  # (seen on the macOS CI job). Nothing is transferred and mtimes are not
-  # synced, so it is not drift. Any other line still counts and is printed,
-  # including an attribute change such as permissions (`.f...p...`).
+  # Drop timestamp-only notes (see the RSYNC_OPTS comment): nothing is
+  # transferred for them and mtimes are never synced, so they are not drift.
+  # Any line that is not purely a timestamp note still counts and is printed.
+  # That includes a permission note (`.f...p...`), which openrsync reports but
+  # does not apply, so it keeps showing until the modes are aligned by hand.
   out="$(printf '%s\n' "$out" | grep -Ev '^\.[fdLDS][.tT]+ ' || true)"
   if [ -n "$out" ]; then
     changed=1
