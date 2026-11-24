@@ -223,6 +223,12 @@ def cmd_plan_path(args: argparse.Namespace, store: Path) -> str:
     path = plan_path_for(args.id, store)
     if path_for(args.id, store).exists():
         raise SystemExit(f"a reminder with id {args.id!r} already exists; pick another id")
+    # Another session may have written it and not yet run add (add always prompts).
+    if path.exists():
+        raise SystemExit(
+            f"{path} already exists: if you wrote it, run add with --id {args.id};"
+            " otherwise pick another id"
+        )
     path.parent.mkdir(parents=True, exist_ok=True)
     return str(path)
 
@@ -243,11 +249,22 @@ def cmd_done(args: argparse.Namespace, store: Path) -> str:
     reminder = load(args.id, store)
     reminder.status = "done"
     write(reminder, store)
-    os.replace(path_for(reminder.id, store), archive_path(store / "done", reminder.id, ".json"))
-    # Only a plan in the store's own plans/ is archived; a project doc stays where it is.
+    record = archive_path(store / "done", reminder.id, ".json")
+    os.replace(path_for(reminder.id, store), record)
+    # Only this reminder's own plan (plans/<id>.*) is archived: a project doc, or a plan
+    # another reminder points to, stays where it is.
     plan = reminder.plan_file()
-    if plan.is_file() and plan.resolve().parent == (store / "plans").resolve():
-        os.replace(plan, archive_path(store / "done" / "plans", plan.stem, ".md"))
+    if not (
+        plan.is_file()
+        and plan.stem == reminder.id
+        and plan.resolve().parent == (store / "plans").resolve()
+    ):
+        return f"done {reminder.id}"
+    try:
+        # Named after the archived record (<id>.2.json -> <id>.2.md), so the pair matches.
+        os.replace(plan, archive_path(store / "done" / "plans", record.stem, plan.suffix))
+    except OSError as error:
+        return f"done {reminder.id} (plan not archived, still at {plan}: {error})"
     return f"done {reminder.id}"
 
 

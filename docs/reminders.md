@@ -19,7 +19,7 @@ A reminder brings the plan back on its own, in the right session, once it is due
 
 - **Reminder file**: one JSON file per reminder in `<config dir>/reminders/` (usually `~/.claude`; each `CLAUDE_CONFIG_DIR` keeps its own, next to the transcripts its session ids refer to). It holds a trigger and a pointer. It never holds the plan itself.
 - **Plan doc**: the file that already describes the work (for example `my-dev-things/designs/README.md#after-mcp-reset`). It stays the only source of truth. When no project doc describes the work, the plan goes in `<config dir>/reminders/plans/<id>.md` (decision 11), never in a folder a session picks itself.
-- **`remind.py`**: the CLI behind the `/remind` skill (add, list, done, snooze). It lives in `.claude/skills/remind/scripts/`.
+- **`remind.py`**: the CLI behind the `/remind` skill (add, plan-path, list, done, snooze). It lives in `.claude/skills/remind/scripts/`.
 - **`reminders.py`**: the hook, in `.claude/hooks/`. It imports the reading code from `remind.py`, the same way `dev-docs-index-check.py` reuses `check_index.py`.
 
 ## Decisions

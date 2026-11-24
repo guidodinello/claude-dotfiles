@@ -355,6 +355,32 @@ class RemindCliTest(ReminderTestCase):
         self.assertEqual((archive / "r1.md").read_text(), "first")
         self.assertEqual((archive / "r1.2.md").read_text(), "second")
 
+    def test_plan_path_refuses_a_plan_that_already_exists(self) -> None:
+        Path(self.remind("plan-path", "r1").stdout.strip()).write_text("someone's plan")
+        refused = self.remind("plan-path", "r1")
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("already exists", refused.stderr)
+
+    def test_done_leaves_a_store_plan_that_belongs_to_another_reminder(self) -> None:
+        shared = Path(self.remind("plan-path", "a").stdout.strip())
+        shared.write_text("# Plan\n")
+        self.add("2000-01-01", rid="a", plan=shared)
+        self.add("2000-01-01", rid="b", plan=shared)
+        self.remind("done", "b")
+        self.assertTrue(shared.exists())
+        self.remind("done", "a")
+        self.assertFalse(shared.exists())
+
+    def test_an_archived_plan_is_named_after_its_archived_record(self) -> None:
+        self.add("2000-01-01", rid="q")
+        self.remind("done", "q")
+        plan = Path(self.remind("plan-path", "q").stdout.strip()).with_suffix(".txt")
+        plan.write_text("second")
+        self.add("2000-01-01", rid="q", plan=plan)
+        self.remind("done", "q")
+        self.assertTrue((self.store / "done" / "q.2.json").exists())
+        self.assertEqual((self.store / "done" / "plans" / "q.2.txt").read_text(), "second")
+
     def test_snooze_moves_the_date_and_redelivers(self) -> None:
         self.add("2000-01-01")
         self.hook_run("SessionStart", OWNER)

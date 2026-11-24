@@ -41,7 +41,7 @@ tracker row, but the row stays the source of truth.
    instead of guessing. A wrong id means the reminder never reaches this session.
 3. **Run it with the remind command exactly as printed.** It uses an absolute path, which
    is the string the settings allow rules match. Below, `REMIND` stands for that command.
-   `list`, `done` and `snooze` run without a prompt. `add` always asks the user, on
+   `plan-path`, `list`, `done` and `snooze` run without a prompt. `add` always asks the user, on
    purpose: a reminder tells a session to carry out a plan later, so only the user may
    create one (otherwise a session that read injected text could plant work in another
    session).
