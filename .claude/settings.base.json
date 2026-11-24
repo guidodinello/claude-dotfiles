@@ -2,9 +2,7 @@
   "permissions": {
     "allow": [
       "Read(./**)",
-      "Bash(op read:*)",
-      "Bash(security find-generic-password:*)",
-      "Bash(rtk:*)",
+      "Bash(rtk gain:*)",
       "Bash(python3 -I {{CONFIG_DIR}}/skills/remind/scripts/remind.py list:*)",
       "Bash(python3 -I {{CONFIG_DIR}}/skills/remind/scripts/remind.py done:*)",
       "Bash(python3 -I {{CONFIG_DIR}}/skills/remind/scripts/remind.py snooze:*)",
@@ -53,6 +51,28 @@
       "Bash(*> *.env.test)",
       "Bash(*>> *.env.*.local)",
       "Bash(*> *.env.*.local)",
+      "Read(~/.ssh/*_rsa)",
+      "Read(~/.ssh/*_dsa)",
+      "Read(~/.ssh/*_ecdsa)",
+      "Read(~/.ssh/*_ed25519)",
+      "Read(~/.ssh/*_ecdsa_sk)",
+      "Read(~/.ssh/*_ed25519_sk)",
+      "Read(~/.ssh/*.pem)",
+      "Edit(~/.ssh/*_rsa)",
+      "Edit(~/.ssh/*_dsa)",
+      "Edit(~/.ssh/*_ecdsa)",
+      "Edit(~/.ssh/*_ed25519)",
+      "Edit(~/.ssh/*_ecdsa_sk)",
+      "Edit(~/.ssh/*_ed25519_sk)",
+      "Edit(~/.ssh/*.pem)",
+      "Read(~/.aws/**)",
+      "Edit(~/.aws/**)",
+      "Read(//**/.dev.vars)",
+      "Read(//**/.dev.vars.*)",
+      "Edit(//**/.dev.vars)",
+      "Edit(//**/.dev.vars.*)",
+      "Read(~/.npmrc)",
+      "Edit(~/.npmrc)",
       "Read(!.env.example)",
       "Read(!.env.*.example)",
       "Read(!.env.sample)",
@@ -130,7 +150,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{CONFIG_DIR}}/hooks/guard-bash.sh"
+            "command": "{{CONFIG_DIR}}/hooks/guard-bash.sh",
+            "onFailure": "block",
+            "timeout": 10
           }
         ]
       },
@@ -139,7 +161,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{CONFIG_DIR}}/hooks/guard-env-files.sh"
+            "command": "{{CONFIG_DIR}}/hooks/guard-env-files.sh",
+            "onFailure": "block",
+            "timeout": 10
           }
         ]
       }
@@ -195,7 +219,8 @@
     "engram": {
       "source": {
         "source": "github",
-        "repo": "Gentleman-Programming/engram"
+        "repo": "Gentleman-Programming/engram",
+        "ref": "c8ada8f440756c5febc1492c83394c06d146ca0b"
       }
     }
   },

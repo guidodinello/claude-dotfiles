@@ -32,7 +32,7 @@ symlinked into `~`.
 |---|---|---|
 | [Skills](docs/skills.md) | Slash-command skills | `/address-pr-comments`, `/code-health`, `/security-audit`, `/design-review`, etc. |
 | [Agents](docs/agents.md) | Subagents | audit-finding-verifier, quality-checker, slite-sync, stats-analyzer |
-| [Hooks](docs/hooks.md) | Safety guards + JSON lint + status line | guard-bash.sh (Docker volumes, Wrangler production), guard-env-files.sh (env files anywhere on disk), json-lint.sh, dev-docs-index-check.py (my-dev-things indexes at Stop), reminders.py (due reminders at SessionStart/UserPromptSubmit), statusline.sh. auto-format.sh is opt-in per project |
+| [Hooks](docs/hooks.md) | Safety guards + JSON lint + status line | guard-bash.sh (Docker volumes, Wrangler production, deletes and restores), guard-env-files.sh (env and secret files anywhere on disk), json-lint.sh, dev-docs-index-check.py (my-dev-things indexes at Stop), reminders.py (due reminders at SessionStart/UserPromptSubmit), statusline.sh. auto-format.sh is opt-in per project |
 | [Rules & guidelines](docs/guidelines.md) | Reusable coding conventions | **Rules** (path-scoped, auto-load): python, php, javascript, shell, docker, ci, database. **Guidelines** (always-on): reasoning-discipline, debugging-patterns, design-principles, explaining, long-running-jobs, react-native, tools/* |
 
 Path-scoped rules in `~/.claude/rules/` apply to **every project on the machine with no
