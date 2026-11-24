@@ -4,16 +4,40 @@ Every file here is fake: names only, empty contents, in a throwaway directory.""
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
-GUARD = Path(__file__).resolve().parent.parent / ".claude" / "hooks" / "guard-env-files.sh"
+REPO = Path(__file__).resolve().parent.parent
+GUARD = REPO / ".claude" / "hooks" / "guard-env-files.sh"
 
 BLOCK = 2
 ALLOW = 0
+
+# (expected exit code, path relative to a throwaway HOME). Secret files that are not env files.
+SECRET_PATHS = [
+    (BLOCK, ".dev.vars"),
+    (BLOCK, "proj/.dev.vars"),
+    (BLOCK, "proj/.dev.vars.staging"),
+    # Over-blocked on purpose: the anchored deny rule `.dev.vars.*` cannot take a `!`
+    # carve-out, so the hook matches it rather than allow what the rule denies.
+    (BLOCK, "proj/.dev.vars.example"),
+    (BLOCK, ".aws/credentials"),
+    (BLOCK, ".aws/config"),
+    (BLOCK, ".ssh/id_rsa"),
+    (BLOCK, ".ssh/id_ed25519"),
+    (BLOCK, ".ssh/deploy.pem"),
+    (BLOCK, ".npmrc"),
+    (ALLOW, ".ssh/id_rsa.pub"),
+    (ALLOW, ".ssh/id_ed25519.pub"),
+    (ALLOW, ".ssh/config"),
+    (ALLOW, ".ssh/known_hosts"),
+    (ALLOW, "proj/.npmrc"),
+    (ALLOW, "proj/dev.vars"),
+]
 
 # (expected exit code, basename). Judged wherever the file sits.
 NAMES = [
@@ -59,6 +83,39 @@ class GuardEnvFilesTest(unittest.TestCase):
                 with self.subTest(tool=tool, name=name):
                     path = str(self.tmp / "nested" / name)  # does not exist: the name decides
                     self.assertEqual(run_guard(hook_input(tool, file_path=path)).returncode, want)
+
+    def test_secret_files_that_are_not_env_files(self):
+        home = self.tmp / "home"
+        home.mkdir()
+        for want, rel in SECRET_PATHS:
+            with self.subTest(path=rel):
+                path = str(home / rel)
+                self.assertEqual(run_guard(hook_input("Read", file_path=path), home=home).returncode, want)
+
+    def test_tilde_secret_paths(self):
+        home = self.tmp / "home"
+        home.mkdir()
+        for path, want in (("~/.aws/credentials", BLOCK), ("~/.npmrc", BLOCK), ("~/.ssh/config", ALLOW)):
+            with self.subTest(path=path):
+                self.assertEqual(run_guard(hook_input("Read", file_path=path), home=home).returncode, want)
+
+    def test_symlink_to_a_secret_file_is_blocked(self):
+        (self.tmp / ".dev.vars").write_text("")
+        (self.tmp / "notes").symlink_to(".dev.vars")
+        self.assertEqual(run_guard(hook_input("Read", file_path=str(self.tmp / "notes"))).returncode, BLOCK)
+
+    def test_a_symlinked_directory_does_not_hide_a_secret_file(self):
+        """/tmp/x/credentials is ~/.aws/credentials when x is a link to the .aws directory."""
+        secrets = self.tmp / "home" / ".aws"
+        secrets.mkdir(parents=True)
+        (secrets / "credentials").write_text("")
+        (self.tmp / "link").symlink_to(secrets)
+        self.assertEqual(run_guard(hook_input("Read", file_path=str(self.tmp / "link" / "credentials"))).returncode, BLOCK)
+        ssh = self.tmp / "home" / ".ssh"
+        ssh.mkdir()
+        (self.tmp / "sshlink").symlink_to(ssh)
+        self.assertEqual(run_guard(hook_input("Read", file_path=str(self.tmp / "sshlink" / "id_rsa"))).returncode, BLOCK)
+        self.assertEqual(run_guard(hook_input("Read", file_path=str(self.tmp / "sshlink" / "id_rsa.pub"))).returncode, ALLOW)
 
     def test_relative_and_absolute_paths(self):
         for path, want in (
@@ -173,6 +230,72 @@ class GuardEnvFilesTest(unittest.TestCase):
         result = run_guard(hook_input("Read", file_path="/x/.env.backup"))
         self.assertIn("BLOCKED", result.stderr)
         self.assertEqual(result.stdout, "")
+
+
+class DenyRuleParityTest(unittest.TestCase):
+    """settings.base.json lists the secret-file shapes as `~/` and `//` deny rules and
+    the guard's is_secret_path lists them again. Nothing else ties the two, so the
+    shapes are checked against each other here."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp()).resolve()
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.home = self.tmp / "home"
+        self.home.mkdir()
+        base = json.loads((REPO / ".claude" / "settings.base.json").read_text())
+        self.rules = {"Read": [], "Edit": []}
+        for rule in base["permissions"]["deny"]:
+            tool, _, rest = rule.partition("(")
+            body = rest.removesuffix(")")
+            if tool in self.rules and body.startswith(("~/", "//")):
+                self.rules[tool].append(body)
+
+    def anchored(self, body: str) -> str:
+        return str(self.home) + "/" + body[2:] if body.startswith("~/") else body[1:]
+
+    def sample(self, body: str) -> str:
+        """A real path that the rule matches."""
+        path = self.anchored(body).replace("**/", "x/").replace("**", "x").replace("*", "x")
+        return path
+
+    def matches(self, body: str, path: str) -> bool:
+        """Gitignore-style match: `**/` is any directories, `*` stays in one segment."""
+        regex = ""
+        pattern = self.anchored(body)
+        i = 0
+        while i < len(pattern):
+            if pattern.startswith("**/", i):
+                regex += "(?:.*/)?"
+                i += 3
+            elif pattern.startswith("**", i):
+                regex += ".*"
+                i += 2
+            elif pattern[i] == "*":
+                regex += "[^/]*"
+                i += 1
+            else:
+                regex += re.escape(pattern[i])
+                i += 1
+        return re.fullmatch(regex, path) is not None
+
+    def test_read_and_edit_rules_list_the_same_shapes(self):
+        self.assertTrue(self.rules["Read"])
+        self.assertEqual(sorted(self.rules["Read"]), sorted(self.rules["Edit"]))
+
+    def test_the_guard_blocks_a_path_every_deny_rule_matches(self):
+        for body in self.rules["Read"]:
+            path = self.sample(body)
+            with self.subTest(rule=body, path=path):
+                self.assertTrue(self.matches(body, path))
+                result = run_guard(hook_input("Read", file_path=path), home=self.home)
+                self.assertEqual(result.returncode, BLOCK)
+
+    def test_a_deny_rule_matches_every_secret_path_the_guard_blocks(self):
+        for want, rel in SECRET_PATHS:
+            path = str(self.home / rel)
+            covered = any(self.matches(body, path) for body in self.rules["Read"])
+            with self.subTest(path=rel):
+                self.assertEqual(covered, want == BLOCK)
 
 
 if __name__ == "__main__":
