@@ -163,6 +163,10 @@ for target in "${targets[@]}"; do
     log_warn "$label — rsync failed (exit $rc), skipping"
     continue
   fi
+  # A line starting with '.' is an attribute-only note, not a transfer: with -c
+  # and no -t, openrsync (stock macOS) sometimes prints `.f..T....` for a file
+  # whose content already matches. Only transfers count as drift.
+  out="$(printf '%s\n' "$out" | grep -v '^\.' || true)"
   if [ -n "$out" ]; then
     changed=1
     log_warn "$label"

@@ -106,6 +106,28 @@ class PushGuidelinesCase(unittest.TestCase):
         self.assertIn("Everything already in sync", result.stdout)
         self.assertNotIn(">f", result.stdout)
 
+    def test_attribute_only_lines_are_not_drift(self):
+        # openrsync sometimes itemizes `.f..T....` (mtime differs, content
+        # equal) under -c with no -t. A fake rsync prints exactly that.
+        shim = self.home / "bin"
+        shim.mkdir(parents=True)
+        fake = shim / "rsync"
+        fake.write_text("#!/bin/sh\necho '.f..T.... php.md'\n")
+        fake.chmod(0o755)
+        env = {
+            **os.environ,
+            "HOME": str(self.home),
+            "PROJECTS_DIR": str(self.projects),
+            "PATH": f"{shim}{os.pathsep}{os.environ['PATH']}",
+        }
+        result = subprocess.run(
+            ["bash", str(self.dotfiles / "push-guidelines.sh")],
+            capture_output=True, text=True, env=env,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Everything already in sync", result.stdout)
+        self.assertNotIn(".f..T", result.stdout)
+
     # -- --apply ---------------------------------------------------------------
 
     def test_apply_overwrites_files_the_project_already_has(self):
