@@ -106,13 +106,12 @@ class PushGuidelinesCase(unittest.TestCase):
         self.assertIn("Everything already in sync", result.stdout)
         self.assertNotIn(">f", result.stdout)
 
-    def test_attribute_only_lines_are_not_drift(self):
-        # openrsync sometimes itemizes `.f..T....` (mtime differs, content
-        # equal) under -c with no -t. A fake rsync prints exactly that.
+    def run_with_fake_rsync(self, line: str) -> subprocess.CompletedProcess:
+        """Run a dry run with an rsync on PATH that prints one itemized line."""
         shim = self.home / "bin"
         shim.mkdir(parents=True)
         fake = shim / "rsync"
-        fake.write_text("#!/bin/sh\necho '.f..T.... php.md'\n")
+        fake.write_text(f"#!/bin/sh\necho '{line}'\n")
         fake.chmod(0o755)
         env = {
             **os.environ,
@@ -120,13 +119,32 @@ class PushGuidelinesCase(unittest.TestCase):
             "PROJECTS_DIR": str(self.projects),
             "PATH": f"{shim}{os.pathsep}{os.environ['PATH']}",
         }
-        result = subprocess.run(
+        return subprocess.run(
             ["bash", str(self.dotfiles / "push-guidelines.sh")],
             capture_output=True, text=True, env=env,
         )
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("Everything already in sync", result.stdout)
-        self.assertNotIn(".f..T", result.stdout)
+
+    def test_timestamp_only_lines_are_not_drift(self):
+        # openrsync sometimes itemizes `.f..T....` (mtime differs, content
+        # equal) under -c with no -t; GNU rsync writes the same note with 11
+        # columns and a lowercase t.
+        for line in (".f..T.... php.md", ".f..t...... php.md"):
+            with self.subTest(line=line):
+                self.home.joinpath("bin").exists() and shutil.rmtree(self.home / "bin")
+                result = self.run_with_fake_rsync(line)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("Everything already in sync", result.stdout)
+                self.assertNotIn(line, result.stdout)
+
+    def test_other_attribute_changes_still_count_as_drift(self):
+        # A permission change is something --apply would write: keep it visible.
+        for line in (".f...p... php.md", ">f.st.... php.md", "cd+++++++ skills/new/"):
+            with self.subTest(line=line):
+                self.home.joinpath("bin").exists() and shutil.rmtree(self.home / "bin")
+                result = self.run_with_fake_rsync(line)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertNotIn("Everything already in sync", result.stdout)
+                self.assertIn(line, result.stdout)
 
     # -- --apply ---------------------------------------------------------------
 
