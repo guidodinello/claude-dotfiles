@@ -113,6 +113,8 @@ easiest thing to get wrong.
   byte-identical files report attribute-only drift, so every dry run cries wolf; dropping
   `-t` leaves destination mtimes newer than source, so without `-c` rsync's default
   size+mtime check re-copies everything every run. Change one and the other breaks.
+  On stock macOS, openrsync still itemizes a content-equal file whose mtime differs as a
+  timestamp-only note (`.f..T....`); the script drops those notes before deciding there is drift.
 
 ---
 
