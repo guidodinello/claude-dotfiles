@@ -4,13 +4,15 @@ Every file here is fake: names only, empty contents, in a throwaway directory.""
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
-GUARD = Path(__file__).resolve().parent.parent / ".claude" / "hooks" / "guard-env-files.sh"
+REPO = Path(__file__).resolve().parent.parent
+GUARD = REPO / ".claude" / "hooks" / "guard-env-files.sh"
 
 BLOCK = 2
 ALLOW = 0
@@ -20,6 +22,9 @@ SECRET_PATHS = [
     (BLOCK, ".dev.vars"),
     (BLOCK, "proj/.dev.vars"),
     (BLOCK, "proj/.dev.vars.staging"),
+    # Over-blocked on purpose: the anchored deny rule `.dev.vars.*` cannot take a `!`
+    # carve-out, so the hook matches it rather than allow what the rule denies.
+    (BLOCK, "proj/.dev.vars.example"),
     (BLOCK, ".aws/credentials"),
     (BLOCK, ".aws/config"),
     (BLOCK, ".ssh/id_rsa"),
@@ -227,36 +232,70 @@ class GuardEnvFilesTest(unittest.TestCase):
         self.assertEqual(result.stdout, "")
 
 
-class LibraryLoadingTest(unittest.TestCase):
-    """The guard loads env-names.sh from the directory of its REAL path."""
+class DenyRuleParityTest(unittest.TestCase):
+    """settings.base.json lists the secret-file shapes as `~/` and `//` deny rules and
+    the guard's is_secret_path lists them again. Nothing else ties the two, so the
+    shapes are checked against each other here."""
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp()).resolve()
         self.addCleanup(shutil.rmtree, self.tmp)
+        self.home = self.tmp / "home"
+        self.home.mkdir()
+        base = json.loads((REPO / ".claude" / "settings.base.json").read_text())
+        self.rules = {"Read": [], "Edit": []}
+        for rule in base["permissions"]["deny"]:
+            tool, _, rest = rule.partition("(")
+            body = rest.removesuffix(")")
+            if tool in self.rules and body.startswith(("~/", "//")):
+                self.rules[tool].append(body)
 
-    def run_as(self, guard: Path, stdin: str) -> subprocess.CompletedProcess:
-        return subprocess.run(
-            ["bash", str(guard)], input=stdin, capture_output=True, text=True, timeout=30, check=False
-        )
+    def anchored(self, body: str) -> str:
+        return str(self.home) + "/" + body[2:] if body.startswith("~/") else body[1:]
 
-    def test_library_found_through_a_symlink_elsewhere(self):
-        link = self.tmp / "guard-env-files.sh"
-        link.symlink_to(GUARD)
-        self.assertEqual(self.run_as(link, hook_input("Read", file_path="/x/a.txt")).returncode, ALLOW)
-        self.assertEqual(self.run_as(link, hook_input("Read", file_path="/x/.env")).returncode, BLOCK)
+    def sample(self, body: str) -> str:
+        """A real path that the rule matches."""
+        path = self.anchored(body).replace("**/", "x/").replace("**", "x").replace("*", "x")
+        return path
 
-    def test_missing_library_blocks(self):
-        alone = self.tmp / "guard-env-files.sh"
-        shutil.copy2(GUARD, alone)
-        result = self.run_as(alone, hook_input("Read", file_path="/x/a.txt"))
-        self.assertEqual(result.returncode, BLOCK)
-        self.assertIn("env-names.sh", result.stderr)
+    def matches(self, body: str, path: str) -> bool:
+        """Gitignore-style match: `**/` is any directories, `*` stays in one segment."""
+        regex = ""
+        pattern = self.anchored(body)
+        i = 0
+        while i < len(pattern):
+            if pattern.startswith("**/", i):
+                regex += "(?:.*/)?"
+                i += 3
+            elif pattern.startswith("**", i):
+                regex += ".*"
+                i += 2
+            elif pattern[i] == "*":
+                regex += "[^/]*"
+                i += 1
+            else:
+                regex += re.escape(pattern[i])
+                i += 1
+        return re.fullmatch(regex, path) is not None
 
-    def test_library_that_fails_to_load_blocks(self):
-        alone = self.tmp / "guard-env-files.sh"
-        shutil.copy2(GUARD, alone)
-        (self.tmp / "env-names.sh").write_text("return 1\n")
-        self.assertEqual(self.run_as(alone, hook_input("Read", file_path="/x/a.txt")).returncode, BLOCK)
+    def test_read_and_edit_rules_list_the_same_shapes(self):
+        self.assertTrue(self.rules["Read"])
+        self.assertEqual(sorted(self.rules["Read"]), sorted(self.rules["Edit"]))
+
+    def test_the_guard_blocks_a_path_every_deny_rule_matches(self):
+        for body in self.rules["Read"]:
+            path = self.sample(body)
+            with self.subTest(rule=body, path=path):
+                self.assertTrue(self.matches(body, path))
+                result = run_guard(hook_input("Read", file_path=path), home=self.home)
+                self.assertEqual(result.returncode, BLOCK)
+
+    def test_a_deny_rule_matches_every_secret_path_the_guard_blocks(self):
+        for want, rel in SECRET_PATHS:
+            path = str(self.home / rel)
+            covered = any(self.matches(body, path) for body in self.rules["Read"])
+            with self.subTest(path=rel):
+                self.assertEqual(covered, want == BLOCK)
 
 
 if __name__ == "__main__":

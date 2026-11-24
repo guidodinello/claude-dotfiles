@@ -2,9 +2,7 @@
 
 import json
 import os
-import shutil
 import subprocess
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -35,10 +33,19 @@ CASES = [
     (BLOCK, "docker compose rm --volumes"),
     (BLOCK, "docker rm -v -f c1"),
     (BLOCK, "docker container rm -fv c1"),
+    (BLOCK, "docker container remove -v c1"),
     (ALLOW, "docker compose -f down.yml up -v"),  # false positive: `down` is part of a file name
     (ALLOW, "docker compose rm -s"),
     (ALLOW, "docker rm c1"),
     (ALLOW, "docker system prune"),
+    # a volume flag that belongs to a neighbouring command does not count
+    (ALLOW, "docker rm c1 && docker run -d --name web -v data:/data nginx"),
+    (ALLOW, "docker compose down && ls -lav"),
+    (ALLOW, "docker rm c1 && ls -v"),
+    (ALLOW, "docker compose down\ndocker run -v data:/data nginx"),
+    (ALLOW, "docker rm c1; docker run -v data:/data nginx | cat"),
+    (BLOCK, "docker run -v data:/data nginx && docker rm -v c1"),
+    (BLOCK, "docker run nginx\ndocker compose down -v"),
     # a shell metacharacter or `=` right after the word still ends it
     (BLOCK, "docker volume prune;true"),
     (BLOCK, "docker volume rm data&&ls"),
@@ -55,41 +62,21 @@ CASES = [
     (BLOCK, "wrangler delete"),
     (BLOCK, "wrangler d1 time-travel restore db --bookmark x"),
     (ALLOW, "wrangler d1 time-travel info db"),
-    # env and secret file names, in any word of the command
-    (BLOCK, "cat x/.env.backup"),
-    (BLOCK, "python3 -c \"open('x/.env')\""),
-    (BLOCK, "docker compose --env-file .env up"),
-    (BLOCK, "docker compose --env-file=.env up"),
-    (BLOCK, "cp .env.example .env"),
-    (BLOCK, "cat prod.env"),
-    (BLOCK, "cat x/.ENV"),
-    (BLOCK, "cat .dev.vars"),
-    (BLOCK, "cat .dev.vars.staging"),
-    (BLOCK, "cat ~/.aws/credentials"),
-    (BLOCK, "cat ~/.aws/config"),
-    (BLOCK, "cat ~/.ssh/id_ed25519"),
-    (BLOCK, "cat ~/.ssh/deploy.pem"),
-    (BLOCK, "cat ~/.npmrc"),
-    (BLOCK, "cat $HOME/.npmrc"),
-    (BLOCK, "cat ~//.npmrc"),
-    (BLOCK, "cat $HOME/./.npmrc"),
-    (BLOCK, "cat ~/proj/../.npmrc"),
-    (ALLOW, "cat ~/proj/.npmrc"),
-    (ALLOW, "cat .env.example"),
-    (ALLOW, "cat .env.prod.example"),
-    (ALLOW, "cat .env.sample"),
-    (ALLOW, "cat .env.template"),
-    (ALLOW, "cat ~/.ssh/id_ed25519.pub"),
-    (ALLOW, "cat ~/.ssh/config"),
-    (ALLOW, "cat src/environment.ts"),
-    (ALLOW, "cat packages/app/.npmrc"),
-    (ALLOW, "cat deploy.pem"),  # a .pem outside .ssh is not judged
-    # JS runtime objects that end in .env are not files
-    (ALLOW, "rg process.env src"),
-    (ALLOW, "grep -rn import.meta.env ."),
-    (ALLOW, 'node -e "console.log(process.env.X)"'),
-    (BLOCK, "cat x/process.env"),
-    (BLOCK, "grep -rn context.env ."),
+    (BLOCK, "wrangler --config wrangler.toml d1 delete db"),
+    (BLOCK, "wrangler --env=prod delete"),
+    (BLOCK, 'wrangler d1 "delete" db'),
+    (BLOCK, "echo hi && npx wrangler pages deployment delete x"),
+    # `delete` that is not a wrangler subcommand word
+    (ALLOW, 'wrangler d1 execute db --local --command "delete from t"'),
+    (ALLOW, "wrangler deploy && npm run delete"),
+    (ALLOW, "wrangler tail --search delete"),
+    (ALLOW, 'git commit -m "docs: wrangler setup and how we delete old previews"'),
+    (ALLOW, "wrangler d1 time-travel info db && echo restore"),
+    # Bash does not judge env or secret file names (owner decision): the Read/Edit
+    # deny rules and guard-env-files.sh cover the file tools.
+    (ALLOW, "cat x/.env.backup"),
+    (ALLOW, "op run --env-file=refs.env -- ./script.sh"),
+    (ALLOW, 'git commit -m "docs: say why .env is ignored"'),
     # wrangler d1: needs an unquoted call with a standalone --local after it
     (BLOCK, 'wrangler d1 execute db --command "select 1"'),
     (BLOCK, "npx wrangler d1 execute db --remote --command x"),
@@ -146,14 +133,12 @@ CLOUDFLARE_ENV_CASES = [
 ]
 
 
-def run_guard(
-    stdin: str, cloudflare_env: str | None = None, guard: Path = GUARD
-) -> subprocess.CompletedProcess:
+def run_guard(stdin: str, cloudflare_env: str | None = None) -> subprocess.CompletedProcess:
     env = {k: v for k, v in os.environ.items() if k != "CLOUDFLARE_ENV"}
     if cloudflare_env is not None:
         env["CLOUDFLARE_ENV"] = cloudflare_env
     return subprocess.run(
-        ["bash", str(guard)], input=stdin, capture_output=True, text=True, env=env, timeout=30
+        ["bash", str(GUARD)], input=stdin, capture_output=True, text=True, env=env, timeout=30
     )
 
 
@@ -172,16 +157,6 @@ class GuardBashTest(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertEqual(run_guard(hook_input(command), "prod").returncode, want)
 
-    def test_runtime_object_word_is_judged_when_a_file_of_that_name_exists(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            run = lambda cmd: subprocess.run(  # noqa: E731
-                ["bash", str(GUARD)], input=hook_input(cmd), capture_output=True, text=True, cwd=tmp, timeout=30, check=False
-            )
-            self.assertEqual(run("rg process.env src").returncode, ALLOW)
-            (Path(tmp) / "process.env").write_text("")
-            self.assertEqual(run("cat process.env").returncode, BLOCK)
-            self.assertEqual(run("rg process.env src").returncode, BLOCK)
-
     def test_block_message_goes_to_stderr(self):
         result = run_guard(hook_input("docker volume rm data"))
         self.assertIn("BLOCKED", result.stderr)
@@ -191,44 +166,6 @@ class GuardBashTest(unittest.TestCase):
         for stdin in ("not json", "{}", '{"command": "ls"}', '{"tool_input": {"command": 1}}'):
             with self.subTest(stdin=stdin):
                 self.assertEqual(run_guard(stdin).returncode, BLOCK)
-
-
-class LibraryLoadingTest(unittest.TestCase):
-    """The guard loads env-names.sh from the directory of its REAL path."""
-
-    def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp()).resolve()
-        self.addCleanup(shutil.rmtree, self.tmp)
-
-    def test_library_found_through_a_symlink_elsewhere(self):
-        # Like ~/.claude/hooks/ after a pull and before a sync: the link sits where
-        # no env-names.sh does, and points into the checkout that has it.
-        link = self.tmp / "guard-bash.sh"
-        link.symlink_to(GUARD)
-        self.assertEqual(run_guard(hook_input("ls"), guard=link).returncode, ALLOW)
-        self.assertEqual(run_guard(hook_input("cat .env"), guard=link).returncode, BLOCK)
-
-    def test_library_found_through_a_chain_of_relative_links(self):
-        hooks = self.tmp / "hooks"
-        hooks.mkdir()
-        (hooks / "real.sh").symlink_to(GUARD)
-        (self.tmp / "guard-bash.sh").symlink_to("hooks/real.sh")
-        link = self.tmp / "guard-bash.sh"
-        self.assertEqual(run_guard(hook_input("ls"), guard=link).returncode, ALLOW)
-        self.assertEqual(run_guard(hook_input("cat .env"), guard=link).returncode, BLOCK)
-
-    def test_missing_library_blocks(self):
-        alone = self.tmp / "guard-bash.sh"
-        shutil.copy2(GUARD, alone)
-        result = run_guard(hook_input("ls"), guard=alone)
-        self.assertEqual(result.returncode, BLOCK)
-        self.assertIn("env-names.sh", result.stderr)
-
-    def test_library_that_fails_to_load_blocks(self):
-        alone = self.tmp / "guard-bash.sh"
-        shutil.copy2(GUARD, alone)
-        (self.tmp / "env-names.sh").write_text("return 1\n")
-        self.assertEqual(run_guard(hook_input("ls"), guard=alone).returncode, BLOCK)
 
 
 if __name__ == "__main__":

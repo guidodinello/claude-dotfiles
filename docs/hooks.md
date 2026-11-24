@@ -77,24 +77,18 @@ Design and decisions: [reminders.md](reminders.md).
 
 Two scripts, both registered in `settings.base.json` and both policy controls that fail closed:
 
-- `.claude/hooks/guard-bash.sh`, on the `Bash` matcher: the Docker, wrangler and env/secret-name checks below. It reads the command from `.tool_input.command` and matches with bash's own `[[ =~ ]]`, so it needs no GNU grep.
+- `.claude/hooks/guard-bash.sh`, on the `Bash` matcher: the Docker and wrangler checks below. It reads the command from `.tool_input.command` and matches with bash's own `[[ =~ ]]`, so it needs no GNU grep.
 - `.claude/hooks/guard-env-files.sh`, on `Read|Edit|Write|NotebookEdit|Grep`: see env-file-guard.
-
-`.claude/hooks/env-names.sh` is a library the two scripts source, not a hook: it holds the env-file and secret-file name rules, so the two guards judge a name with one definition.
 
 ### Fail closed
 
 Claude Code docs, on a hook that fails: "On most events, when a hook fails or times out, Claude Code still carries out the action. A policy hook with a wrong path or a crashing script then lets everything through. To block the action instead, set `"onFailure": "block"` on a `command`, `http`, or `mcp_tool` hook." A failure is a script that can't start (missing file), an exit code other than 0 or 2, or a timeout. With `"block"`, "a `PreToolUse` failure blocks the tool call".
 
-So both guard entries carry `"onFailure": "block"` and `"timeout": 10` (seconds; the default for a command hook is 600). A guard run takes about 20 ms, so 10 s is a hang, not a slow machine. `~/.claude/hooks/guard-bash.sh` is a symlink into the checkout, so checking out a branch that lacks the script, or a corrupted file, now stops the Bash tool instead of removing the brake.
+So both guard entries carry `"onFailure": "block"` and `"timeout": 10` (seconds; the default for a command hook is 600). A guard run takes about 10 ms for a typical command and at most about 130 ms for one just under the 4000-character limit that mentions docker or wrangler (bash 3.2, measured), so 10 s is a hang, not a slow machine. `~/.claude/hooks/guard-bash.sh` is a symlink into the checkout, so checking out a branch that lacks the script, or a corrupted file, now stops the Bash tool instead of removing the brake.
 
 **Requires Claude Code 2.1.324 or later** on every machine that syncs: `onFailure` needs v2.1.295 and the marketplace pin below needs v2.1.324. The docs say nothing on how an older version treats the unknown `onFailure` field. Check `claude --version` before syncing.
 
-The scripts also fail closed on their own:
-
-- Unreadable input (no `jq`, an unexpected shape, a non-string field) exits 2.
-- Each script finds `env-names.sh` from the directory of its **real** path: it walks its own symlink chain (relative targets resolved against the link's directory, at most 40 hops, `readlink` without `-f` because BSD `readlink` lacks it). That matters between a `git pull` and the next `./sync.sh`: `~/.claude/hooks/guard-bash.sh` already points at the updated file, but there is no `~/.claude/hooks/env-names.sh` link yet.
-- If the library is missing or fails to load, the guard exits 2 with a message naming `env-names.sh`.
+The scripts also fail closed on their own: unreadable input (no `jq`, an unexpected shape, a non-string field) exits 2.
 
 ### docker-volume-guard
 
@@ -102,11 +96,13 @@ Blocks the Docker commands that remove data volumes. These destroy persistent da
 
 - `docker compose`, `docker-compose` or `docker stack` with `down` and a volume flag.
 - `docker compose` / `docker-compose` `rm` with a volume flag.
-- `docker rm` and `docker container rm` with a volume flag.
+- `docker rm`, `docker container rm` and `docker container remove` with a volume flag.
 - `docker system prune --volumes`.
 - `docker volume rm`, `remove` and `prune`.
 
-A volume flag is `-v`, `--volumes`, or a short flag cluster containing `v` (`-tv`, `-sfv`). Subcommands and flags are matched as whole words, so `docker compose -f down.yml up -v` and `docker compose up -d --verbose` pass. Not blocked: `docker compose down` with no volume flag, `docker rm c1`, `docker compose rm -s`, `docker system prune`.
+A volume flag is `-v`, `--volumes`, or a short flag cluster containing `v` (`-tv`, `-sfv`). Subcommands and flags are matched as whole words, so `docker compose -f down.yml up -v` and `docker compose up -d --verbose` pass. Each simple command (split on `;`, `&`, `|`, parentheses, backticks and newlines, outside quotes) is judged on its own, so a `-v` that belongs to a neighbour does not count: `docker rm c1 && docker run -d -v data:/data nginx` and `docker compose down && ls -lav` pass. Not blocked: `docker compose down` with no volume flag, `docker rm c1`, `docker compose rm -s`, `docker system prune`.
+
+A command longer than 4000 characters is not split (the walk is quadratic in bash 3.2): it is judged as one piece, as it was before the split, so a volume flag anywhere in it counts.
 
 ### wrangler-production-guard
 
@@ -117,7 +113,7 @@ Blocks `wrangler d1 execute` and `wrangler d1 migrations apply` commands unless 
 - `wrangler d1 execute ... --remote` (explicit)
 - `wrangler d1 migrations apply ...` (applies migrations to remote)
 
-Only `wrangler d1 execute --local ...` passes through. Each simple command (split on `;`, `&`, `|`, parentheses, backticks and newlines, outside quotes) is judged on its own, and three cases are blocked rather than guessed at:
+Only `wrangler d1 execute --local ...` passes through. Each simple command (split on `;`, `&`, `|`, parentheses, backticks and newlines, outside quotes) is judged on its own, and these cases are blocked rather than guessed at:
 
 - `--local` that is not a standalone flag, or that only appears inside a quoted string. Put `--local` before any quoted argument.
 - `--remote`, `--no-local`, `--local=...` or `--local` followed by anything other than another option or a redirect (`--local false`, `--local $X`, `--local db`) anywhere in the same command, quoted or not, even next to `--local`.
@@ -128,23 +124,11 @@ A versioned package name (`npx wrangler@3 ...`) and a quoted or backslash-escape
 
 **Additional guard:** If `CLOUDFLARE_ENV` is set in the environment, any `wrangler` command is blocked. This env var can silently select a named environment from wrangler config without an explicit `--env` flag.
 
-**Deletes and restores.** Any `wrangler` command with `delete` as a standalone word after `wrangler` is blocked (`d1 delete`, `r2 bucket delete`, `kv namespace delete`, `secret delete`, `delete`), and so is `wrangler d1 time-travel restore`, which overwrites a database with an earlier state. Read-only commands such as `d1 list` and `d1 time-travel info` pass.
+**Deletes and restores.** `delete` as a wrangler subcommand word is blocked (`d1 delete`, `r2 bucket delete`, `kv namespace delete`, `secret delete`, `delete`), and so is `wrangler d1 time-travel restore`, which overwrites a database with an earlier state. Read-only commands such as `d1 list` and `d1 time-travel info` pass. "Subcommand word" means one of the first four words after `wrangler` in the same simple command; the scan ends at the first option other than `--config`, `-c`, `--cwd`, `--env` and `-e` (which are skipped with their value). So `wrangler tail --search delete`, `wrangler deploy && npm run delete` and the SQL in `d1 execute --local --command "delete from t"` pass, and `wrangler --config x d1 delete db` does not. A longer command is judged as one piece: any `delete` word after `wrangler` blocks.
 
-### env and secret names in Bash
+### Env files in Bash
 
-`guard-bash.sh` also blocks a command when any word in it names an env file or another secret file. The words are the command with quotes and backslashes removed, split on whitespace and on `; | & ( ) < > = ,` `:` and backticks, so all of these are caught:
-
-- `cat x/.env.backup`
-- `python3 -c "open('x/.env')"`
-- `docker compose --env-file=.env up`
-- `cat .dev.vars`, `cat ~/.aws/credentials`, `cat ~/.ssh/id_ed25519`, `cat ~/.npmrc`
-
-The name rules are in `env-names.sh`, lowercased:
-
-- **Env file:** a basename that starts with `.env` or ends in `.env`. `.env.example`, `.env.*.example`, `.env.sample` and `.env.template` stay allowed.
-- **Secret file:** a `.dev.vars` or `.dev.vars.*` basename; anything under a `.aws` directory; a private SSH key under a `.ssh` directory (`*_rsa`, `*_dsa`, `*_ecdsa`, `*_ed25519`, `*_ecdsa_sk`, `*_ed25519_sk`, `*.pem`; the `.pub` files, `config` and `known_hosts` stay readable); the `.npmrc` in the home directory (`~/.npmrc`, `$HOME/.npmrc`; the directory is cleaned lexically first, so `~//.npmrc`, `$HOME/./.npmrc` and `~/proj/../.npmrc` count too).
-
-This is a name check, so some everyday commands that merely mention a real env file name are blocked too: `cp .env.example .env`, `docker compose --env-file .env up`, `echo .env >> .gitignore`, `source .env`, `ls -la .env*`. Run them yourself with `!`, or ask. The exact words `process.env`, `import.meta.env`, `deno.env` and `bun.env` are runtime objects, not files, so `rg process.env src` passes (unless a file of that name exists in the working directory, which is then judged as a file); any other `<name>.env` word (`rg context.env .`) is read as a file name and blocked. What it cannot catch is under Known limitations.
+`guard-bash.sh` does not judge env or secret file names. A name check on every word of a Bash command blocks commands that only mention an env file (a commit message, a PR body, `op run --env-file=refs.env -- ./script.sh`, which `guidelines/tools/1password.md` recommends), and it costs milliseconds per word in bash 3.2, so a long heredoc would hit the hook timeout. The owner dropped it. What covers Bash is the `Read`/`Edit` deny rules in `settings.base.json` and the auto-mode classifier, and only for what they recognise: see Known limitations.
 
 ### env-file-guard
 
@@ -156,9 +140,14 @@ It fails closed like `guard-bash.sh`: if `jq` is missing, the input can't be par
 
 **Grep:** Claude Code 2.1.327 exposes no `Grep` or `Glob` tool (searches run through `Bash`), so this branch only matters for versions or SDK sessions that still have the tool; it is covered by unit tests, not a live run. Only a `path` that is itself an env file is blocked. A directory path, or no path, is allowed: the guard can't see inside the search, so a directory search can still read unlisted env files there; Claude Code applies `Read` deny rules to the searched directory on a best-effort basis. A `glob` filter spelled as an env name (`.env*`, `*.env`) is blocked, on a best-effort basis: the text is not expanded, so `.e*` or `{.env,x}` get through, as does a search with no glob at all. `Glob` (names only) is not covered.
 
-Bash is not covered by this script: `guard-bash.sh` checks env and secret names in Bash commands (see above), and the `Read`/`Edit` deny rules in `settings.base.json` cover the file commands Claude Code recognises, such as `cat`, `head`, `tail`, `sed` and `tee`, plus redirection targets. Claude Code docs: "Read and Edit deny rules apply to Claude's built-in file tools. In a Bash command Claude Code can analyze, they also apply to redirection targets and to file commands it recognizes, such as `cat`, `head`, `tail`, `sed`, and `tee`." Per the same page they do not apply to `grep -r` or to scripts.
+**Secret files other than env files.** The guard blocks these too, and `settings.base.json` carries a matching `Read`/`Edit` deny rule for each shape (the `~/` rules are anchored at the home directory, the `//` rules at the filesystem root; a bare pattern such as `Read(.ssh/*)` is relative to the current directory, which is why an installer's un-anchored rule protects nothing outside a project). `is_secret_path` in the script is the definition, and `tests/test_guard_env_files.py` checks the deny rules against it in both directions:
 
-Secret files other than env files are blocked here too (`.dev.vars`, anything under `.aws`, private SSH keys under `.ssh`, `~/.npmrc`), by the same `env-names.sh` rules, and the base adds matching deny rules: `Read`/`Edit` of `~/.ssh/*_rsa` and the other private-key shapes (`id_*.pub`, `config` and `known_hosts` stay readable), `~/.aws/**`, `//**/.dev.vars` and `//**/.dev.vars.*`, and `~/.npmrc`. Deny rules written with `~/` and `//` are anchored at the home directory and at the filesystem root; a bare pattern such as `Read(.ssh/*)` is relative to the current directory, which is why an installer's un-anchored rule protects nothing outside a project.
+- a `.dev.vars` or `.dev.vars.*` basename (so `.dev.vars.example` is blocked as well: a `!` carve-out cannot reach an anchored `//` rule, so the hook does not allow what the rule denies);
+- anything under a `.aws` directory;
+- a private SSH key under a `.ssh` directory: `*_rsa`, `*_dsa`, `*_ecdsa`, `*_ed25519`, `*_ecdsa_sk`, `*_ed25519_sk` or `*.pem` (the `.pub` files, `config` and `known_hosts` stay readable);
+- the `.npmrc` in the home directory (`~/.npmrc`; a project `.npmrc` stays readable).
+
+Bash is not covered by this script (see Env files in Bash). Claude Code docs, on the deny rules: "Read and Edit deny rules apply to Claude's built-in file tools. In a Bash command Claude Code can analyze, they also apply to redirection targets and to file commands it recognizes, such as `cat`, `head`, `tail`, `sed`, and `tee`." Per the same page they do not apply to `grep -r` or to scripts.
 
 ### Known limitations (pattern-level hooks can't prevent)
 
@@ -167,12 +156,11 @@ All the guards read text; none runs the command. Each of these gets past them:
 | Bypass | How |
 |---|---|
 | Shell expansion | `$W d1 execute`, `wrangler d1 $SUB`, `eval`, a script file: the text the guard sees is not the command that runs |
-| A name built at run time | `.e$X`, `$F`, `cat $(echo .en)v`: the word is not a secret name until the shell builds it |
-| Globs | `cat .e*`, `cat .[e]nv`, `cat {.env,x}` (and the same shapes for `.aws`, `.ssh`) |
-| A file a script opens itself | `python3 app.py` that reads `.env`: the guard sees `app.py` |
-| `grep -r` over a directory | The search reads the secret files inside; only a path that is itself a secret file is judged |
-| A symlinked directory, in a Bash command | `ln -s ~/.aws /tmp/x && cat /tmp/x/credentials`: the Bash guard judges words, not the file system (the file-tool guard does resolve the parent directory) |
-| SSH keys with custom names | A private key not named `*_rsa`, `*_dsa`, `*_ecdsa`, `*_ed25519`, `*_ecdsa_sk`, `*_ed25519_sk` or `*.pem` |
+| An env or secret file read through Bash | By owner decision `guard-bash.sh` does not look at file names. The deny rules cover the file commands Claude Code recognises (`cat`, `head`, `tail`, `sed`, `tee`) and redirection targets, for the names they list. Not covered: a real env file under a name no rule lists read with `cat` outside the project (`.env.backup`), `source .env`, an interpreter (`python3 -c "open('.env')"`), `docker compose --env-file`, a script that opens the file itself, `grep -r` over a directory |
+| A symlinked directory in a Bash command | The file-tool guard resolves the parent directory (`/tmp/x/credentials` is blocked when `/tmp/x` links to `~/.aws`); Bash is not judged at all |
+| Globs and run-time names in the Grep tool's `glob` filter | `.e*` and `{.env,x}` get past the best-effort check on a `glob` that spells an env name |
+| SSH keys with custom names | A private key whose name is not one of the shapes listed under env-file-guard, in the deny rules and in the hook |
+| A deeper `delete` | `wrangler d1 --some-option delete db`, or `delete` as the fifth word after `wrangler`: the subcommand scan stops at the first option and at four words |
 | `--env` flag | Selecting an environment via `--env` is allowed (intentional by design — the user prefers explicit flags) |
 | `--config` / `-c` | Points wrangler at a different config file with arbitrary DB IDs |
 | `--cwd` | Changes config auto-discovery path |
@@ -183,7 +171,7 @@ These are accepted trade-offs: the guards prevent an accident during an interact
 
 ### Out of scope by design
 
-Recursive deletes, forced pushes, infrastructure teardown and database drops are not matched by any guard here. Sessions run in auto mode, where the auto-mode classifier judges each action that no allow or deny rule decides; "Actions matching your allow, ask, or deny rules resolve immediately" (permission-modes docs), so keep the allow list narrow, as the base does for `rtk` (only `rtk gain`). What the guards add are the few cases the classifier should never be left to guess: Docker volume loss, wrangler production targets, deletes and restores, and secret file names.
+Recursive deletes, forced pushes, infrastructure teardown and database drops are not matched by any guard here. Sessions run in auto mode, where the auto-mode classifier judges each action that no allow or deny rule decides; "Actions matching your allow, ask, or deny rules resolve immediately" (permission-modes docs), so keep the allow list narrow, as the base does for `rtk` (only `rtk gain`). What the guards add are the few cases the classifier should never be left to guess: Docker volume loss, wrangler production targets, and wrangler deletes and restores. Reading an env or secret file through Bash under a name the deny rules do not list, or through an interpreter, is also left to the classifier, by owner decision.
 
 A hook that exits 2 wins over an allow rule: "A hook that exits with code 2 stops the tool call before permission rules are evaluated, so the block applies even when an allow rule would otherwise let the call proceed." (permissions docs)
 

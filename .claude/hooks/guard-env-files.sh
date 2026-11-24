@@ -10,9 +10,7 @@
 # so the deny rules in settings.base.json can only list real-file names outside
 # the project. This hook is the fail-closed layer for every other name.
 #
-# Secret files other than env files are blocked too: .dev.vars, anything under
-# .aws, private SSH keys under .ssh, the home .npmrc. Both name rules live in
-# env-names.sh, shared with guard-bash.sh.
+# Secret files other than env files are blocked too: see is_secret_path below.
 #
 # Like guard-bash.sh, this is a policy control, so it fails closed: if the hook
 # input cannot be read, or has no usable path, the call is blocked.
@@ -26,29 +24,96 @@ block() {
   exit 2
 }
 
-# env-names.sh (is_env_file, is_secret_path) sits next to this script's REAL
-# path. ~/.claude/hooks/ holds per-file symlinks into the checkout, and after a
-# `git pull` but before `./sync.sh` there is no env-names.sh link next to them,
-# so the library is looked up from where the links point. readlink without -f:
-# BSD readlink lacks it. If the library is missing or fails to load, block.
-self="${BASH_SOURCE[0]}"
-hops=0
-while [[ -L "${self}" ]]; do
-  ((hops++ >= 40)) && block "symlink chain from ${BASH_SOURCE[0]} is longer than 40 hops or loops. Refusing to run unchecked."
-  link="$(readlink "${self}")" || block "could not follow the symlink ${self}. Refusing to run unchecked."
-  if [[ "${link}" == /* ]]; then
-    self="${link}"
-  elif [[ "${self}" == */* ]]; then
-    self="${self%/*}/${link}"
-  else
-    self="${link}"
+# Name rules. This file is the one definition: the Read/Edit deny rules in
+# settings.base.json list the same shapes, and tests/test_guard_env_files.py
+# checks the two against each other.
+#
+#   is_env_file <path>     0 when the basename is an env file that is not an
+#                          example (see the header).
+#   is_secret_path <path>  0 when the path is a secret file other than an env
+#                          file: a .dev.vars or .dev.vars.* basename; anything
+#                          under a .aws directory; a private SSH key under a
+#                          .ssh directory (*_rsa, *_dsa, *_ecdsa, *_ed25519,
+#                          *_ecdsa_sk, *_ed25519_sk, *.pem; the .pub files,
+#                          config and known_hosts stay readable); and the
+#                          .npmrc in the home directory.
+#
+# Both compare lowercased: macOS volumes are case-insensitive, so `.ENV` is the
+# same file as `.env`.
+
+_lowercase() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+}
+
+# Lexical clean-up of a path, no file system access: `//` and `/./` collapse and
+# `x/..` cancels, so `~//.`, `$HOME/./x/..` and `/home/me/../me` compare equal to
+# the plain directory.
+_normalize_path() {
+  local p="$1" part abs="" out=() parts=() IFS=/
+  [[ "${p}" == /* ]] && abs="/"
+  read -r -a parts <<<"${p}"
+  for part in "${parts[@]}"; do
+    case "${part}" in
+      "" | ".") ;;
+      "..")
+        if ((${#out[@]} > 0)) && [[ "${out[${#out[@]} - 1]}" != ".." ]]; then
+          out=("${out[@]:0:${#out[@]}-1}")
+        elif [[ -z "${abs}" ]]; then
+          out+=("..")
+        fi
+        ;;
+      *) out+=("${part}") ;;
+    esac
+  done
+  printf '%s' "${abs}${out[*]}"
+}
+
+is_env_file() {
+  local p="$1" name
+  while [[ "${p}" == */ && "${p}" != "/" ]]; do p="${p%/}"; done
+  name="$(printf '%s' "${p##*/}" | tr '[:upper:]' '[:lower:]')"
+  case "${name}" in
+    .env.example | .env.*.example | .env.sample | .env.template) return 1 ;;
+    .env* | *.env) return 0 ;;
+  esac
+  return 1
+}
+
+is_secret_path() {
+  local p dir name home
+  p="$(_lowercase "$1")"
+  while [[ "${p}" == */ && "${p}" != "/" ]]; do p="${p%/}"; done
+  name="${p##*/}"
+
+  case "${name}" in
+    .dev.vars | .dev.vars.*) return 0 ;;
+  esac
+
+  # The leading and trailing slash let `.aws/credentials` (no parent) and the
+  # directory itself match like `/home/me/.aws/credentials`.
+  case "/${p}/" in
+    */.aws/*) return 0 ;;
+  esac
+
+  case "${name}" in
+    *_rsa | *_dsa | *_ecdsa | *_ed25519 | *_ecdsa_sk | *_ed25519_sk | *.pem)
+      case "/${p}" in
+        */.ssh/*) return 0 ;;
+      esac
+      ;;
+  esac
+
+  # Only the home directory's .npmrc: a project .npmrc holds registry settings.
+  if [[ "${name}" == .npmrc && "${p}" == */* ]]; then
+    dir="$(_normalize_path "${p%/*}")"
+    home="$(_normalize_path "$(_lowercase "${HOME:-}")")"
+    case "${dir}" in
+      '~' | '$home' | '${home}') return 0 ;;
+    esac
+    [[ -n "${home}" && "${dir}" == "${home}" ]] && return 0
   fi
-done
-libdir="."
-[[ "${self}" == */* ]] && libdir="${self%/*}"
-[[ -r "${libdir}/env-names.sh" ]] || block "env-names.sh not found next to ${self}. Refusing to run unchecked."
-# shellcheck source=env-names.sh
-source "${libdir}/env-names.sh" || block "could not load ${libdir}/env-names.sh. Refusing to run unchecked."
+  return 1
+}
 
 input="$(cat)"
 if ! tool="$(jq -er '.tool_name | select(type == "string")' 2>/dev/null <<<"${input}")"; then
@@ -102,7 +167,7 @@ check_path() {
       block "${current##*/} is an env file. Real env files hold secrets and stay off-limits; the example files listed in the header of guard-env-files.sh are allowed. Ask the user to read or change it."
     fi
     if is_secret_path "${current}"; then
-      block "${current} is a secret file (.dev.vars, .aws, a private SSH key or ~/.npmrc). Secret files stay off-limits. Ask the user to read or change it."
+      block "${current} is a secret file (see is_secret_path in guard-env-files.sh). Secret files stay off-limits. Ask the user to read or change it."
     fi
     # A directory on the way can be a symlink (/tmp/x -> ~/.aws), which the literal
     # path hides: judge the physical parent directory too.
