@@ -135,6 +135,31 @@ brief, with what breaks if it is wrong.
 - Say what the checks cannot see, so the user knows what is still taken on
   trust.
 
+#### When there is no pass/fail check: design the evaluation
+
+Some work has no command that goes green: a prompt, a skill, a plan, a design,
+a ranking, anything judged by quality. "We will try it and see" is then not a
+check, because whatever comes out will look acceptable. Design the comparison
+before building, while nobody knows which variant will win:
+
+- **Cases:** the inputs the work is run on. Use real tasks, include at least
+  one that is hard or underspecified, and fix the list up front.
+- **Arms:** what is compared. Always include a baseline without the change, on
+  the same model and the same input. Change one thing per arm.
+- **Measures:** what is recorded for every run. Prefer what a script can count
+  from the output or the transcript (a constraint broken, a file touched, a
+  fact found or missed, cost, time). For what needs judgment, write the rubric
+  now and score without knowing which arm produced the output.
+- **Decision rule:** how the measures combine into a choice. Put hard gates
+  first (safety, constraints), then the main quality measure, then cost as the
+  tie-breaker. Say what result would mean "no difference".
+- **Noise:** one run per arm shows that something is possible, not that it is
+  better. Say how many runs the budget allows and what that many can show.
+
+The evaluation is a slice of its own, built before the thing it evaluates. For
+a skill, `skill-creator` already has the harness: case folders, a run with and
+without the skill, graders and a blind comparison.
+
 ## The brief
 
 Reply with this structure. Keep it to about one screen: include a fact only if
