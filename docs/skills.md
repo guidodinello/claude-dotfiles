@@ -78,6 +78,7 @@ Cloudflare set (`cloudflare*`, `durable-objects`, `agents-sdk`, `sandbox-sdk`,
 | `/meta-skill-db-scalability-audit-improver` | Refreshes provider limits and anti-patterns in the db-scalability-audit skill |
 | `/meta-skill-hipaa-audit-improver` | Refreshes regulatory guidance and enforcement cases in the hipaa-audit skill |
 | `/meta-skill-security-audit-improver` | Refreshes OWASP, CWE Top 25, and NIST guidelines in the security-audit skill |
+| `/metacognition` | Designs how to work on a big or complex task before attempting it: what to build, what we need to know, how to build it, how to verify it. Outputs a brief and stops for approval |
 | `/model-frontier` | Picks model and effort per role from the Artificial Analysis Intelligence Index (every effort level, cost vs intelligence plot) and measures past changes on our own transcripts |
 | `/my-voice` | Drafts messages in Guido's voice (global rules + project audience file + sent corpus) and turns his wording corrections into rules |
 | `/opencode-dual-review` | Deprecated, opt-in: free second-opinion PR review: two opencode models post untriaged inline-comment reviews, with a Sonnet medium-effort fallback |
