@@ -60,6 +60,7 @@ Cloudflare set (`cloudflare*`, `durable-objects`, `agents-sdk`, `sandbox-sdk`,
 | `/code-health` | Codebase readiness audit: type safety, dead code, test coverage, complexity, deps |
 | `/code-review` | Multi-agent PR review with confidence scoring (CLAUDE.md compliance, bugs, git history, previous PR comments); posts blocking and non-blocking findings on the PR |
 | `/configure-dependency` | Fetches official docs and configures a new package, service, or external integration correctly from the start |
+| `/configure-repo` | Trims one repo's setup to what it uses: disables unused claude.ai connectors, hides skills that don't apply, sets the stack's LSP, deciding from the repo's session history when there is one. Runs only when typed (`disable-model-invocation`). Procedure: [Onboarding a project](plugins-lsp-mcp-guide.md#onboarding-a-project) |
 | `/conventional-commits` | Generates granular conventional commits from staged changes |
 | `/db-migration-planner` | Plans a database migration between providers with schema and data steps |
 | `/db-scalability-audit` | Database scalability & architecture audit with provider-specific limits |

@@ -181,6 +181,9 @@ The project directory defaults to the current directory if omitted. It deep-merg
 into any existing settings without clobbering. Stack templates live in
 `templates/claude-settings/`. See [Plugins, LSP & MCP guide](docs/plugins-lsp-mcp-guide.md#per-project-lsp-the-scheme) for the full scheme.
 
+To also trim connectors and skills, type `/configure-repo` in the project; see
+[Onboarding a project](docs/plugins-lsp-mcp-guide.md#onboarding-a-project).
+
 ## Tests
 
 ```bash
