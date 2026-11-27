@@ -17,6 +17,12 @@ account this session runs under; don't pass `--config-dir` unless the user names
 account. Usage under another account is not evidence for this one (a connector used only
 from the personal account may be unusable from the work one), but you may mention it.
 
+**Repo settings are shared by both accounts.** `.claude/settings.json` and
+`.claude/settings.local.json` belong to the repo, not the account, so a skill hidden here
+is hidden for every account. Read the file's existing `skillOverrides` first, and don't
+hide a skill the other account may use: if you can, also run `scan --config-dir` for the
+other account (`~/.claude-work` or `~/.claude`) and keep anything it shows as used.
+
 ## 1. Gather evidence
 
 Run these, in one response:
@@ -33,6 +39,10 @@ Run these, in one response:
 - Stack markers anywhere in the repo, not only at the root (`git ls-files` for
   `pyproject.toml`, `package.json`, `composer.json`, `svelte.config.*`), the README, and
   `git remote -v`.
+- The top-level folders on disk (`ls -A`), not only what git tracks. Local work folders
+  such as `my-dev-things/` are usually hidden from git by `.git/info/exclude` or a global
+  ignore, so `git ls-files` and `git status` never show them. Before using "the repo has
+  no X" as a reason, check the filesystem.
 - `git check-ignore -q .claude/settings.local.json` (a global ignore may already cover it).
 
 ## 2. Propose, then stop
@@ -67,6 +77,8 @@ what was kept because it was used. Stop and wait for the user's OK or edits.
   the existing list and backs up `.claude.json` first; report the backup path.
 - Skills: merge into `skillOverrides` of `.claude/settings.local.json` with `jq`, creating
   the file if needed and never overwriting keys already there. Use `user-invocable-only`.
+  If you back the file up first, put the copy in your scratchpad, not next to the file:
+  a `.bak` in the repo is untracked clutter that no ignore rule covers.
 - Language servers: run `project-init` from claude-dotfiles (`--local` for team repos).
 - If `git check-ignore` said `.claude/settings.local.json` isn't ignored, add it to `.gitignore`.
 
