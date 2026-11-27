@@ -39,10 +39,12 @@ def config_dir(flag: str | None) -> Path:
 
 
 def claude_json(cfg_flag: str | None) -> Path:
-    """~/.claude.json by default; <config dir>/.claude.json when a config dir is set."""
-    if cfg_flag or os.environ.get("CLAUDE_CONFIG_DIR"):
-        return config_dir(cfg_flag) / ".claude.json"
-    return Path.home() / ".claude.json"
+    """~/.claude.json for the default config dir (~/.claude); <config dir>/.claude.json for
+    any other. A stale ~/.claude/.claude.json can exist next to the live ~/.claude.json."""
+    cfg = config_dir(cfg_flag).resolve()
+    if cfg == (Path.home() / ".claude").resolve():
+        return Path.home() / ".claude.json"
+    return cfg / ".claude.json"
 
 
 def encode(path: str) -> str:
@@ -60,16 +62,63 @@ def worktree_paths(project: Path) -> list[str]:
     return [line[len("worktree "):] for line in out.splitlines() if line.startswith("worktree ")]
 
 
-def session_dirs(project: Path, cfg: Path) -> list[Path]:
+def git_common_dir(path: str) -> str | None:
+    try:
+        out = subprocess.run(
+            ["git", "-C", path, "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return out or None
+
+
+def recorded_cwd(d: Path) -> str | None:
+    """The working directory a transcript dir's sessions ran in, as the transcripts record it."""
+    for f in d.glob("*.jsonl"):
+        for line in f.open(errors="replace"):
+            try:
+                cwd = json.loads(line).get("cwd")
+            except (json.JSONDecodeError, AttributeError):
+                continue
+            if isinstance(cwd, str):
+                return cwd
+    return None
+
+
+def session_dirs(project: Path, cfg: Path) -> list[tuple[Path, str]]:
+    """Transcript dirs for the repo and its worktrees, each tagged with how it matched.
+
+    Live worktrees come from `git worktree list`. A deleted worktree leaves only its
+    transcripts, so a dir is also a candidate when its name extends the repo's encoded path
+    (`<repo>-wt-301`, `<repo>--claude-worktrees-x`) or names the repo under a `worktrees`
+    folder elsewhere (`~/.herdr/worktrees/<repo>-<branch>`). A candidate whose recorded cwd
+    still exists is kept only if it shares the repo's git dir; one whose cwd is gone is kept
+    and tagged, since nothing else can tell it apart from a sibling repo of a similar name.
+    """
     root = cfg / "projects"
     if not root.is_dir():
         return []
     base = encode(str(project))
-    wanted = {base} | {encode(p) for p in worktree_paths(project)}
-    return sorted(
-        d for d in root.iterdir()
-        if d.is_dir() and (d.name in wanted or d.name.startswith(base + "--"))
-    )
+    live = {encode(p) for p in worktree_paths(project)} - {base}
+    name_tag = "-" + encode(project.name) + "-"
+    common = git_common_dir(str(project))
+    found = []
+    for d in sorted(root.iterdir()):
+        if not d.is_dir():
+            continue
+        if d.name == base:
+            found.append((d, "repo"))
+        elif d.name in live:
+            found.append((d, "worktree"))
+        elif d.name.startswith(base + "-") or ("worktrees" in d.name and name_tag in d.name):
+            cwd = recorded_cwd(d)
+            if cwd and Path(cwd).exists():
+                if common and git_common_dir(cwd) == common:
+                    found.append((d, "worktree"))
+            else:
+                found.append((d, "deleted worktree (matched by name)"))
+    return found
 
 
 def mcp_server(tool: str) -> str:
@@ -78,15 +127,16 @@ def mcp_server(tool: str) -> str:
 
 
 def scan(project: Path, cfg: Path) -> dict:
-    dirs = session_dirs(project, cfg)
+    tagged = session_dirs(project, cfg)
+    dirs = [d for d, _ in tagged]
     mcp: Counter = Counter()
     skills_model: Counter = Counter()
     skills_user: Counter = Counter()
     sessions = 0
     first = last = None
     for d in dirs:
-        for f in d.glob("*.jsonl"):
-            sessions += 1
+        for f in d.rglob("*.jsonl"):  # nested: <session>/subagents/*.jsonl
+            sessions += f.parent == d
             for line in f.open(errors="replace"):
                 try:
                     rec = json.loads(line)
@@ -118,11 +168,13 @@ def scan(project: Path, cfg: Path) -> dict:
                             skills_model[skill] += 1
     return {
         "project": str(project),
-        "session_dirs": [d.name for d in dirs],
+        "config_dir": str(cfg),
+        "session_dirs": {d.name: tag for d, tag in tagged},
         "sessions": sessions,
         "first": first,
         "last": last,
         "mcp_servers": dict(mcp.most_common()),
+        "skills_used": dict((skills_model + skills_user).most_common()),
         "skills_by_model": dict(skills_model.most_common()),
         "commands_by_user": dict(skills_user.most_common()),
     }
@@ -130,17 +182,19 @@ def scan(project: Path, cfg: Path) -> dict:
 
 def print_scan(r: dict) -> None:
     print(f"project: {r['project']}")
-    print(f"sessions: {r['sessions']} in {len(r['session_dirs'])} dir(s), {r['first']} .. {r['last']}")
-    dirs = r["session_dirs"]
-    shown = [d for d in dirs if "--" not in d]
-    for d in shown:
-        print(f"  {d}")
-    if len(dirs) > len(shown):
-        print(f"  + {len(dirs) - len(shown)} worktree dir(s); --json lists them")
+    print(f"config dir: {r['config_dir']} (only this account's sessions)")
+    if not r["sessions"]:
+        print("sessions: 0. No history for this account: decide from the repo (Case 1).")
+    else:
+        print(f"sessions: {r['sessions']} in {len(r['session_dirs'])} dir(s), {r['first']} .. {r['last']}")
+        tags = Counter(r["session_dirs"].values())
+        print("  " + ", ".join(f"{n} {t}" for t, n in tags.items()) + "; --json lists them")
+    print(f"\nalready disabled here: {len(r['disabled'])} server(s)")
+    for k in r["disabled"]:
+        print(f"  {k}")
     for title, key in (
         ("MCP servers called (raw prefix: calls)", "mcp_servers"),
-        ("Skills Claude invoked", "skills_by_model"),
-        ("Slash commands the user typed (skills and built-ins)", "commands_by_user"),
+        ("Skills and slash commands used (Claude + user; includes built-ins like compact)", "skills_used"),
     ):
         print(f"\n{title}:")
         for k, v in r[key].items() or [("(none)", "")]:
@@ -186,6 +240,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "disable-mcp":
         return disable_mcp(project, args.config_dir, args.names)
     result = scan(project, config_dir(args.config_dir))
+    cj = claude_json(args.config_dir)
+    data = json.loads(cj.read_text()) if cj.is_file() else {}
+    entry = data.get("projects", {}).get(str(project)) or {}
+    result["disabled"] = entry.get("disabledMcpServers") or []
     if args.json:
         print(json.dumps(result, indent=2))
     else:

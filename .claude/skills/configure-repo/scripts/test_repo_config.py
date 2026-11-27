@@ -34,7 +34,15 @@ class RepoConfigTest(unittest.TestCase):
                           tool_use("Skill", skill="remind"),
                           user("<command-name>/code-review</command-name>")])
         self.write(base + "--claude-worktrees-a1", [tool_use("mcp__engram__mem_save")])
-        self.write(base + "-sibling", [tool_use("mcp__claude_ai_Slack__send")])
+        sibling = self.root / "work" / "my-repo-sibling"  # exists, not this repo's git dir
+        sibling.mkdir()
+        self.write(base + "-sibling", [dict(user("hi"), cwd=str(sibling)),
+                                       tool_use("mcp__claude_ai_Slack__send")])
+        gone = str(self.project) + "-wt-1"  # deleted worktree: its cwd no longer exists
+        self.write(base + "-wt-1", [dict(user("hi"), cwd=gone), tool_use("Skill", skill="remind")])
+        sub = self.cfg / "projects" / base / "s" / "subagents"
+        sub.mkdir(parents=True)
+        (sub / "a.jsonl").write_text(json.dumps(tool_use("mcp__engram__mem_search")) + "\n")
 
     def write(self, dirname, records):
         d = self.cfg / "projects" / dirname
@@ -43,9 +51,14 @@ class RepoConfigTest(unittest.TestCase):
 
     def test_scan_counts_repo_and_worktrees_but_not_siblings(self):
         r = rc.scan(self.project, self.cfg)
-        self.assertEqual(r["sessions"], 2)
-        self.assertEqual(r["mcp_servers"], {"claude_ai_Linear": 1, "engram": 1})
-        self.assertEqual(r["skills_by_model"], {"remind": 1})
+        self.assertEqual(r["sessions"], 3)  # subagent transcripts count calls, not sessions
+        self.assertEqual(r["mcp_servers"], {"engram": 2, "claude_ai_Linear": 1})
+        self.assertEqual(r["skills_by_model"], {"remind": 2})
+        self.assertEqual(r["skills_used"], {"remind": 2, "code-review": 1})
+        tags = r["session_dirs"]
+        self.assertEqual(tags[rc.encode(str(self.project)) + "-wt-1"],
+                         "deleted worktree (matched by name)")
+        self.assertNotIn(rc.encode(str(self.project)) + "-sibling", tags)
         self.assertEqual(r["commands_by_user"], {"code-review": 1})
         self.assertEqual((r["first"], r["last"]), ("2026-01-01T00:00:00Z", "2026-01-02T00:00:00Z"))
 

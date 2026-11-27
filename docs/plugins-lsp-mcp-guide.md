@@ -210,9 +210,15 @@ A project's `skillOverrides` merges key by key with the global one (see
 
 Same steps, but decide from evidence. `repo_config.py scan` (in the `configure-repo`
 skill) counts the MCP servers and skills that past sessions in the repo and its worktrees
-actually called. An unused connector is disabled; a skill that was used stays on even if
-the stack suggests otherwise. Few sessions is weak evidence: fall back to Case 1 for
-anything the history can't speak to.
+actually called, deleted worktrees included (their transcripts outlive them). An unused
+connector is disabled; a skill that was used stays on even if the stack suggests
+otherwise. Few sessions is weak evidence: fall back to Case 1 for anything the history
+can't speak to.
+
+History, connectors and `disabledMcpServers` are per account (config dir). With two
+accounts on one machine, configure each from a session under that account; a connector
+one account uses may not work from the other (fitted uses Sentry only from the personal
+account).
 
 ### After applying
 
