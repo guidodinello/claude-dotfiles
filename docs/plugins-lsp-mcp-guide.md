@@ -179,6 +179,57 @@ claude plugin enable pyright-lsp@claude-plugins-official --scope project
 
 ---
 
+## Onboarding a project
+
+Every project starts with everything on: every claude.ai connector, every global skill
+and every globally enabled plugin. Onboarding trims a project to what it uses, so each
+session there pays for fewer tool names and skill descriptions. `/configure-repo` carries
+out the steps below; it runs only when you type it.
+
+What goes where:
+
+| What | Where | Committed? |
+|---|---|---|
+| Language servers and stack plugins | `.claude/settings.json` (own repos) or `.claude/settings.local.json` (team repos), via `project-init` | Own repos: yes |
+| Skills Claude should not see here | `skillOverrides` in `.claude/settings.local.json` | No (gitignore it) |
+| claude.ai connectors | `projects[<path>].disabledMcpServers` in `.claude.json` | No, and not on other machines |
+
+A project's `skillOverrides` merges key by key with the global one (see
+[skills.md](skills.md#default-enablement-skilloverrides)). Hide a skill with
+`user-invocable-only`, not `off`, so typing the slash command still works when you need it.
+
+### Case 1: a new repo (no session history)
+
+1. Run `project-init` for the language servers.
+2. From the stack and the README, decide which connectors the work needs (a Linear-tracked
+   client repo keeps Linear; a local experiment keeps none) and disable the rest.
+3. Hide skills that can't apply: GitHub PR skills in a repo with no remote, Light-it
+   brand and office-file skills in a personal repo, and so on.
+
+### Case 2: a repo with history
+
+Same steps, but decide from evidence. `repo_config.py scan` (in the `configure-repo`
+skill) counts the MCP servers and skills that past sessions in the repo and its worktrees
+actually called, deleted worktrees included (their transcripts outlive them). An unused
+connector is disabled; a skill that was used stays on even if the stack suggests
+otherwise. Few sessions is weak evidence: fall back to Case 1 for anything the history
+can't speak to.
+
+History, connectors and `disabledMcpServers` are per account (config dir). With two
+accounts on one machine, configure each from a session under that account; a connector
+one account uses may not work from the other (fitted uses Sentry only from the personal
+account).
+
+### After applying
+
+- Changes load at the next session start. `/mcp` in a new session should list only what
+  was kept.
+- `disabledMcpServers` is keyed by path, like `-s local`: worktrees at other paths, and
+  other machines, keep every connector. Re-run there if it matters.
+- Re-enable a connector in `/mcp`, or a skill by deleting its `skillOverrides` key.
+
+---
+
 ## LSP setup notes
 
 ### How Pyright handles virtual environments
