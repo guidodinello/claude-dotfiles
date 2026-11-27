@@ -126,7 +126,11 @@ def mcp_server(tool: str) -> str:
     return tool.split("__")[1] if tool.count("__") >= 2 else tool
 
 
-def scan(project: Path, cfg: Path) -> dict:
+def scan(project: Path, cfg: Path, skip_session: str | None = None) -> dict:
+    """skip_session: a session id to leave out, by default the one running this script
+    (Claude Code sets CLAUDE_CODE_SESSION_ID), so /configure-repo doesn't count itself."""
+    if skip_session is None:
+        skip_session = os.environ.get("CLAUDE_CODE_SESSION_ID", "")
     tagged = session_dirs(project, cfg)
     dirs = [d for d, _ in tagged]
     mcp: Counter = Counter()
@@ -136,6 +140,8 @@ def scan(project: Path, cfg: Path) -> dict:
     first = last = None
     for d in dirs:
         for f in d.rglob("*.jsonl"):  # nested: <session>/subagents/*.jsonl
+            if skip_session and skip_session in (f.stem, *f.relative_to(d).parts[:-1]):
+                continue
             sessions += f.parent == d
             for line in f.open(errors="replace"):
                 try:
@@ -201,6 +207,35 @@ def print_scan(r: dict) -> None:
             print(f"  {k} {v}".rstrip())
 
 
+def connector_prefix(name: str) -> str:
+    """`claude.ai monday.com` -> `claude_ai_monday_com`, the prefix its tools carry."""
+    return re.sub(r"[^A-Za-z0-9]", "_", name)
+
+
+def parse_mcp_list(text: str) -> list[str]:
+    """claude.ai connector names from `claude mcp list` (lines like `claude.ai X: url - status`)."""
+    return [line.split(": ", 1)[0] for line in text.splitlines() if line.startswith("claude.ai ")]
+
+
+def unused_connectors(listed: list[str], used: dict, keep: list[str]) -> list[str]:
+    return [n for n in listed if connector_prefix(n) not in used and n not in keep]
+
+
+def listed_connectors(project: Path, cfg_flag: str | None) -> list[str]:
+    env = dict(os.environ)
+    cfg = config_dir(cfg_flag).resolve()
+    if cfg == (Path.home() / ".claude").resolve():
+        env.pop("CLAUDE_CONFIG_DIR", None)
+    else:
+        env["CLAUDE_CONFIG_DIR"] = str(cfg)
+    out = subprocess.run(["claude", "mcp", "list"], cwd=project, env=env,
+                         capture_output=True, text=True, timeout=300).stdout
+    names = parse_mcp_list(out)
+    if not names:
+        sys.exit("`claude mcp list` printed no claude.ai connectors; pass names explicitly")
+    return names
+
+
 def disable_mcp(project: Path, cfg_flag: str | None, names: list[str]) -> int:
     path = claude_json(cfg_flag)
     if not path.is_file():
@@ -234,11 +269,25 @@ def main(argv: list[str] | None = None) -> int:
         if name == "scan":
             p.add_argument("--json", action="store_true")
         else:
-            p.add_argument("names", nargs="+", help="server names exactly as `claude mcp list` prints them")
+            p.add_argument("names", nargs="*", help="server names exactly as `claude mcp list` prints them")
+            p.add_argument("--all-unused", action="store_true",
+                           help="every claude.ai connector `claude mcp list` shows that the scan saw no call to")
+            p.add_argument("--keep", action="append", default=[], metavar="NAME",
+                           help="with --all-unused: a connector to leave on (repeatable)")
     args = ap.parse_args(argv)
     project = Path(args.project).expanduser().resolve()
     if args.cmd == "disable-mcp":
-        return disable_mcp(project, args.config_dir, args.names)
+        names = list(args.names)
+        if args.all_unused:
+            used = scan(project, config_dir(args.config_dir))["mcp_servers"]
+            listed = listed_connectors(project, args.config_dir)
+            unused = unused_connectors(listed, used, args.keep)
+            kept = [n for n in listed if n not in unused]
+            print(f"connectors kept on: {', '.join(kept) or '(none)'}")
+            names += [n for n in unused if n not in names]
+        if not names:
+            sys.exit("no names given; pass names or --all-unused")
+        return disable_mcp(project, args.config_dir, names)
     result = scan(project, config_dir(args.config_dir))
     cj = claude_json(args.config_dir)
     data = json.loads(cj.read_text()) if cj.is_file() else {}

@@ -60,8 +60,11 @@ what was kept because it was used. Stop and wait for the user's OK or edits.
 
 ## 3. Apply
 
-- Connectors: `repo_config.py disable-mcp --project <repo> "claude.ai Linear" ...`. It
-  merges with the existing list and backs up `.claude.json` first; report the backup path.
+- Connectors: `repo_config.py disable-mcp --project <repo> --all-unused [--keep "claude.ai
+  Linear" ...]` disables every listed connector with no call in the scan, minus the kept
+  ones; for a hand-picked set, pass the names instead. Don't build the list in the shell
+  (arrays, command substitution): that trips Claude Code's permission check. It merges with
+  the existing list and backs up `.claude.json` first; report the backup path.
 - Skills: merge into `skillOverrides` of `.claude/settings.local.json` with `jq`, creating
   the file if needed and never overwriting keys already there. Use `user-invocable-only`.
 - Language servers: run `project-init` from claude-dotfiles (`--local` for team repos).
