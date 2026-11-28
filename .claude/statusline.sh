@@ -28,7 +28,9 @@ SEP="${MUTED}  │  ${NC}"
 
 # --- Model ---
 MODEL=$(echo "$input" | jq -r '.model.display_name // "Claude"')
+EFFORT=$(echo "$input" | jq -r '.effort.level // empty')
 MODEL_PART="${BOLD}${PURPLE}${MODEL}${NC}"
+[ -n "$EFFORT" ] && MODEL_PART+=" ${MUTED}(${EFFORT})${NC}"
 
 # --- Directory + git (cached per session_id) ---
 DIR=$(echo "$input" | jq -r '.workspace.current_dir // "~"')
@@ -169,4 +171,5 @@ else
 fi
 
 echo -e "${LINE1}\033[K"
-[ -n "$LINE2" ] && echo -e "${LINE2}\033[K"
+# An `if`, not `[ ] && echo`: as the last command, a false test would become the script's exit status.
+if [ -n "$LINE2" ]; then echo -e "${LINE2}\033[K"; fi
