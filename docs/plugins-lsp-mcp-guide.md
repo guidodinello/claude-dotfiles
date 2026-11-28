@@ -5,16 +5,20 @@
 Claude Code has three distinct systems that are easy to conflate:
 
 ### 1. VS Code IDE integration
+
 Enabled automatically when running Claude Code from VS Code. Provides:
+
 - `getDiagnostics` tool — reads errors/warnings directly from VS Code's language servers (Pylance, etc.)
 - No extra setup needed; Python diagnostics from Pylance work out of the box
 
 ### 2. Claude Code LSP plugins
+
 Independent of VS Code. Provide navigation features (go-to-definition, find-references, hover).
 Must be installed separately via `claude plugin install <name>`.
 **Token impact: negligible** — background processes, no API overhead.
 
 ### 3. MCP plugins
+
 Expose tools to Claude via the Model Context Protocol.
 **Token impact: medium to high.** With tool search on (the current default), full tool
 schemas are deferred until used. What every session still pays for each connected server is
@@ -50,6 +54,7 @@ jq '.enabledPlugins' ~/.claude/settings.json
 ```
 
 Plugins that are global by design:
+
 - `engram` — persistent-memory MCP. Load it **only** as the plugin: a second copy in
   `~/.claude.json` doubles its tool names and instructions (see
   [MCP servers](#mcp-servers-global-vs-per-project)).
@@ -57,16 +62,20 @@ Plugins that are global by design:
 - `security-guidance` — PreToolUse hook, checks for XSS/injection patterns on every file edit.
 
 ### Enabled per-project (not global)
+
 Language-specific LSPs and stack tools live in the **project's** settings so a
 Python project doesn't carry the PHP LSP and vice versa:
+
 - `pyright-lsp` — Python LSP
 - `php-lsp` — PHP LSP
 - `typescript-lsp` — TypeScript/JS LSP
 - `frontend-design` — UI/design helper (frontend projects)
 
 ### High-overhead plugins to keep per-project (reference)
+
 These are deliberately **not** enabled globally because their always-on cost is
 high — enable them only in the specific projects that need them:
+
 - `github` — GitHub MCP (~30–50 tool definitions injected every request)
 - `svelte@svelte` — Svelte MCP + LSP (MCP overhead not worth it globally)
 - `superpowers` — SessionStart hook injects ~800 words into every session
@@ -87,6 +96,7 @@ MCP servers come from three places, and each is scoped differently:
 ### The global set
 
 Global because they are used in every Light-it workspace:
+
 - Plugins: `engram`, `aws-core` (almost every Light-it project is hosted on AWS; the
   plugin also lists ~30 skills in every session)
 - Standalone: `context7` (2 tools, live library docs)
@@ -165,7 +175,9 @@ Templates live in [`templates/claude-settings/`](../templates/claude-settings/)
 (`python.json`, `php.json`, `node.json`) — edit these to change what each stack enables.
 
 ### Enabling any plugin per-project manually
+
 Either add to `.claude/settings.json` at the project root:
+
 ```json
 {
   "enabledPlugins": {
@@ -173,7 +185,9 @@ Either add to `.claude/settings.json` at the project root:
   }
 }
 ```
+
 …or let the CLI write it for you:
+
 ```bash
 claude plugin enable pyright-lsp@claude-plugins-official --scope project
 ```
@@ -234,17 +248,22 @@ account).
 ## LSP setup notes
 
 ### How Pyright handles virtual environments
+
 Pyright is a standalone analyzer, not a library — install it globally, not in your venv.
 It auto-detects `.venv/` in the workspace root. For non-standard locations:
+
 ```json
 // pyrightconfig.json
 { "venvPath": ".", "venv": ".venv" }
 ```
+
 Preferred install method: `uv tool install pyright` (permanent, in PATH, isolated).
 
 ### svelte-language-server binary quirk
+
 The npm package installs as `svelteserver`, but the plugin expects `svelte-language-server`.
 Fix applied: symlink in nodenv bin directory.
+
 ```bash
 ln -s ~/.nodenv/versions/<ver>/bin/svelteserver ~/.nodenv/versions/<ver>/bin/svelte-language-server
 nodenv rehash
@@ -269,6 +288,7 @@ bare `-32602: Invalid request parameters` in `/mcp` hid an expired AWS SSO token
 an LSP or a whole session, use `claude --debug --debug-file <path>`.
 
 Key things to look for:
+
 - `Total LSP servers loaded: N` — confirms LSP plugins started
 - `Missing environment variables` — MCP plugin needs env var configured
 - `Executable not found in $PATH` — LSP binary not installed

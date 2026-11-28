@@ -1,5 +1,7 @@
 ## Engram (in addition to the Memory block)
+
 Engram's MCP server instructions own the protocol. Local rules on top of it:
+
 - Tools are deferred in Claude Code: load them with `ToolSearch("select:mcp__engram__<tool>")` before the first call. The SessionStart hook's "no ToolSearch needed" is wrong here. A missing tool means "not loaded yet", not "Engram unavailable".
 - Save verified, durable conclusions (decisions, bugfixes, discoveries, conventions, config changes), grouped by topic, without waiting to be asked. Not every event. Use `capture_prompt: false` for automated/SDD artifacts.
 - Past work: `mem_context` → `mem_search` → `mem_get_observation`. Search with short single-concept keywords; if the first search misses, retry broader before concluding nothing exists.

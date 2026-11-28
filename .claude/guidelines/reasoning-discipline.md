@@ -1,5 +1,7 @@
 ## Reasoning discipline
+
 Apply on any non-trivial task, especially before committing to an approach or declaring done.
+
 - **Don't accept the offered options as the whole option space.** When handed a choice ("do A or B"), check what the framing excludes — the best answer is often a third option neither side named.
 - **Verify claims against primary sources, not memory.** When a decision turns on how a tool/library/API behaves, read the actual source or official docs and quote it. Don't assert from recollection.
 - **Name the done-signal before building.** State the observable check that will prove the work is right (a test, a command and its expected output, a screen state) before writing the change. A check chosen afterwards tends to be one the code already passes. If no check is possible, say so up front.

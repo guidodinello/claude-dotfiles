@@ -644,6 +644,7 @@ Barr et al. define the oracle problem as "distinguishing the corresponding desir
 **T36. Rank smell findings by consequence; detectors produce review prompts, not verdicts.**
 
 **Rule:** Report findings in this order:
+
 1. Can't-fail tests (T28–T30).
 2. Nondeterminism and isolation (T16–T21, T26).
 3. Coupling and fidelity (T7–T14).
@@ -674,7 +675,6 @@ Use thresholds, not "any occurrence", for readability smells.
 | Metamorphic | "Related calls return related results" |
 | Inductive | Properties that together form a complete specification |
 | Model-based | Compare against a simpler abstract model |
-
 
 **Why:** In Hughes' benchmark of eight planted bugs, "Validity properties miss many bugs (five of eight)". "Every bug is found by at least one postcondition, metamorphic property, and model-based property". Model-based testing "seemed the most effective approach overall", and metamorphic testing is "a successful approach to the oracle problem" ([Hughes, How to Specify It!](https://research.chalmers.se/publication/517894/file/517894_Fulltext.pdf)) [V]. MacIver: "If you could feasibly write a property based test as 10 example based tests… it's probably really just example based testing" ([What is PBT?](https://hypothesis.works/articles/what-is-property-based-testing/)) [V].
 

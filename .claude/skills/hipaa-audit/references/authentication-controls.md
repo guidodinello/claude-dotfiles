@@ -3,16 +3,17 @@
 Reference for auditing authentication, session management, and access verification in HIPAA-covered systems.
 
 Sources:
+
 - 45 CFR § 164.312(d) — Person or Entity Authentication (Required)
 - 45 CFR § 164.312(a)(2)(iii) — Automatic Logoff (Addressable)
 - 45 CFR § 164.312(a)(2)(iv) — Encryption/Decryption (Addressable)
 - NIST SP 800-63B-4 (Digital Identity Guidelines: Authentication and Authenticator Management,
   April 2024 — current version supersedes Rev 3)
-  https://csrc.nist.gov/pubs/sp/800/63/b/4/final
+  <https://csrc.nist.gov/pubs/sp/800/63/b/4/final>
 - OWASP Session Management Cheat Sheet
-  https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html
+  <https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html>
 - OWASP Access Control Cheat Sheet
-  https://cheatsheetseries.owasp.org/cheatsheets/Access_Control_Cheat_Sheet.html
+  <https://cheatsheetseries.owasp.org/cheatsheets/Access_Control_Cheat_Sheet.html>
 
 ---
 
@@ -135,11 +136,13 @@ AAL defines the strength of the authentication transaction. Higher AAL = stronge
 For HIPAA systems handling ePHI, AAL2 is the practical minimum for staff accounts.
 
 ### AAL1
+
 - Single-factor or multi-factor authentication
 - Session reauthentication: overall timeout ≤ 30 days
 - Acceptable authenticators: passwords, OTP devices, single-factor cryptographic
 
 ### AAL2
+
 - Multi-factor authentication required
 - Must offer a phishing-resistant authentication option
 - Session reauthentication: overall timeout ≤ 24 hours; inactivity timeout ≤ 1 hour
@@ -148,6 +151,7 @@ For HIPAA systems handling ePHI, AAL2 is the practical minimum for staff account
 - Acceptable authenticators: TOTP apps, hardware security keys (FIDO2), smart cards
 
 ### AAL3
+
 - Requires hardware-based authenticator + verifier impersonation resistance (phishing resistant)
 - Session reauthentication: overall timeout ≤ 12 hours; inactivity timeout ≤ 15 minutes
 - Requires proof of possession of a key through a cryptographic protocol

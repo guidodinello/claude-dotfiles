@@ -22,6 +22,7 @@ DATABASE_URL=postgres://user:realpassword@prod-host/db
 **Risk:** Anyone with read access to the repository (including historical git history) can extract production credentials. Severity: CRITICAL for credentials that grant DB access, CRITICAL for private keys, HIGH for third-party API keys that access sensitive data.
 
 **Detection:**
+
 ```bash
 # Stripe-style keys
 grep -rn 'sk_live_\|sk_test_\|pk_live_\|pk_test_' src/
@@ -48,6 +49,7 @@ git log --all --full-history --diff-filter=A -- '*.env' '*.env.*'
 ```
 
 **Fix:**
+
 - Move all secrets to environment variables. Never commit `.env` files with real values.
 - Add `.env`, `.env.local`, `.env.production` to `.gitignore`.
 - If a secret was ever committed (even if later removed), treat it as compromised and rotate immediately — it remains in git history.
@@ -76,6 +78,7 @@ console.log("Patient updated", { ...patient }); // includes dob, ssn, etc.
 **Risk:** Logs are often stored in third-party services (Datadog, Sentry, CloudWatch), retained for extended periods, and accessible to a wider audience than the DB. PHI or credentials in logs is a breach vector and in healthcare a HIPAA violation. Severity: HIGH.
 
 **Detection:**
+
 ```bash
 # Logging calls with potentially sensitive data
 grep -rn 'console\.log\|logger\.\(info\|debug\|error\|warn\)' src/ | grep -i 'body\|password\|token\|patient\|user\|phi'
@@ -116,6 +119,7 @@ const magicLink = `${BASE_URL}/login?token=${sessionToken}`;
 **Risk:** URLs are logged by web servers, proxies, CDNs, and browsers. The `Referer` header leaks them to third-party scripts. Browser history stores them. A token in a URL has a much larger exposure surface than a token in an HTTP header or POST body. Severity: HIGH for session/auth tokens; MEDIUM for PII like patient IDs.
 
 **Detection:**
+
 ```bash
 grep -rn 'token=\${' src/
 grep -rn 'redirect.*\?token' src/
@@ -160,6 +164,7 @@ app.get("/search", (req, res) => {
 **Risk:** An attacker can inject JavaScript that runs in other users' browsers: steal session cookies (if not `HttpOnly`), exfiltrate data, perform actions as the victim, redirect to phishing pages. DOM-based XSS can bypass server-side defenses. Severity: HIGH for session hijacking potential; MEDIUM for reflected XSS with `HttpOnly` cookies (limited cookie theft, but still data exfiltration and action forgery).
 
 **Detection:**
+
 ```bash
 # React: dangerous HTML injection
 grep -rn 'dangerouslySetInnerHTML' src/
@@ -177,6 +182,7 @@ grep -rn 'href.*req\.\|href.*user\.' src/
 ```
 
 **Fix:**
+
 - In React, never use `dangerouslySetInnerHTML`. Render user content as text (React's default).
 - For user-supplied URLs, validate the protocol is `http:` or `https:` only.
 - For server-side rendering, use a template engine that auto-escapes (Nunjucks with autoescape, Handlebars) or explicitly escape: `htmlEncode(userInput)`.
@@ -202,6 +208,7 @@ grep -rn 'href.*req\.\|href.*user\.' src/
 | `Permissions-Policy` | Unnecessary browser feature access | Restrict camera, mic, geolocation if unused |
 
 **Detection:**
+
 ```bash
 grep -rn 'X-Frame-Options\|Content-Security-Policy\|X-Content-Type\|Strict-Transport' src/
 ```
@@ -245,6 +252,7 @@ try {
 **Risk:** Stack traces reveal file paths, function names, library versions, and sometimes code snippets — all useful for an attacker planning a targeted exploit. DB errors can confirm injection payloads succeeded. Severity: MEDIUM (reduces attacker cost on other vulnerabilities).
 
 **Detection:**
+
 ```bash
 grep -rn 'err\.stack\|error\.stack' src/
 grep -rn 'res\.json.*err\b\|res\.send.*err\b' src/
@@ -290,6 +298,7 @@ const cipher = crypto.createCipheriv("aes-256-cbc", key, Buffer.alloc(16, 0));
 **Risk:** Fast hash functions for passwords allow offline cracking with commodity hardware. `Math.random()` is seeded from a predictable state and can be predicted. Fixed IVs in block ciphers make encryption deterministic (same plaintext → same ciphertext), enabling statistical attacks. Severity: HIGH for password storage; MEDIUM for token generation; MEDIUM for encryption weaknesses.
 
 **Detection:**
+
 ```bash
 grep -rn "createHash('md5')\|createHash(\"md5\")" src/
 grep -rn "createHash('sha1')\|createHash(\"sha1\")" src/
@@ -299,6 +308,7 @@ grep -rn 'createCipheriv' src/  # review IV handling
 ```
 
 **Fix:**
+
 - Passwords: use `bcrypt`, `argon2`, or `scrypt` — these are slow by design.
 - Tokens: use `crypto.randomBytes(32).toString("hex")` — cryptographically random.
 - Encryption: always generate a random IV per message and store it with the ciphertext.

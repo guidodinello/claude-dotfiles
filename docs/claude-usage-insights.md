@@ -17,6 +17,7 @@ Two data sources live in `~/.claude/`:
 ### Useful analysis queries
 
 **Token breakdown per model** — `stats-cache.json → modelUsage`
+
 - `inputTokens`: uncached direct input
 - `cacheReadInputTokens`: tokens served from prompt cache (cheap)
 - `cacheCreationInputTokens`: tokens written to prompt cache
@@ -25,6 +26,7 @@ Two data sources live in `~/.claude/`:
 **Cache hit rate** = `cacheReadTokens / (inputTokens + cacheReadTokens + cacheCreationTokens)`
 
 **Output/Input ratio** = `outputTokens / inputTokens`
+
 - High ratio (>1): model is doing heavy generation work
 - Low ratio (<0.1): model is mostly reading context, barely generating — red flag for over-powered model
 
@@ -67,6 +69,7 @@ Both models show 89–92% cache hit rates — the prompt cache is working well. 
 ## Optimization Principles
 
 ### 1. Match model to task
+
 - **Haiku**: agents that only run bash commands and summarize (quality checks, stats, formatting)
 - **Sonnet**: default for most tasks — good reasoning at reasonable cost
 - **Opus**: reserve for truly complex reasoning tasks where quality matters
@@ -74,12 +77,15 @@ Both models show 89–92% cache hit rates — the prompt cache is working well. 
 Always specify `model: haiku` or `model: sonnet` in agent frontmatter for non-reasoning tasks.
 
 ### 2. Watch the output/input ratio
+
 A ratio below 0.1 on an expensive model means you're paying Opus prices for Haiku-level work. If you see this in `/usage` output, look at which agents were active that day.
 
-### 3. Short sessions are fine, but...
+### 3. Short sessions are fine, with a cost
+
 With avg 4.2 msgs/session, repeated context-loading is likely happening. Project-level `CLAUDE.md` files with architecture context reduce how much the model needs to re-explore the codebase each session.
 
 ### 4. Stats cache lag
+
 `stats-cache.json` may be days behind. For current-session analysis, parse `history.jsonl` directly (it's real-time). The `/usage` skill covers both.
 
 ---

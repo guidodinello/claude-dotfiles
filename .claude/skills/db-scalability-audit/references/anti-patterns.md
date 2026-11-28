@@ -98,6 +98,7 @@ await client.connect();
 **Detection:** Look for direct connection strings (port 5432) used from Cloudflare Workers, Lambda, or Vercel Edge. Look for absence of a pooler binding (`HYPERDRIVE`, PgBouncer, Supabase Pooler port 6543).
 
 **Fix:** Use a connection pooler in Transaction mode:
+
 - Cloudflare Workers: Hyperdrive
 - General serverless: Supabase Pooler (port 6543, Transaction mode) or PgBouncer
 - AWS Lambda: RDS Proxy
@@ -184,6 +185,7 @@ ALTER TABLE patients ADD COLUMN insurance_provider TEXT;
 **Detection:** Grep for `statement_timeout`, `query_timeout`, `lock_timeout` in DB config or connection strings. Absence is the finding.
 
 **Fix (Postgres):** Set `statement_timeout` at the connection level or role level:
+
 ```sql
 SET statement_timeout = '5s';
 -- Or in connection string: ?options=--statement_timeout%3D5000
@@ -207,10 +209,12 @@ const patients = await db.select().from(patients)
 ```
 
 **Risk:** Two distinct risks in one pattern:
+
 1. **Scalability** — the query scans every row in the table regardless of tenant. As tenant count and data volume grow, every such query degrades linearly. At 100 orgs with 10k patients each, an unscoped query reads 1M rows to return 10k.
 2. **Data isolation** — patients, records, or analytics from one tenant are visible to another. In healthcare this is a HIPAA violation, not just a bug.
 
 **Detection:**
+
 1. Identify the tenant identifier column — common names: `org_id`, `organization_id`, `clinic_id`, `account_id`, `tenant_id`.
 2. Find every table that has this column: grep for the column name in migration files.
 3. For each such table, grep for queries against it and check that each one includes a `WHERE org_id = ?` (or ORM equivalent).

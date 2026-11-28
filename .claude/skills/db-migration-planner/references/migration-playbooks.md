@@ -45,6 +45,7 @@ Common provider-to-provider migration paths, with known incompatibilities and st
 11. **Cut-over**: update production secrets, deploy, validate
 
 ### Rollback plan
+
 Keep D1 databases intact (do not delete) until the Supabase migration is confirmed stable. D1 exports can be re-imported if needed. Use feature flags or a maintenance window for the cut-over.
 
 ---
@@ -59,6 +60,7 @@ Same incompatibilities as D1 → Supabase (both are Postgres). Key differences:
 - Neon's branching feature is useful for testing the migrated schema before cut-over
 
 **Neon-specific connection for Workers:**
+
 ```ts
 import { neon } from '@neondatabase/serverless';
 const sql = neon(process.env.DATABASE_URL);
@@ -125,6 +127,7 @@ iif(cond, a, b)              → CASE WHEN cond THEN a ELSE b END
 8. Disable Supabase project after confirming RDS is stable
 
 ### Key considerations
+
 - Supabase Auth (GoTrue) is a separate service — if the app uses Supabase Auth, it cannot be migrated to RDS alone. Auth would need to be replaced (e.g., Cognito, Auth0, custom).
 - Supabase Storage would also need to be replaced (e.g., S3).
 - Row-Level Security (RLS) policies in Supabase are standard Postgres — they migrate cleanly.
@@ -136,15 +139,18 @@ iif(cond, a, b)              → CASE WHEN cond THEN a ELSE b END
 When evaluating whether a migration is low-risk, check the ORM layer:
 
 **Drizzle ORM:**
+
 - D1 uses `drizzle-orm/d1` adapter → switch to `drizzle-orm/postgres-js` or `drizzle-orm/node-postgres`
 - Schema definitions are largely reusable; column types may need updating (e.g., `text` → `timestamp`)
 - Drizzle migrations are dialect-specific — the migration files must be regenerated for Postgres
 
 **Prisma:**
+
 - Switch `provider = "sqlite"` to `provider = "postgresql"` in `schema.prisma`
 - Some field types need updating (DateTime, Boolean)
 - Run `prisma migrate dev` against the new DB to regenerate migrations
 
 **Raw SQL:**
+
 - Highest migration risk — all SQLite-specific syntax must be found and replaced manually
 - Grep for every raw query string; audit against the function/type mapping tables above

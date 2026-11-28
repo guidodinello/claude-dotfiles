@@ -34,7 +34,7 @@ sending, then compares medians before and after the date. Track the median first
 rise. The best-draft score is not a measure, because Claude often re-prints Guido's own edit just
 before he sends.
 
-Sent messages must be in the corpus verbatim and in `> ` blockquotes, or both scripts skip them.
+Sent messages must be in the corpus verbatim and in blockquotes (each line starting with `>` and a space), or both scripts skip them.
 Read a handful of messages per recipient as a direction, not proof. Log each run in the project, next
 to the corpus.
 

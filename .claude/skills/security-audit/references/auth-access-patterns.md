@@ -21,6 +21,7 @@ router.get("/patients/:id",               getPatient);  // missing!
 **Risk:** Unauthenticated access to any data the endpoint can reach. In healthcare, this is a direct PHI breach. Severity: CRITICAL for PHI-bearing endpoints; HIGH otherwise.
 
 **Detection:**
+
 1. List every route registration in the codebase.
 2. For each route, check whether an auth middleware appears in its chain or is applied at the router level.
 3. Pay extra attention to: routes added recently (git log), routes behind `/admin`, routes in sub-routers that may not inherit the parent's middleware.
@@ -69,6 +70,7 @@ router.post("/update-appointment", async (req, res) => {
 **Risk:** Any authenticated user can read or modify any other user's data. In healthcare this is cross-patient PHI exposure. Severity: CRITICAL for patient data; HIGH for other multi-user resources.
 
 **Detection:**
+
 1. Find every query that fetches by a primary or foreign key (`WHERE id = ?`, `.where(eq(...id, req.params.id))`).
 2. For each, check whether the query also filters by the authenticated user's ID (`WHERE id = ? AND patient_id = ?`).
 3. Alternatively, check whether there's a post-fetch ownership assertion before the response.
@@ -110,6 +112,7 @@ router.delete("/users/:id", async (req, res) => {
 **Risk:** A regular user or patient can perform administrative actions (delete records, impersonate users, view all data, approve orders). Severity: HIGH.
 
 **Detection:**
+
 1. Find all admin/staff-only routes.
 2. For each, verify a role/permission check exists in the handler or its middleware chain.
 3. Check whether the role check happens server-side — client-side role checks (hidden UI elements) are not security controls.
@@ -156,6 +159,7 @@ Grep for `POST`, `PUT`, `PATCH`, `DELETE` route handlers. For each, check whethe
 **Note:** APIs that authenticate exclusively via `Authorization: Bearer` headers (not cookies) are not vulnerable to CSRF, because browsers do not automatically attach `Authorization` headers to cross-origin requests.
 
 **Fix options:**
+
 1. **Synchronizer token pattern:** Include a CSRF token in forms; verify it on the server.
 2. **SameSite cookies:** Set session cookies to `SameSite=Strict` or `SameSite=Lax` — this prevents them from being sent on cross-site requests in modern browsers.
 3. **Double-submit cookie:** Set a CSRF cookie and require the same value in a request header.
@@ -193,6 +197,7 @@ const JWT_SECRET = "supersecret123";
 **Risk:** A weak or hardcoded secret allows offline brute-force of tokens. Algorithm confusion (`alg: none`) allows forging arbitrary tokens with no signature. No expiry means stolen tokens are valid forever. Severity: CRITICAL for algorithm confusion; HIGH for weak/hardcoded secrets; MEDIUM for missing expiry.
 
 **Detection:**
+
 ```bash
 grep -rn 'jwt\.sign\|jwt\.verify' src/
 grep -rn 'algorithms:' src/       # check if algorithm is pinned
@@ -201,6 +206,7 @@ grep -rn 'JWT_SECRET\s*=' src/    # check for hardcoded value
 ```
 
 **Fix:**
+
 ```ts
 // Safe
 jwt.sign(payload, process.env.JWT_SECRET!, {
@@ -247,6 +253,7 @@ router.post("/change-email", async (req, res) => {
 **Risk:** Predictable tokens allow account takeover by enumeration. Reusable tokens allow a previous reset link (e.g., from an email breach) to be replayed later. No expiry leaves accounts vulnerable indefinitely. Unverified email changes allow an attacker to redirect communication. Severity: HIGH for reusable/predictable tokens; MEDIUM for missing expiry.
 
 **Detection:**
+
 ```bash
 grep -rn 'resetToken\|reset_token\|magicLink\|magic_link' src/
 ```
@@ -254,6 +261,7 @@ grep -rn 'resetToken\|reset_token\|magicLink\|magic_link' src/
 For each generation site, check: is it cryptographically random? Does it expire? Is it invalidated on use?
 
 **Fix:**
+
 ```ts
 import { randomBytes } from "crypto";
 
