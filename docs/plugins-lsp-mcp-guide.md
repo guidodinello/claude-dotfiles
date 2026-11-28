@@ -93,7 +93,8 @@ Global because they are used in every Light-it workspace:
 - claude.ai: ClickUp, Slite, Slack, Sentry, Google Drive, Google Sheets, Claude Docs
 
 Everything else is per project: `railway` (`-s local` in build101), `linear`
-(`-s local` in allswell-workspace).
+(`-s local` in allswell-workspace), `firefox` (`@mozilla/firefox-mcp`, `-s local` in
+itau-volar-cli; run it with a dedicated Firefox profile, never the main one).
 
 ### Gotchas
 
