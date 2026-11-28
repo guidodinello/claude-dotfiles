@@ -1,5 +1,5 @@
-# Gates every .claude/skills/**/SKILL.md in this repo (and .claude/rules/*.md for
-# markdownlint, since those are vendored the same way).
+# Gates every .claude/skills/**/SKILL.md in this repo, and runs markdownlint on
+# every tracked .md file.
 #
 # Why here and not only downstream: push-guidelines.sh propagates skills with
 # `rsync -rlpc --existing`, so this repo's copy overwrites whatever a project
@@ -18,7 +18,12 @@
 #   3. markdownlint drift -- .markdownlint.json here mirrors fitted's, because
 #      fitted lints markdown (diff-scoped, pre-push and CI) and this repo feeds
 #      it. Default markdownlint rules are the wrong baseline, not a stricter
-#      one: they flag MD013 on files fitted considers clean.
+#      one: they flag MD013 on files fitted considers clean. It covers every
+#      tracked .md, not only SKILL.md and rules: skill references, agents and
+#      guidelines are vendored too, and a narrower scope let 360 errors pile up
+#      in the rest. Blocks written by an external installer (gentle-ai's
+#      engram block in .claude/CLAUDE.md) are wrapped in markdownlint-disable
+#      comments outside their markers, since the installer rewrites them.
 name: Lint Skills
 
 on:
@@ -29,9 +34,7 @@ on:
       - '.markdownlint.json'
       - '.github/workflows/lint-skills.yml'
       - '.github/scripts/check-skill-docs.py'
-      - 'README.md'
-      - 'CLAUDE.md'
-      - 'docs/**'
+      - '**/*.md'
   push:
     branches: [main]
     paths:
@@ -40,9 +43,7 @@ on:
       - '.markdownlint.json'
       - '.github/workflows/lint-skills.yml'
       - '.github/scripts/check-skill-docs.py'
-      - 'README.md'
-      - 'CLAUDE.md'
-      - 'docs/**'
+      - '**/*.md'
 
 permissions:
   contents: read
@@ -91,4 +92,4 @@ jobs:
 
       - name: markdownlint
         run: |
-          npx --yes markdownlint-cli@0.49.0 '.claude/skills/**/SKILL.md' '.claude/rules/*.md'
+          git ls-files -z '*.md' | xargs -0 npx --yes markdownlint-cli@0.49.0
