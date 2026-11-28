@@ -5,7 +5,7 @@ administrative safeguard standards and implementation specifications that have d
 implications for code, system design, or configuration review.
 
 Source: 45 CFR § 164.308 — Administrative Safeguards
-https://www.law.cornell.edu/cfr/text/45/164.308
+<https://www.law.cornell.edu/cfr/text/45/164.308>
 
 ---
 
@@ -55,6 +55,7 @@ neither requirement. The Montefiore Medical Center case ($4.75M, 2024) demonstra
 failing to review audit logs allows insider threats to persist for years undetected.
 
 **How to check:**
+
 - Does an audit log exist for ePHI access? (§ 164.312(b) check)
 - Is there evidence in the codebase or configuration of scheduled log review? (alert rules,
   SIEM config, monitoring dashboards covering ePHI access)
@@ -240,6 +241,7 @@ significant software changes, vendor changes, workforce changes, new PHI data ty
 the workforce.
 
 **Implementation Specifications (all Addressable):**
+
 - Security reminders
 - Protection from malicious software
 - Log-in monitoring

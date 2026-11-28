@@ -20,9 +20,10 @@ const raw = "SELECT * FROM users WHERE id = " + req.params.id;
 **Risk:** An attacker can bypass WHERE clauses (dump all rows), append UNION queries (exfiltrate other tables), or execute stacked queries (DROP TABLE, INSERT backdoor user). In healthcare, this is a direct PHI breach. Severity: CRITICAL if the endpoint is reachable.
 
 **Detection:**
+
 1. Grep for `SELECT`, `INSERT`, `UPDATE`, `DELETE` inside template literals or string concatenation.
 2. Grep for `.execute(`, `.run(`, `.query(`, `.prepare(` receiving a variable rather than a literal.
-3. Grep for `db.execute(\``, `db.query(\``, `sql\`${` — template literals fed directly into the query runner.
+3. Grep for ``db.execute(` ``, ``db.query(` ``, ``sql`${`` — template literals fed directly into the query runner.
 4. Cross-reference with all `req.params`, `req.query`, `req.body` ingestion points found in Step 1.
 
 ```bash
@@ -71,6 +72,7 @@ grep -rn 'shell: true' src/
 ```
 
 **Fix:** Avoid shell execution with user input entirely where possible. If unavoidable:
+
 - Use `execFile` or `spawn` with an argument array (not `shell: true`) — arguments are passed directly, not through a shell interpreter.
 - Validate the input against a strict allowlist before use.
 - Never concatenate user input into a command string.
@@ -185,6 +187,7 @@ grep -rn 'constructor\.prototype' src/
 ```
 
 **Fix:**
+
 - Use `Object.create(null)` for dictionaries that should not inherit from `Object.prototype`.
 - Sanitize parsed JSON keys before merging: reject or strip `__proto__`, `constructor`, `prototype`.
 - Use `JSON.parse` with a reviver function that blocks these keys.

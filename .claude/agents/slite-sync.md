@@ -30,6 +30,7 @@ You will be given two arguments: a local file path and a Slite doc ID.
 ## Response
 
 Reply with exactly one line:
+
 - On success: `Synced <filename> to Slite doc <doc-id>.`
 - On failure: a brief description of what went wrong.
 

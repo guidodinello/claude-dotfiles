@@ -8,7 +8,7 @@ All limits and pricing in this file must be verified against the linked source b
 
 ## Cloudflare D1
 
-**Source:** https://developers.cloudflare.com/d1/platform/limits/ (verified 2026-04-16)
+**Source:** <https://developers.cloudflare.com/d1/platform/limits/> (verified 2026-04-16)
 
 | Limit | Free | Paid (Workers Paid Plan) |
 |---|---|---|
@@ -30,6 +30,7 @@ All limits and pricing in this file must be verified against the linked source b
 | Full-text search | Basic (SQLite FTS5) | Basic (SQLite FTS5) |
 
 **Key notes:**
+
 - D1 is SQLite under the hood — SQL dialect is SQLite, not Postgres
 - No native connection pooling needed (Workers manage connections per Worker instance)
 - No `pg_*` extensions; no horizontal scaling (read replicas, sharding)
@@ -37,6 +38,7 @@ All limits and pricing in this file must be verified against the linked source b
 - Time Travel provides point-in-time restore (30 days on paid, 7 days free); no longer requires manual wrangler export
 
 **When D1 is the wrong choice:**
+
 - DB approaching 5+ GB (safety margin before 10 GB hard cap)
 - Need for Postgres-specific features (JSONB operators, CTEs with `RETURNING`, window functions, pg extensions)
 - High write throughput (D1 is optimized for read-heavy workloads)
@@ -46,9 +48,10 @@ All limits and pricing in this file must be verified against the linked source b
 ## Supabase Postgres
 
 **Sources:**
-- https://supabase.com/pricing (failed to load 2026-04-16 — values below unverified)
-- https://supabase.com/docs/guides/platform/limits (404 on 2026-04-16 — values below unverified)
-- https://supabase.com/docs/guides/database/connecting-to-postgres (verified 2026-04-16)
+
+- <https://supabase.com/pricing> (failed to load 2026-04-16 — values below unverified)
+- <https://supabase.com/docs/guides/platform/limits> (404 on 2026-04-16 — values below unverified)
+- <https://supabase.com/docs/guides/database/connecting-to-postgres> (verified 2026-04-16)
 
 | Limit | Free | Pro ($25/mo) | Team ($599/mo) | Enterprise |
 |---|---|---|---|---|
@@ -63,6 +66,7 @@ All limits and pricing in this file must be verified against the linked source b
 | SOC 2 Type II | No [unverified] | No [unverified] | Yes [unverified] | Yes |
 
 **Key notes:**
+
 - Full Postgres — all extensions, standard SQL, `pg_` functions work
 - Free tier projects pause after 1 week of inactivity [unverified — check manually]
 - Direct connection limit is low; use PgBouncer (built-in on all plans) or Supabase Pooler (Supavisor)
@@ -78,9 +82,10 @@ Use pooler connection string in Transaction mode (port 6543) from serverless run
 **Note:** Neon migrated from neon.tech to neon.com (308 permanent redirect as of 2026-04-16).
 
 **Sources:**
-- https://neon.com/pricing (verified 2026-04-16)
-- https://neon.com/docs/introduction/plans (verified 2026-04-16)
-- https://neon.com/docs/connect/connection-pooling (verified 2026-04-16)
+
+- <https://neon.com/pricing> (verified 2026-04-16)
+- <https://neon.com/docs/introduction/plans> (verified 2026-04-16)
+- <https://neon.com/docs/connect/connection-pooling> (verified 2026-04-16)
 
 | Limit | Free | Launch (pay-per-use) | Scale (pay-per-use) |
 |---|---|---|---|
@@ -95,6 +100,7 @@ Use pooler connection string in Transaction mode (port 6543) from serverless run
 | Projects max | 100 | Unlimited | 1,000 (soft limit, increasable) |
 
 **Key notes:**
+
 - Neon has moved to pay-per-use pricing — no fixed monthly fees for Launch or Scale
 - HIPAA moved from the old Business plan ($700/mo) to Scale (pay-per-use + additional charge)
 - PgBouncer connection pooling in Transaction mode only — add `-pooler` to hostname for serverless
@@ -108,7 +114,7 @@ Add `-pooler` to your endpoint hostname. Neon uses PgBouncer in Transaction mode
 
 ## PlanetScale
 
-**Source:** https://planetscale.com/pricing (verified 2026-04-16)
+**Source:** <https://planetscale.com/pricing> (verified 2026-04-16)
 
 **Note:** PlanetScale completely restructured pricing as of 2026. The old consumer tier plans (Hobby, Scaler, Scaler Pro) no longer exist. Pricing is now infrastructure-based (cluster size + storage + optional add-ons) for both Postgres and Vitess offerings.
 
@@ -138,6 +144,7 @@ Add `-pooler` to your endpoint hostname. Neon uses PgBouncer in Transaction mode
 - Available in 20+ regions across AWS and GCP
 
 **Key notes:**
+
 - Vitess is MySQL-compatible — foreign key enforcement off by default; not compatible with Postgres-specific SQL
 - PlanetScale now offers native Postgres (via EBS clusters) in addition to Vitess
 - Schema migrations on Vitess are online and non-blocking
@@ -148,9 +155,10 @@ Add `-pooler` to your endpoint hostname. Neon uses PgBouncer in Transaction mode
 ## AWS RDS Postgres / Aurora Serverless v2
 
 **Sources:**
-- https://aws.amazon.com/rds/postgresql/pricing/ (verified 2026-04-16)
-- https://aws.amazon.com/rds/aurora/pricing/ (verified 2026-04-16)
-- https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-v2.html (verified 2026-04-16)
+
+- <https://aws.amazon.com/rds/postgresql/pricing/> (verified 2026-04-16)
+- <https://aws.amazon.com/rds/aurora/pricing/> (verified 2026-04-16)
+- <https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-v2.html> (verified 2026-04-16)
 
 | Feature | RDS Postgres | Aurora Serverless v2 |
 |---|---|---|
@@ -164,6 +172,7 @@ Add `-pooler` to your endpoint hostname. Neon uses PgBouncer in Transaction mode
 | Cold start | N/A | Scales without disruption; pause/resume available |
 
 **Key notes:**
+
 - Best-in-class compliance (HIPAA, SOC 2, PCI, etc.)
 - Requires VPC setup — adds operational complexity vs. managed Supabase/Neon
 - RDS Proxy needed for serverless runtimes (Lambda, Workers) to avoid connection exhaustion
@@ -175,7 +184,7 @@ Add `-pooler` to your endpoint hostname. Neon uses PgBouncer in Transaction mode
 
 ## Turso (SQLite-compatible, libSQL)
 
-**Source:** https://turso.tech/pricing (verified 2026-04-16)
+**Source:** <https://turso.tech/pricing> (verified 2026-04-16)
 
 | Limit | Free | Developer ($4.99/mo) | Scaler ($24.92/mo) | Pro ($416.58/mo) |
 |---|---|---|---|---|
@@ -186,6 +195,7 @@ Add `-pooler` to your endpoint hostname. Neon uses PgBouncer in Transaction mode
 | HIPAA BAA | No | No | No | Yes |
 
 **Key notes:**
+
 - libSQL fork of SQLite — closest drop-in replacement for D1
 - Plans changed significantly: old Starter ($29/mo) and old Scaler ($259/mo) replaced by Developer ($4.99), new Scaler ($24.92), and Pro ($416.58)
 - Storage quota is total account storage, not per-database

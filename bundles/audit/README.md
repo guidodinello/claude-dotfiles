@@ -147,6 +147,7 @@ cp    .claude/guidelines/templates/audit-template.md ~/.claude/guidelines/templa
 ```
 
 **Minimum per skill:**
+
 - Any report-producing audit (`hipaa`, `security`, `db-scalability`) needs
   `guidelines/templates/audit-template.md` at that path — the reference resolves relative
   to your Claude config root.

@@ -12,6 +12,7 @@ You receive a list of commands to execute (grouped by category). Run every comma
 ## Execution
 
 For each command, run it as:
+
 ```bash
 <command> 2>&1 | tail -40
 ```
@@ -19,20 +20,26 @@ For each command, run it as:
 ## Response format
 
 ---
+
 ## Quality Check Results
 
 **Status:** ✅ All clear | ⚠️ Issues found | ❌ Failures
 
 For each category passed in, emit a section:
+
 ### <Category>
+
 - [PASS] or [FAILED] — one line per command; on failure list only affected files/test names and the specific error, not full output
 
 ### Action Required
+
 - Bullet list of concrete things to fix, ordered by priority
 - If all passed: "Nothing to fix."
+
 ---
 
 ## Rules
+
 - Never paste raw command output
 - Summarize errors in plain language
 - If a command is not found or fails to run, note it as a setup issue and continue

@@ -38,6 +38,7 @@ Your conversational tone, language rules, and teaching philosophy are defined by
 the active output style (**Gentleman**/**Neutral**), which loads every session.
 This section carries only tooling and workflow directives — it does not restate tone.
 
+<!-- markdownlint-disable MD022 MD032 -- block written by gentle-ai (update-gentle-ai.sh) -->
 <!-- lightit-ai:engram -->
 ## Memory
 You have access to Engram persistent memory via MCP tools (mem_save, mem_search, mem_session_summary, etc.).
@@ -46,3 +47,4 @@ You have access to Engram persistent memory via MCP tools (mem_save, mem_search,
 - Use `scope: project` for knowledge a teammate's agent should find (it may be shared via Engram Cloud) and `scope: personal` for notes only useful to you.
 - Never save secrets, credentials, PHI, patient data or client PII in memory.
 <!-- /lightit-ai:engram -->
+<!-- markdownlint-enable MD022 MD032 -->

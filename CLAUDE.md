@@ -13,6 +13,7 @@ Rule of thumb: if the task is "call an API and write the result somewhere", it's
 ## The Delegate Pattern
 
 Some skills exist solely to preprocess arguments and then spawn an agent. This is the right pattern when:
+
 - The skill needs to validate/transform inputs before the agent runs (e.g. style rule enforcement, argument parsing)
 - The agent is reusable across multiple skills
 

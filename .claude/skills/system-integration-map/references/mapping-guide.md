@@ -13,8 +13,8 @@ Split typically: backend (all deployables) in one agent; frontends + infra/terra
 | Object | Fields |
 |--------|--------|
 | view | `viewBox`, `hint`, `intro {eyebrow,title,paras[],start?[edgeIds]}`, `nodes[]`, `edges[]`, `flows?[]` |
-| node | `id, kind (person|ext|self|ours|ghost), x,y,w,h, label, sub, lines?[], codeLines?, cta?, major?, drill? (view id), up? (context node id), desc[], code[{p,n}], modules?[[name,desc]], crons?[[schedule,desc]], routes?[], unverified?[]` |
-| edge | `id, from, to, kind (rest|webhook|auth|data|nav|ops), label, off?, t?, both?, mech, flows, runs, code?[], warn?, unverified?[]` |
+| node | `id, kind (person\|ext\|self\|ours\|ghost), x,y,w,h, label, sub, lines?[], codeLines?, cta?, major?, drill? (view id), up? (context node id), desc[], code[{p,n}], modules?[[name,desc]], crons?[[schedule,desc]], routes?[], unverified?[]` |
+| edge | `id, from, to, kind (rest\|webhook\|auth\|data\|nav\|ops), label, off?, t?, both?, mech, flows, runs, code?[], warn?, unverified?[]` |
 | flow | `id, label, title, edges[edgeIds], steps[{t, c[paths]}]` |
 
 `code.p` starts with a key of `REPOS`; `gh()` turns it into a GitHub blob link.

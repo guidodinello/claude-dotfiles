@@ -26,6 +26,7 @@ Shared structure for the audit skills that reference it (hipaa-audit, security-a
 ## Surface Map
 
 Audit-specific. Each skill defines its own "before findings" tables here:
+
 - hipaa-audit: PHI-Bearing Tables + External Services Receiving PHI
 - security-audit: Entry Points + User Input → Dangerous Sinks
 - db-scalability-audit: Provider + Schema + Growth trajectory
@@ -77,6 +78,7 @@ Do not put "What's Working Well" in a separate section. Positive controls belong
 ### Dead Code Rule
 
 Before assigning CRITICAL or HIGH to any finding, verify the vulnerable function/handler is called in production code. Grep for it, explicitly excluding test files (`**/__tests__/**`, `**/*.test.ts`, `**/*.spec.ts`):
+
 - Callers only in tests → downgrade to MEDIUM, note "no production callers — latent risk only"
 - No callers at all → same treatment, recommend deletion over patching
 - Production callers confirmed → proceed with original severity

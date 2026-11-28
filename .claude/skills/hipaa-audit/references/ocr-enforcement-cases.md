@@ -4,7 +4,7 @@ Real-world resolution agreements from HHS Office for Civil Rights (OCR). Each ca
 technical failure to the violated CFR section, showing what the breach actually was and what
 remediation was required.
 
-Source: https://www.hhs.gov/hipaa/for-professionals/compliance-enforcement/agreements/index.html
+Source: <https://www.hhs.gov/hipaa/for-professionals/compliance-enforcement/agreements/index.html>
 
 ---
 
@@ -26,6 +26,7 @@ intrusion or insider misuse.
 ---
 
 ### Top of the World Ranch Treatment Center (TWRTC)
+
 **Date:** February 19, 2026
 **Settlement:** $103,000 + 2-year corrective action plan (CAP)
 **Entity type:** Substance use disorder treatment provider (Illinois)
@@ -36,6 +37,7 @@ account following a successful phishing attack. Reported to OCR via breach notif
 March 2023.
 
 **HIPAA violations found:**
+
 - Failed to conduct an accurate and thorough risk analysis (§ 164.308(a)(1)(ii)(A))
 
 **Technical failure:** Workforce member email account had no MFA or equivalent control; phishing
@@ -43,6 +45,7 @@ attack succeeded and went undetected until after the breach. No evidence of a ri
 would have identified email account takeover as a foreseeable risk vector.
 
 **CAP required:**
+
 - Complete an accurate and thorough risk analysis
 - Develop and implement a risk management plan
 - Develop/maintain written HIPAA policies and procedures
@@ -55,6 +58,7 @@ are not sufficient without technical controls.
 ---
 
 ### Deer Oaks — The Behavioral Health Solution
+
 **Date:** July 2025
 **Settlement:** $225,000 + 2-year CAP
 **Entity type:** Behavioral health provider
@@ -64,6 +68,7 @@ are not sufficient without technical controls.
 Rules.
 
 **HIPAA violations found:**
+
 - Failed to conduct an accurate and thorough risk analysis (§ 164.308(a)(1)(ii)(A))
 
 **Technical failure:** No adequate risk analysis existed to identify risks and vulnerabilities to
@@ -78,6 +83,7 @@ the Security Rule's administrative safeguards draw on the same foundational risk
 ---
 
 ### Northeast Radiology (NERAD)
+
 **Date:** April 2025
 **Settlement:** $350,000 + 2-year CAP
 **Entity type:** Professional corporation providing clinical services at medical imaging centers
@@ -86,6 +92,7 @@ the Security Rule's administrative safeguards draw on the same foundational risk
 **What happened:** OCR initiated investigation into HIPAA Security Rule violations.
 
 **HIPAA violations found:**
+
 - Failed to conduct an accurate and thorough risk analysis (§ 164.308(a)(1)(ii)(A))
 
 **Technical failure:** Risk analysis for ePHI systems was absent or insufficient to identify
@@ -101,6 +108,7 @@ infrastructure.
 ---
 
 ### Comstar, LLC
+
 **Date:** May 30, 2025
 **Settlement:** $75,000 + 2-year CAP
 **Entity type:** Business associate — provides billing, collection, and related services to
@@ -113,6 +121,7 @@ Ransomware was used to encrypt the network servers and the ePHI of ~585,621 indi
 Breach notification filed May 26, 2022.
 
 **HIPAA violations found:**
+
 - Failed to conduct an accurate and thorough risk analysis (§ 164.308(a)(1)(ii)(A))
 
 **Technical failure:** No adequate risk analysis; the seven-day gap between intrusion and
@@ -130,6 +139,7 @@ missing information system activity review (§ 164.308(a)(1)(ii)(D)).
 ---
 
 ### Montefiore Medical Center
+
 **Date:** February 6, 2024
 **Settlement:** $4,750,000 + 2-year CAP
 **Entity type:** Non-profit hospital system (New York City)
@@ -139,6 +149,7 @@ extended period. OCR's investigation revealed that Montefiore was unable to prev
 detect the attack until years after it occurred.
 
 **HIPAA violations found:**
+
 - Failed to analyze and identify potential risks and vulnerabilities to PHI
   (§ 164.308(a)(1)(ii)(A))
 - Failed to monitor and safeguard information systems' activity
@@ -152,6 +163,7 @@ access and its detection — demonstrating that audit logs either did not exist 
 reviewed.
 
 **CAP required:**
+
 - Workforce training on HIPAA policies and procedures
 - OCR monitoring for two years
 
@@ -164,12 +176,14 @@ caught this earlier.
 ---
 
 ### BayCare Health System
+
 **Date:** 2024
 **Settlement:** $800,000 + 2-year CAP
 **Entity type:** Florida health care provider
 **Trigger:** Complaint received concerning impermissible access to a complainant's ePHI
 
 **HIPAA violations found:**
+
 - Failed to implement policies and procedures for authorizing access to ePHI consistent with
   the Privacy Rule (§ 164.308(a)(4)(ii)(A) — Access Authorization)
 - Failed to reduce risks and vulnerabilities to ePHI to a reasonable and appropriate level
@@ -190,8 +204,9 @@ patient complains. Both controls must exist and both must be operative.
 ---
 
 ### BST & Co. CPAs, LLP
+
 **Date:** Settlement announced post-2020 (breach report filed February 16, 2020)
-**Settlement:** Amount not confirmed from available sources — see https://www.hhs.gov/press-room/hhs-ocr-bst-hipaa-settlement.html + 2-year CAP
+**Settlement:** Amount not confirmed from available sources — see <https://www.hhs.gov/press-room/hhs-ocr-bst-hipaa-settlement.html> + 2-year CAP
 **Entity type:** Business associate — public accounting and management consulting firm (New York)
 **Incident date:** December 7, 2019 (ransomware discovered)
 
@@ -199,6 +214,7 @@ patient complains. Both controls must exist and both must be operative.
 2019, affecting the PHI of its covered entity client.
 
 **HIPAA violations found:**
+
 - Failed to conduct an accurate and thorough risk analysis to determine the potential risks and
   vulnerabilities to the confidentiality, integrity, and availability of ePHI
   (§ 164.308(a)(1)(ii)(A))
@@ -207,6 +223,7 @@ patient complains. Both controls must exist and both must be operative.
 identified and mitigated in advance.
 
 **CAP required:**
+
 - Augment existing HIPAA and security training program
 - Provide annual training for all workforce members with access to PHI
 

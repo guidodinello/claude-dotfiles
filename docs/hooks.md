@@ -109,6 +109,7 @@ A command longer than 4000 characters is not split (the walk is quadratic in bas
 Blocks `wrangler d1 execute` and `wrangler d1 migrations apply` commands unless `--local` is specified. These commands could target production D1 databases.
 
 **Key insight:** `wrangler d1 execute` **defaults to remote** when neither `--remote` nor `--local` is specified. The hook catches all three risky patterns:
+
 - `wrangler d1 execute ...` (bare — defaults to remote)
 - `wrangler d1 execute ... --remote` (explicit)
 - `wrangler d1 migrations apply ...` (applies migrations to remote)
