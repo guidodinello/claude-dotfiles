@@ -99,17 +99,17 @@ elif [ "$PCT" -ge 50 ]; then BAR_COLOR="$WARN"
 else                         BAR_COLOR="$SUCCESS"; fi
 
 COST_RAW=$(echo "$input" | jq -r '.cost.total_cost_usd // empty')
-COST_SUFFIX=""
+SESSION_PART=""   # this session's cost and cache, the right-hand cell of the context row
 if [ -n "$COST_RAW" ]; then
   COST_FMT=$(python3 -c "print(f'\${float(\"$COST_RAW\"):.2f}')" 2>/dev/null)
   COST_VAL=$(python3 -c "v=float(\"$COST_RAW\"); print(1 if v>=0.50 else (2 if v>=0.10 else 3))" 2>/dev/null)
   if   [ "$COST_VAL" = "1" ]; then COST_COLOR="$ERROR"
   elif [ "$COST_VAL" = "2" ]; then COST_COLOR="$WARN"
   else                              COST_COLOR="$SUCCESS"; fi
-  COST_SUFFIX=" ${MUTED}(${NC}${COST_COLOR}${COST_FMT}${NC}${MUTED})${NC}"
+  SESSION_PART="${COST_COLOR}${COST_FMT}${NC}"
 fi
 
-CTX_PART="${MUTED}ctx${NC} ${BAR_COLOR}[${BAR_STR}]${NC} ${MUTED}${PCT}%${NC}${COST_SUFFIX}"
+CTX_PART="${MUTED}ctx${NC} ${BAR_COLOR}[${BAR_STR}]${NC} ${MUTED}${PCT}%${NC}"
 
 # --- Rate limits with reset times ---
 format_reset() {
@@ -124,16 +124,20 @@ except Exception:
 " "$ts" "$fmt" 2>/dev/null
 }
 
-# --- Prompt cache expiry (joins the context part: both describe this session) ---
+# --- Prompt cache expiry (joins the cost: both describe this session) ---
 # Past expires_at, the next message rebuilds the cache from scratch and costs more.
 CACHE_TS=$(echo "$input" | jq -r '.prompt_cache.expires_at // empty')
+CACHE_SEG=""
 if [ -n "$CACHE_TS" ]; then
   if [ "$(date +%s)" -ge "${CACHE_TS%.*}" ] 2>/dev/null; then
-    CTX_PART+=" ${MUTED}·${NC} ${ERROR}cache cold${NC}"
+    CACHE_SEG="${ERROR}cache cold${NC}"
   else
     CACHE_AT=$(format_reset "$CACHE_TS" '%H:%M')
-    [ -n "$CACHE_AT" ] && CTX_PART+=" ${MUTED}·${NC} ${MUTED}cache${NC} ${WARN}⧗ ${CACHE_AT}${NC}"
+    [ -n "$CACHE_AT" ] && CACHE_SEG="${MUTED}cache${NC} ${WARN}⧗ ${CACHE_AT}${NC}"
   fi
+fi
+if [ -n "$CACHE_SEG" ]; then
+  SESSION_PART="${SESSION_PART:+${SESSION_PART} ${MUTED}·${NC} }${CACHE_SEG}"
 fi
 
 rate_segment() {
@@ -151,22 +155,39 @@ rate_segment() {
   echo "$seg"
 }
 
-RATE_PARTS=""
+FIVE_SEG=""; WEEK_SEG=""
 FIVE_PCT=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
 FIVE_TS=$(echo "$input"  | jq -r '.rate_limits.five_hour.resets_at // empty')
 WEEK_PCT=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
 WEEK_TS=$(echo "$input"  | jq -r '.rate_limits.seven_day.resets_at // empty')
 
-[ -n "$FIVE_PCT" ] && RATE_PARTS="$(rate_segment '5h' "$FIVE_PCT" "$FIVE_TS" '%H:%M')"
-if [ -n "$WEEK_PCT" ]; then
-  WEEK_SEG="$(rate_segment '7d' "$WEEK_PCT" "$WEEK_TS" '%a %d %H:%M')"
-  [ -n "$RATE_PARTS" ] && RATE_PARTS+="${SEP}${WEEK_SEG}" || RATE_PARTS="$WEEK_SEG"
-fi
+[ -n "$FIVE_PCT" ] && FIVE_SEG="$(rate_segment '5h' "$FIVE_PCT" "$FIVE_TS" '%H:%M')"
+[ -n "$WEEK_PCT" ] && WEEK_SEG="$(rate_segment '7d' "$WEEK_PCT" "$WEEK_TS" '%a %d %H:%M')"
 
 # --- Assemble ---
 # One group per line, so a long branch name never pushes the rest off a narrow pane:
 # where we are, this session (context, cost, cache), the account's limits.
-echo -e "${MODEL_PART}${SEP}${DIR_PART}${GIT_PART}\033[K"
-echo -e "${CTX_PART}\033[K"
-# An `if`, not `[ ] && echo`: as the last command, a false test would become the script's exit status.
-if [ -n "$RATE_PARTS" ]; then echo -e "${RATE_PARTS}\033[K"; fi
+# Each line is two cells; the left cells are padded to one width so the separators line up.
+visible_len() {
+  local plain
+  plain=$(echo -e "$1" | sed 's/\x1b\[[0-9;]*[A-Za-z]//g')
+  echo "${#plain}"
+}
+
+LEFT_W=0
+for cell in "$MODEL_PART" "$CTX_PART" "$FIVE_SEG"; do
+  w=$(visible_len "$cell")
+  [ "$w" -gt "$LEFT_W" ] && LEFT_W=$w
+done
+
+row() {
+  local left="$1" right="$2" pad
+  if [ -z "$right" ]; then echo -e "${left}\033[K"; return 0; fi
+  printf -v pad '%*s' $(( LEFT_W - $(visible_len "$left") )) ''
+  echo -e "${left}${pad}${SEP}${right}\033[K"
+}
+
+row "$MODEL_PART" "${DIR_PART}${GIT_PART}"
+row "$CTX_PART" "$SESSION_PART"
+# An `if`, not `[ ] && row`: as the last command, a false test would become the script's exit status.
+if [ -n "$FIVE_SEG$WEEK_SEG" ]; then row "${FIVE_SEG:-$WEEK_SEG}" "${FIVE_SEG:+$WEEK_SEG}"; fi
