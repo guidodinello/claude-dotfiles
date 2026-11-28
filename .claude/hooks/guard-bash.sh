@@ -25,8 +25,9 @@ block() {
 }
 
 # The command is at .tool_input.command. Anything else means the input shape
-# is not what this guard was written for.
-if ! cmd="$(jq -er '.tool_input.command | select(type == "string")' 2>/dev/null)"; then
+# is not what this guard was written for. The -z check is needed because jq 1.6
+# `-e` exits 0 on empty input (no output at all), so an empty stdin would pass.
+if ! cmd="$(jq -er '.tool_input.command | select(type == "string")' 2>/dev/null)" || [[ -z "${cmd}" ]]; then
   block "guard-bash.sh could not read .tool_input.command from the hook input (is jq installed?). Refusing to run unchecked."
 fi
 

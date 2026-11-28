@@ -116,7 +116,9 @@ is_secret_path() {
 }
 
 input="$(cat)"
-if ! tool="$(jq -er '.tool_name | select(type == "string")' 2>/dev/null <<<"${input}")"; then
+# The -z check is needed because jq 1.6 `-e` exits 0 on empty input (no output
+# at all), so an empty stdin would pass.
+if ! tool="$(jq -er '.tool_name | select(type == "string")' 2>/dev/null <<<"${input}")" || [[ -z "${tool}" ]]; then
   block "guard-env-files.sh could not read .tool_name from the hook input (is jq installed?). Refusing to run unchecked."
 fi
 
