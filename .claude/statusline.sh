@@ -150,7 +150,8 @@ if [ -n "$WEEK_PCT" ]; then
 fi
 
 # --- Assemble ---
-LINE="${MODEL_PART}${SEP}${DIR_PART}${GIT_PART}${SEP}${CTX_PART}"
-[ -n "$RATE_PARTS" ] && LINE+="${SEP}${RATE_PARTS}"
+# Session limits get their own line so they are not pushed off a narrow pane.
+LINE1="${MODEL_PART}${SEP}${DIR_PART}${GIT_PART}${SEP}${CTX_PART}"
 
-echo -e "${LINE}\033[K"
+echo -e "${LINE1}\033[K"
+[ -n "$RATE_PARTS" ] && echo -e "${RATE_PARTS}\033[K"
