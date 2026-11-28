@@ -124,6 +124,18 @@ except Exception:
 " "$ts" "$fmt" 2>/dev/null
 }
 
+# --- Prompt cache expiry (joins the context part: both describe this session) ---
+# Past expires_at, the next message rebuilds the cache from scratch and costs more.
+CACHE_TS=$(echo "$input" | jq -r '.prompt_cache.expires_at // empty')
+if [ -n "$CACHE_TS" ]; then
+  if [ "$(date +%s)" -ge "${CACHE_TS%.*}" ] 2>/dev/null; then
+    CTX_PART+=" ${MUTED}·${NC} ${ERROR}cache cold${NC}"
+  else
+    CACHE_AT=$(format_reset "$CACHE_TS" '%H:%M')
+    [ -n "$CACHE_AT" ] && CTX_PART+=" ${MUTED}·${NC} ${MUTED}cache${NC} ${WARN}⧗ ${CACHE_AT}${NC}"
+  fi
+fi
+
 rate_segment() {
   local label="$1" pct_raw="$2" reset_ts="$3" reset_fmt="$4"
   local pct color rst
