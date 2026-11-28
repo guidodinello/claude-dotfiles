@@ -164,24 +164,9 @@ if [ -n "$WEEK_PCT" ]; then
 fi
 
 # --- Assemble ---
-# Session limits get their own line so they are not pushed off a narrow pane.
-# The context bar joins line 1 only when it fits: Claude Code sets COLUMNS to the pane width,
-# and the status line is drawn with a small left indent, hence the margin.
-visible_len() {
-  local plain
-  plain=$(echo -e "$1" | sed 's/\x1b\[[0-9;]*[A-Za-z]//g')
-  echo "${#plain}"
-}
-
-WIDTH="${COLUMNS:-$(tput cols 2>/dev/null || echo 80)}"
-LINE1="${MODEL_PART}${SEP}${DIR_PART}${GIT_PART}"
-LINE2="$RATE_PARTS"
-if [ "$(visible_len "${LINE1}${SEP}${CTX_PART}")" -le $(( WIDTH - 4 )) ]; then
-  LINE1+="${SEP}${CTX_PART}"
-else
-  LINE2="${CTX_PART}${LINE2:+${SEP}${LINE2}}"
-fi
-
-echo -e "${LINE1}\033[K"
+# One group per line, so a long branch name never pushes the rest off a narrow pane:
+# where we are, this session (context, cost, cache), the account's limits.
+echo -e "${MODEL_PART}${SEP}${DIR_PART}${GIT_PART}\033[K"
+echo -e "${CTX_PART}\033[K"
 # An `if`, not `[ ] && echo`: as the last command, a false test would become the script's exit status.
-if [ -n "$LINE2" ]; then echo -e "${LINE2}\033[K"; fi
+if [ -n "$RATE_PARTS" ]; then echo -e "${RATE_PARTS}\033[K"; fi
