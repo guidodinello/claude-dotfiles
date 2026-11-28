@@ -180,14 +180,15 @@ for cell in "$MODEL_PART" "$CTX_PART" "$FIVE_SEG"; do
   [ "$w" -gt "$LEFT_W" ] && LEFT_W=$w
 done
 
+# row LEFT RIGHT [SEPARATOR]: the separator defaults to SEP; pass blanks of the same width to drop it.
 row() {
-  local left="$1" right="$2" pad
+  local left="$1" right="$2" sep="${3:-$SEP}" pad
   if [ -z "$right" ]; then echo -e "${left}\033[K"; return 0; fi
   printf -v pad '%*s' $(( LEFT_W - $(visible_len "$left") )) ''
-  echo -e "${left}${pad}${SEP}${right}\033[K"
+  echo -e "${left}${pad}${sep}${right}\033[K"
 }
 
 row "$MODEL_PART" "${DIR_PART}${GIT_PART}"
 row "$CTX_PART" "$SESSION_PART"
 # An `if`, not `[ ] && row`: as the last command, a false test would become the script's exit status.
-if [ -n "$FIVE_SEG$WEEK_SEG" ]; then row "${FIVE_SEG:-$WEEK_SEG}" "${FIVE_SEG:+$WEEK_SEG}"; fi
+if [ -n "$FIVE_SEG$WEEK_SEG" ]; then row "${FIVE_SEG:-$WEEK_SEG}" "${FIVE_SEG:+$WEEK_SEG}" "     "; fi
