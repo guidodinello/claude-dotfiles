@@ -163,7 +163,7 @@ class GuardBashTest(unittest.TestCase):
         self.assertEqual(result.stdout, "")
 
     def test_unreadable_input_fails_closed(self):
-        for stdin in ("not json", "{}", '{"command": "ls"}', '{"tool_input": {"command": 1}}'):
+        for stdin in ("", "not json", "{}", '{"command": "ls"}', '{"tool_input": {"command": 1}}'):
             with self.subTest(stdin=stdin):
                 self.assertEqual(run_guard(stdin).returncode, BLOCK)
 
